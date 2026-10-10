@@ -214,6 +214,9 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
         })()
       : navItems.slice(0, 4)
 
+  const primaryHrefs = new Set(primaryItems.map((item) => item.href))
+  const moreItems = navItems.filter((item) => !primaryHrefs.has(item.href))
+
   const handleSignOut = async () => {
     setIsSigningOut(true)
     setOpen(false)
@@ -317,7 +320,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
             </div>
             {/* Role nav items */}
             <Suspense fallback={null}>
-              <NavItems items={navItems} onSelect={() => setOpen(false)} />
+              <NavItems items={moreItems} onSelect={() => setOpen(false)} />
             </Suspense>
 
             {/* ── Footer section: settings + logout ── */}

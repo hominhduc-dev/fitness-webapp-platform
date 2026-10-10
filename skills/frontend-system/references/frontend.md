@@ -219,6 +219,7 @@ Không có global Redux/Zustand store. Không thêm global store nếu state ch�
   Cần focus trap thì dùng `ui/dialog` (Radix) thay vì mở rộng primitive này.
 - Dùng `data-slot` cho styling/test ổn định.
 - Dùng `cn()` từ `lib/utils.ts` cho conditional classes.
+- Settings dùng `SettingsSection` với disclosure tối thiểu 44px, spacing 8–12px; `descriptionWhenClosed={false}` giữ mô tả phụ trong trạng thái mở, còn liên hệ hồ sơ luôn hiện. Form phản hồi dùng nút đính kèm ảnh song ngữ thay nhãn file picker của browser, vẫn giữ input có label và validation PNG/JPEG/WebP 1 MB.
 
 ## 6. Design system
 
@@ -362,13 +363,14 @@ Thẻ thống kê rời khỏi app dưới dạng PNG và được xem trên Ins
 
 ### Theme lifecycle
 
-- Modes: `light`, sáu palette IDs, `dark`, `system`; default `light`.
+- Modes: `light`, sáu palette IDs, `dark`, `system`; default `black-volt` cho trình duyệt chưa lưu lựa chọn. Theme đã lưu (kể cả light/system) được giữ nguyên.
 - `ThemeProvider` đặt class palette tương ứng; Black + Volt đặt thêm `.dark`. Provider đồng bộ `color-scheme`, meta `theme-color` và `resolvedTheme`; `system` chỉ resolve về light/dark.
 - Giá trị `yeahbuddy-theme` cũ (`glass`, `midnight`) migrate về `dark`; `sport` migrate sang `electric-blue` ở cả provider lẫn pre-paint script.
 - Root pre-paint script trong `app/layout.tsx` phải luôn ra **cùng kết quả** với `applyThemeToDocument()`: cùng class, cùng `color-scheme`, cùng `theme-color`. Lệch là flash khi reload.
+- `BrandLogo` giữ artwork YB và màu xanh dương gốc xuyên theme; không áp filter đổi màu logo.
 - Thêm theme color literal mới phải allowlist trong `scripts/check-ui-colors.mjs` và thêm case vào `lib/design-system/color-contrast.test.ts`.
-- Landing `/` dùng light trong pre-paint script và `AppProviders initialTheme`, không ghi đè theme preference đã lưu. Giao diện marketing dùng nền sáng, đường kẻ mảnh và accent cobalt; authenticated shell vẫn dùng glass/theme preference.
-- Ép light ở `/` **chỉ áp dụng cho khách chưa đăng nhập**: pre-paint script kiểm tra cookie `sb-*-auth-token` trước. `/` cũng là `start_url` của PWA nên với user đã đăng nhập nó chỉ là một bước redirect — ép light ở đó sẽ nháy splash trắng trước app tối mỗi lần mở. Splash lấy màu từ `bg-background` nên nó đi theo đúng theme mà script đặt.
+- Landing `/` dùng cùng lifecycle với app, không ép `initialTheme`; Black + Volt là màu thương hiệu mặc định nhưng landing cũng tôn trọng lựa chọn light/system đã lưu. CSS marketing và demo dùng semantic tokens của theme đang chạy.
+- `/` cũng là `start_url` của PWA và với user đã đăng nhập là bước redirect; không override theme theo route để tránh splash khác màu trước app. SSR root mặc định `.dark.black-volt`, pre-paint khôi phục preference trước paint. Splash lấy màu từ `bg-background`; manifest/background, browser tile và viewport mặc định dùng canvas Black + Volt `#0d0f0e`.
 - Landing owner: `components/landing/landing-page.tsx`, CSS cục bộ `landing-page.module.css`, copy song ngữ `lib/i18n/messages/landing.ts`. Preview dùng dữ liệu minh họa được gắn nhãn, CTA dùng auth modal qua query param.
 - Phễu đăng ký miễn phí: `lib/analytics/registration.ts` gửi sự kiện mở/gửi/lỗi biểu mẫu và `sign_up` sau khi API tạo tài khoản thành công. GA4 dùng measurement ID công khai, Vercel Analytics nhận custom events trên Vercel; không gửi thông tin cá nhân. Đăng ký email chỉ cần tên, email, mật khẩu; username và điện thoại có thể bổ sung sau.
 - Khi effect/canvas phụ thuộc theme, dùng `resolvedTheme`, không dùng raw `theme` vì mode `system` có thể đổi.
@@ -412,7 +414,7 @@ Light-mode overrides in `app/globals.css` intentionally flatten `.glass-surface`
 
 ### Mobile shell
 
-- Mobile top header dùng chung cho mọi route trong authenticated shell: logo dẫn về role home, avatar mở More sheet chứa toàn bộ navigation/settings.
+- Mobile top header dùng chung cho mọi route trong authenticated shell: logo dẫn về role home, avatar mở More sheet chứa các destination chưa có trên bottom nav cùng settings. Lọc theo href của `primaryItems` cho cả trainee/coach/admin, giữ toàn bộ nav items cho title lookup.
 - Bottom nav: fixed, centered, `max-w-[390px]`, safe-area bottom; mỗi item có icon + nhãn ngắn bên dưới. Trainee dùng 5 cột ổn định: Home, Workouts, Routine (`/schedule`), Nutrition, Progress. Coach/admin dùng bốn destination đầu của role.
 - Nội dung shell phải có padding bottom để không bị nav che.
 - `ResumeWorkoutCard` nằm phía trên bottom nav; AI bubble có rule tránh đè workout chip.
@@ -434,11 +436,13 @@ Light-mode overrides in `app/globals.css` intentionally flatten `.glass-surface`
 - `touch-action: manipulation` trên interactive controls; pinch zoom của trang vẫn bật.
 - Dùng `100dvh`/`100svh`, không dựa vào `100vh` cho full-screen mobile.
 
-- `/chat` là màn hình mobile toàn viewport: ẩn shell header và resume chip, giữ bottom nav và dành khoảng trống dưới composer, tự có back link theo role; header/composer có safe area, chiều cao và offset theo `visualViewport` khi bàn phím thay đổi. Desktop giữ shell và panel như bình thường. Message area cuộn riêng với overscroll containment.
+- `/chat` là màn hình mobile toàn viewport: ẩn shell header và resume chip, giữ bottom nav và dành khoảng trống dưới composer; khi focus ô nhập trong Chat hoặc Agent thì ẩn nav và bỏ khoảng trống dành cho nav, tự có back link theo role; header/composer có safe area, chiều cao và offset theo `visualViewport` khi bàn phím thay đổi. Desktop giữ shell và panel như bình thường. Message area cuộn riêng với overscroll containment.
 
 ## 9. Navigation theo role
 
 Nguồn duy nhất: `components/layout/shell-nav.ts`.
+
+- Báo lỗi/Góp ý nằm trong Settings (`components/settings/feedback-form.tsx`), dùng chung cho mọi role; không thêm bottom tab. Người dùng xem danh sách và chi tiết riêng qua `FeedbackPanel`. Admin mở `/admin?s=feedback` từ navigation để lọc, phân trang và cập nhật trạng thái có `expectedUpdatedAt`. API owner `lib/feedback/api.ts`, copy `lib/i18n/messages/feedback.ts`; private cache dùng `useUserQuery`. Ảnh chỉ có trong detail, tối đa 1 MB PNG/JPEG/WebP; context chỉ gửi pathname, version công khai và browser UA do backend đọc.
 
 | Role | Items |
 |---|---|

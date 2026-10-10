@@ -51,16 +51,10 @@ const themeInitScript = `
     }
     var paletteThemes = ["performance-green", "electric-blue", "volt-lime", "iron-orange", "black-volt", "crimson-performance"];
     var isKnownTheme = storedTheme === "light" || storedTheme === "dark" || storedTheme === "system" || paletteThemes.indexOf(storedTheme) !== -1;
-    var theme = isKnownTheme ? storedTheme : "light";
-    // The public marketing route has a fixed light art direction. Keep the
-    // stored preference untouched so authenticated routes can restore it.
-    //
-    // Only a visitor actually sees that route though: for a signed-in user "/"
-    // is a redirect into the app, and it is also the installed app's start_url,
-    // so forcing light here flashed a white splash in front of a dark app on
-    // every launch. The auth cookie is what the server decides on too.
-    var hasSession = /(?:^|; )sb-[^=]*-auth-token(?:\\.\\d+)?=./.test(document.cookie);
-    if (window.location.pathname === "/" && !hasSession) theme = "light";
+    // Black + Volt is the brand default on every route. Existing choices,
+    // including system and legacy migrations, stay intact across the landing
+    // page and authenticated app.
+    var theme = isKnownTheme ? storedTheme : "black-volt";
     var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
     var resolvedTheme = theme === "system" ? (prefersDark ? "dark" : "light") : theme;
     var root = document.documentElement;
@@ -198,7 +192,7 @@ export const metadata: Metadata = {
   category: "health & fitness",
   // Windows tiles (msapplication) — favicon set referenced via browserconfig
   other: {
-    "msapplication-TileColor": "#e8ecf3",
+    "msapplication-TileColor": "#0d0f0e",
     "msapplication-TileImage": "/ms-icon-144x144.png",
     "msapplication-config": "/browserconfig.xml",
   },
@@ -211,7 +205,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#e8ecf3",
+  themeColor: "#0d0f0e",
   width: "device-width",
   initialScale: 1,
   // Pinch-zoom stays available — WCAG 1.4.4 wants it, and iOS Safari has
@@ -228,7 +222,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang={defaultLocale} suppressHydrationWarning>
+    <html lang={defaultLocale} className="dark black-volt" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <link rel="dns-prefetch" href="https://bljmubatdtvuomucqmoj.supabase.co" />

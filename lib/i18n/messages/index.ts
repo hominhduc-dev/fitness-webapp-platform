@@ -1,4 +1,5 @@
 import type { AppLocale } from "@/lib/i18n/config"
+import { feedbackMessages } from "@/lib/i18n/messages/feedback"
 import { adminMessages } from "@/lib/i18n/messages/admin"
 import { authMessages } from "@/lib/i18n/messages/auth"
 import { coachMessages } from "@/lib/i18n/messages/coach"
@@ -28,6 +29,7 @@ type WidenLiteral<T> =
             : T
 
 const enMessages = {
+  ...feedbackMessages.en,
   ...commonMessages.en,
   ...landingMessages.en,
   ...authMessages.en,
@@ -52,6 +54,7 @@ const enMessages = {
 export type AppMessages = WidenLiteral<typeof enMessages>
 
 const viMessages: AppMessages = {
+  ...feedbackMessages.vi,
   ...commonMessages.vi,
   ...landingMessages.vi,
   ...authMessages.vi,

@@ -8,6 +8,7 @@ import { coachRouter } from "./coach.route"
 import { dashboardRouter } from "./dashboard.route"
 import { exerciseRouter } from "./exercise.route"
 import { foodRouter } from "./food.route"
+import { feedbackRouter } from "./feedback.route"
 import { googleConnectionRouter } from "./google.route"
 import { healthRouter } from "./health.route"
 import { integrationsRouter } from "./integrations.route"
@@ -35,6 +36,7 @@ apiRouter.use("/coach", coachRouter)
 apiRouter.use("/dashboard", dashboardRouter)
 apiRouter.use("/exercises", exerciseRouter)
 apiRouter.use("/foods", foodRouter)
+apiRouter.use("/feedback", feedbackRouter)
 apiRouter.use("/google", googleConnectionRouter)
 apiRouter.use("/meals", mealRouter)
 apiRouter.use("/notifications", notificationRouter)

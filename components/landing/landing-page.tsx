@@ -1,20 +1,21 @@
 "use client"
 
 import { Suspense, useEffect, useRef, useState } from "react"
-import Image from "next/image"
 import Link from "next/link"
 import {
   ArrowDown,
   ArrowRight,
   BarChart3,
+  Bot,
   CalendarDays,
   Check,
-  ChevronRight,
   Dumbbell,
   Flame,
   LayoutDashboard,
   Menu,
   Plus,
+  ShieldCheck,
+  Sparkles,
   Timer,
   Users,
   X,
@@ -23,64 +24,73 @@ import { AuthModalLauncher } from "@/components/auth/auth-modal-launcher"
 import { LanguageToggle } from "@/components/layout/language-toggle"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
+import { BrandLogo } from "@/components/ui/brand-logo"
 import type { AppLocale } from "@/lib/i18n/config"
 import { cn } from "@/lib/utils"
 import styles from "./landing-page.module.css"
 
-type DemoKey = "workout" | "nutrition" | "progress"
+type DemoKey = "workout" | "nutrition" | "progress" | "coach"
 
-function useInView<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null)
-  const [inView, setInView] = useState(false)
+// Content is visible on the server; motion is an optional client enhancement.
+function useLandingMotion() {
+  const ref = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
-    const node = ref.current
-    if (!node) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setInView(true)
-          observer.disconnect()
-        }
-      },
-      { threshold: 0.15 }
-    )
-    observer.observe(node)
-    return () => observer.disconnect()
+    const root = ref.current
+    if (!root || typeof IntersectionObserver === "undefined") return
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)")
+    const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-motion]"))
+    let observer: IntersectionObserver | undefined
+    const reset = () => {
+      observer?.disconnect()
+      nodes.forEach((node) => { delete node.dataset.motionState })
+    }
+    const start = () => {
+      reset()
+      if (preference.matches) return
+      observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return
+          const node = entry.target as HTMLElement
+          node.dataset.motionState = "visible"
+          observer?.unobserve(node)
+        })
+      }, { threshold: 0.08 })
+      nodes.forEach((node) => {
+        const bounds = node.getBoundingClientRect()
+        if (bounds.top < window.innerHeight && bounds.bottom > 0) return
+        node.dataset.motionState = "pending"
+        observer?.observe(node)
+      })
+    }
+    start()
+    preference.addEventListener("change", start)
+    return () => { preference.removeEventListener("change", start); reset() }
   }, [])
-  return { ref, inView }
+  return ref
 }
 
 export function LandingPage(_props: { locale: AppLocale }) {
   const { messages } = useLocale()
   const c = messages.landing
-  const { ref: finalCtaRef, inView: finalCtaInView } = useInView<HTMLElement>()
+  const motionRef = useLandingMotion()
   return (
     <div
+      ref={motionRef}
       className={cn(styles.shell, "min-h-screen bg-background text-foreground")}
     >
       <a href="#main-content" className={styles.skipLink}>
         {c.skipContent}
       </a>
-      <div className={styles.announcement}>
-        <span>{c.announcement}</span>
-        <Link href="/?auth=register" scroll={false}>
-          {c.getStarted}
-          <ArrowRight size={14} />
-        </Link>
-      </div>
       <TopBar />
       <main id="main-content" className={styles.frame}>
         <Hero />
+        <CapabilityStrip />
         <Specs />
         <FeaturesSection />
         <TrainerSection />
+        <AISection />
         <section
-          ref={finalCtaRef}
-          className={cn(
-            styles.finalCta,
-            styles.reveal,
-            finalCtaInView && styles.revealVisible
-          )}
+          data-motion="reveal" className={styles.finalCta}
         >
           <p className={styles.eyebrow}>{c.finalEyebrow}</p>
           <h2 className={styles.sectionTitle}>
@@ -106,7 +116,6 @@ export function LandingPage(_props: { locale: AppLocale }) {
       <footer className={styles.footer}>
         <p>{c.footerLine}</p>
         <div className="flex flex-wrap items-center gap-6">
-          <LanguageToggle />
           <Link href="/privacy-policy">{c.privacy}</Link>
           <Link href="/terms-of-service">{c.terms}</Link>
           <Link href="#features">{c.navFeatures}</Link>
@@ -132,18 +141,14 @@ function TopBar() {
       <div className={styles.headerInner}>
         <Link
           href="/"
-          className="flex shrink-0 items-center gap-2.5 font-semibold tracking-tight"
+          className="flex shrink-0 items-center font-semibold tracking-tight"
         >
-          <Image
-            src="/favicon-yeahbuddy/android-icon-192x192.png"
-            width={30}
-            height={30}
-            alt=""
-            className="rounded-none"
+          <BrandLogo
+            className="gap-2.5"
+            markClassName="size-[30px]"
+            textClassName="font-semibold"
           />
-          <span className="text-lg">
-            YeahBuddy<span className="text-primary">.</span>
-          </span>
+          <span className="text-lg text-primary">.</span>
         </Link>
         <nav
           aria-label={c.navigation}
@@ -158,8 +163,12 @@ function TopBar() {
           <Link href="#trainers" className="hover:text-foreground">
             {c.navTrainers}
           </Link>
+          <Link href="#ai" className="hover:text-foreground">
+            {c.navAI}
+          </Link>
         </nav>
         <div className="flex items-center gap-2">
+          <LanguageToggle className="shrink-0" />
           <Button
             variant="ghost"
             asChild
@@ -172,7 +181,7 @@ function TopBar() {
           </Button>
           <Button
             asChild
-            className="rounded-full"
+            className="hidden rounded-full sm:inline-flex"
             onClick={() => setMenuOpen(false)}
           >
             <Link href="/?auth=register" scroll={false}>
@@ -203,6 +212,7 @@ function TopBar() {
             { href: "#features", label: c.navFeatures },
             { href: "#demo", label: c.productPreview },
             { href: "#trainers", label: c.navTrainers },
+            { href: "#ai", label: c.navAI },
             { href: "/?auth=login", label: c.signIn },
           ].map((item) => (
             <Link
@@ -235,43 +245,42 @@ function Hero() {
           <br />
           <span>{c.heroMutedTitle}</span>
         </h1>
-        <p className={cn(styles.heroCopy, styles.heroStep3)}>{c.heroCopy}</p>
-        <div
-          className={cn(
-            "mt-7 flex flex-wrap items-center gap-3",
-            styles.heroStep4
-          )}
-        >
-          <Button
-            asChild
-            size="lg"
-            className="rounded-full px-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
-          >
-            <Link href="/?auth=register" scroll={false}>
-              {c.startLogging}
-              <ArrowRight size={17} />
-            </Link>
-          </Button>
-          <Button
-            asChild
-            size="lg"
-            variant="outline"
-            className="rounded-full bg-transparent px-6 transition-all hover:-translate-y-0.5"
-          >
-            <Link href="#demo">
-              {c.watchDemo}
-              <ArrowDown size={17} />
-            </Link>
-          </Button>
+        <div className={styles.heroDetails}>
+          <p className={cn(styles.heroCopy, styles.heroStep3)}>{c.heroCopy}</p>
+          <div>
+            <div className={cn(styles.heroActions, styles.heroStep4)}>
+              <Button
+                asChild
+                size="lg"
+                className="rounded-full px-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
+              >
+                <Link href="/?auth=register" scroll={false}>
+                  {c.primaryCta}
+                  <ArrowRight size={17} />
+                </Link>
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="rounded-full bg-transparent px-6 transition-all hover:-translate-y-0.5"
+              >
+                <Link href="#demo">
+                  {c.watchDemo}
+                  <ArrowDown size={17} />
+                </Link>
+              </Button>
+            </div>
+            <p
+              className={cn(
+                "mt-5 text-xs leading-relaxed text-muted-foreground",
+                styles.heroStep5
+              )}
+            >
+              {c.trustLine}
+            </p>
+          </div>
         </div>
-        <p
-          className={cn(
-            "mt-5 text-xs leading-relaxed text-muted-foreground",
-            styles.heroStep5
-          )}
-        >
-          {c.trustLine}
-        </p>
       </div>
       <ProductPreview />
     </section>
@@ -286,36 +295,61 @@ function ProductPreview() {
     { key: "workout", label: c.workouts },
     { key: "nutrition", label: c.nutrition },
     { key: "progress", label: c.progress },
+    { key: "coach", label: c.coachTab },
   ]
-  const nav = [
-    { Icon: LayoutDashboard, label: c.overview, active: false },
-    { Icon: Dumbbell, label: c.workouts, active: activeDemo === "workout" },
-    { Icon: CalendarDays, label: c.weeklySchedule, active: false },
-    { Icon: Flame, label: c.nutrition, active: activeDemo === "nutrition" },
-    { Icon: BarChart3, label: c.progress, active: activeDemo === "progress" },
-  ]
+  const nav =
+    activeDemo === "coach"
+      ? [
+          { Icon: LayoutDashboard, label: c.overview, active: true },
+          { Icon: Users, label: c.yourTrainees, active: false },
+          { Icon: CalendarDays, label: c.coachPrograms, active: false },
+          { Icon: Dumbbell, label: c.coachExercises, active: false },
+        ]
+      : [
+          { Icon: LayoutDashboard, label: c.overview, active: false },
+          {
+            Icon: Dumbbell,
+            label: c.workouts,
+            active: activeDemo === "workout",
+          },
+          { Icon: CalendarDays, label: c.weeklySchedule, active: false },
+          {
+            Icon: Flame,
+            label: c.nutrition,
+            active: activeDemo === "nutrition",
+          },
+          {
+            Icon: BarChart3,
+            label: c.progress,
+            active: activeDemo === "progress",
+          },
+        ]
   return (
     <figure id="demo" className={cn(styles.previewFigure, styles.heroStep6)}>
+      <div className={styles.previewHeading}>
+        <p className={styles.eyebrow}>01 / {c.productPreview}</p>
+        <p>{c.demoHint}</p>
+      </div>
       <div className={styles.preview}>
         <div className={styles.windowBar}>
           <div
             className={styles.demoSwitch}
-            role="tablist"
+            role="group"
             aria-label={c.productPreview}
           >
             {demoTabs.map((tab) => (
               <button
                 key={tab.key}
                 type="button"
-                role="tab"
-                aria-selected={activeDemo === tab.key}
-                aria-label={tab.label}
+                aria-pressed={activeDemo === tab.key}
                 className={cn(
-                  styles.demoDot,
-                  activeDemo === tab.key && styles.demoDotActive
+                  styles.demoTab,
+                  activeDemo === tab.key && styles.demoTabActive
                 )}
                 onClick={() => setActiveDemo(tab.key)}
-              />
+              >
+                {tab.label}
+              </button>
             ))}
           </div>
           <p>
@@ -345,7 +379,7 @@ function ProductPreview() {
               </div>
             ))}
             <div className="mt-auto border-t border-border pt-5 text-xs text-muted-foreground">
-              {c.personalWorkspace}
+              {activeDemo === "coach" ? c.coachWorkspace : c.personalWorkspace}
               <div className="mt-2 flex items-center gap-2 text-foreground">
                 <span className="grid size-7 place-items-center rounded-full bg-primary-soft text-primary">
                   JD
@@ -357,19 +391,21 @@ function ProductPreview() {
           {activeDemo === "workout" && <WorkoutDemo />}
           {activeDemo === "nutrition" && <NutritionDemo />}
           {activeDemo === "progress" && <ProgressDemo />}
+          {activeDemo === "coach" && <CoachDemo />}
         </div>
       </div>
       <figcaption className="mt-4 flex flex-wrap justify-between gap-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
         <span>
           {String(
             demoTabs.findIndex((tab) => tab.key === activeDemo) + 1
-          ).padStart(2, "0")} /{" "}
-          {c.productPreview}
+          ).padStart(2, "0")}{" "}
+          / {c.productPreview}
         </span>
         <span>
           {activeDemo === "workout" && c.previewCaption}
           {activeDemo === "nutrition" && c.nutritionTarget}
           {activeDemo === "progress" && c.featureChartsTitle}
+          {activeDemo === "coach" && c.coachPreviewNote}
         </span>
       </figcaption>
     </figure>
@@ -495,9 +531,9 @@ function NutritionDemo() {
   const { messages } = useLocale()
   const c = messages.landing
   const meals = [
-    { label: "Breakfast", value: "620 kcal", detail: "42g protein" },
-    { label: "Lunch", value: "810 kcal", detail: "58g protein" },
-    { label: "Dinner", value: "740 kcal", detail: "49g protein" },
+    { label: c.breakfast, value: "620 kcal", detail: `42g ${c.protein}` },
+    { label: c.lunch, value: "810 kcal", detail: `58g ${c.protein}` },
+    { label: c.dinner, value: "410 kcal", detail: `49g ${c.protein}` },
   ]
   return (
     <div className={styles.previewMain}>
@@ -647,10 +683,28 @@ function MockChart() {
   )
 }
 
+function CapabilityStrip() {
+  const [paused, setPaused] = useState(false)
+  const { messages } = useLocale()
+  const c = messages.landing
+  const labels = [c.specTrainingDetail, c.specNutritionDetail, c.specProgressDetail, c.specCoachingDetail, c.navAI]
+  return (
+    <div className={styles.capabilityStrip}>
+      <button type="button" className={styles.motionToggle} aria-pressed={paused} onClick={() => setPaused(!paused)}>{paused ? c.motionResume : c.motionPause}</button>
+      <div className={styles.capabilityTrack} data-paused={paused}>
+        {[0, 1].map((copy) => (
+          <ul key={copy} className={styles.capabilityGroup} aria-hidden={copy === 1 ? true : undefined}>
+            {labels.map((label) => <li key={label}><Sparkles size={15} aria-hidden="true" />{label}</li>)}
+          </ul>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function Specs() {
   const { messages } = useLocale()
   const c = messages.landing
-  const { ref, inView } = useInView<HTMLDListElement>()
   const specs = [
     {
       Icon: Dumbbell,
@@ -679,11 +733,10 @@ function Specs() {
   ]
   return (
     <dl
-      ref={ref}
-      className={cn(styles.specs, styles.reveal, inView && styles.revealVisible)}
+      className={styles.specs}
     >
       {specs.map((spec) => (
-        <div key={spec.label}>
+        <div key={spec.label} data-motion="reveal">
           <span className={styles.specIconWrap} aria-hidden="true">
             <spec.Icon size={16} strokeWidth={1.75} />
           </span>
@@ -703,7 +756,6 @@ function Specs() {
 function FeaturesSection() {
   const { messages } = useLocale()
   const c = messages.landing
-  const { ref, inView } = useInView<HTMLElement>()
   const features = [
     { Icon: Dumbbell, title: c.featureLogTitle, body: c.featureLogCopy },
     {
@@ -723,11 +775,10 @@ function FeaturesSection() {
   return (
     <section
       id="features"
-      ref={ref}
-      className={cn(styles.section, styles.reveal, inView && styles.revealVisible)}
+      className={styles.section}
     >
-      <div className={styles.sectionIntro}>
-        <p className={styles.eyebrow}>{c.featuresEyebrow}</p>
+      <div data-motion="heading" className={styles.sectionIntro}>
+        <p className={styles.eyebrow}>02 / {c.featuresEyebrow}</p>
         <h2 className={styles.sectionTitle}>
           {c.featuresTitle}
           <br />
@@ -739,7 +790,7 @@ function FeaturesSection() {
       </div>
       <div className={styles.featureGrid}>
         {features.map(({ Icon, title, body }, index) => (
-          <article key={title} className={styles.feature}>
+          <article key={title} data-motion="reveal" data-motion-order={index % 3} className={styles.feature}>
             <div className="flex items-center justify-between">
               <span className={styles.featureIconWrap} aria-hidden="true">
                 <Icon size={20} strokeWidth={1.75} />
@@ -771,38 +822,13 @@ function FeaturesSection() {
 function TrainerSection() {
   const { messages } = useLocale()
   const c = messages.landing
-  const { ref, inView } = useInView<HTMLElement>()
-  const rows = [
-    {
-      name: "Maya R.",
-      initials: "MR",
-      plan: c.pullDay,
-      status: c.clientOnTrack,
-      complete: true,
-    },
-    {
-      name: "Theo S.",
-      initials: "TS",
-      plan: c.pushDay,
-      status: c.clientUnderPlan,
-      complete: false,
-    },
-    {
-      name: "Hana K.",
-      initials: "HK",
-      plan: c.restDay,
-      status: c.clientOnTrack,
-      complete: true,
-    },
-  ]
   return (
     <section
       id="trainers"
-      ref={ref}
-      className={cn(styles.trainers, styles.reveal, inView && styles.revealVisible)}
+      className={styles.trainers}
     >
-      <div>
-        <p className={styles.eyebrow}>{c.trainerEyebrow}</p>
+      <div data-motion="heading">
+        <p className={styles.eyebrow}>03 / {c.trainerEyebrow}</p>
         <h2 className={styles.sectionTitle}>
           {c.trainerTitle}
           <br />
@@ -830,54 +856,135 @@ function TrainerSection() {
           </Link>
         </Button>
       </div>
-      <figure className={styles.coachPreview}>
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <span className="text-sm font-medium">{c.coachWorkspace}</span>
-          <Users size={16} className="text-primary" />
-        </div>
-        <div className="p-5">
-          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-            {c.yourTrainees}
-          </p>
-          <p className="mb-5 mt-2 text-3xl font-semibold">
-            03{" "}
-            <span className="text-xs font-normal text-muted-foreground">
-              {c.sampleProfiles}
-            </span>
-          </p>
-          {rows.map((row) => (
-            <div
-              key={row.name}
-              className="flex items-center gap-3 border-t border-border py-4"
-            >
-              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-subtle font-mono text-xs">
-                {row.initials}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">{row.name}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{row.plan}</p>
-              </div>
-              <span
-                className={cn(
-                  "max-w-28 rounded-full px-2 py-1 text-[10px]",
-                  row.complete
-                    ? "bg-success-soft text-success-text"
-                    : "bg-warning-soft text-warning-text"
-                )}
-              >
-                {row.status}
-              </span>
-            </div>
-          ))}
-          <div className="mt-2 flex items-center justify-between rounded-md border border-border p-3 text-xs text-muted-foreground">
-            {c.coachPreviewNote}
-            <ChevronRight size={14} />
-          </div>
-        </div>
+      <figure data-motion="reveal" data-motion-order="1" className={styles.coachPreview}>
+        <CoachDemo />
         <figcaption className="border-t border-border px-5 py-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          02 / {c.sampleData}
+          {c.sampleData}
         </figcaption>
       </figure>
     </section>
+  )
+}
+function AISection() {
+  const { messages } = useLocale()
+  const c = messages.landing
+  const steps = [c.aiStepRead, c.aiStepDraft, c.aiStepReview]
+  return (
+    <section
+      id="ai"
+      className={styles.aiSection}
+    >
+      <div data-motion="heading" className={styles.sectionIntro}>
+        <p className={styles.eyebrow}>04 / {c.aiEyebrow}</p>
+        <h2 className={styles.sectionTitle}>
+          {c.aiTitle}<br /><span>{c.aiMutedTitle}</span>
+        </h2>
+        <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground">{c.aiCopy}</p>
+      </div>
+      <div className={styles.aiGrid}>
+        <article data-motion="reveal" className={styles.aiCard}>
+          <span className={styles.featureIconWrap} aria-hidden="true"><Bot size={22} /></span>
+          <h3 className="mt-6 text-xl font-semibold tracking-tight">AI Coach</h3>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{c.aiCoachCopy}</p>
+          <div className={styles.aiQuestion}>
+            <span className={styles.eyebrow}>{c.aiExampleLabel}</span>
+            <p className="mt-3 text-sm leading-relaxed">{c.aiQuestion}</p>
+          </div>
+        </article>
+        <article data-motion="reveal" data-motion-order="1" className={cn(styles.aiCard, styles.aiAgentCard)}>
+          <span className={styles.featureIconWrap} aria-hidden="true"><Sparkles size={22} /></span>
+          <h3 className="mt-6 text-xl font-semibold tracking-tight">AI Agent</h3>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{c.aiAgentCopy}</p>
+          <ol className={styles.aiSteps}>
+            {steps.map((step, index) => (
+              <li key={step}>
+                <span aria-hidden="true">0{index + 1}</span>
+                <p>{step}</p>
+                {index === 2 && <ShieldCheck size={18} className="shrink-0 text-primary" aria-hidden="true" />}
+              </li>
+            ))}
+          </ol>
+        </article>
+      </div>
+      <div className={styles.sectionFoot}>
+        <p className="flex items-start gap-2"><ShieldCheck size={16} className="shrink-0 text-primary" aria-hidden="true" />{c.aiGuardrail}</p>
+        <Link href="/?auth=register" scroll={false}>{c.primaryCta}<ArrowRight size={15} /></Link>
+      </div>
+    </section>
+  )
+}
+
+function CoachDemo() {
+  const { messages } = useLocale()
+  const c = messages.landing
+  return (
+    <div className={styles.previewMain}>
+      <div className="mb-5 flex items-start justify-between gap-3">
+        <div>
+          <p className={styles.eyebrow}>{c.coachWorkspace}</p>
+          <h3 className="mt-2 text-xl font-semibold tracking-tight">
+            {c.coachDemoTitle}
+          </h3>
+        </div>
+        <Users
+          size={20}
+          className="mt-1 shrink-0 text-primary"
+          aria-hidden="true"
+        />
+      </div>
+      <div className={styles.coachMetrics}>
+        {[
+          { label: c.yourTrainees, value: "3" },
+          { label: c.coachSessions, value: "6" },
+          { label: c.coachCompletion, value: "67%" },
+        ].map((item) => (
+          <div
+            key={item.label}
+            className="rounded-lg border border-border bg-background p-3"
+          >
+            <p className="text-[10px] leading-relaxed text-muted-foreground">
+              {item.label}
+            </p>
+            <p className="mt-2 font-mono text-2xl font-medium">{item.value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 rounded-lg border border-border bg-background p-4">
+        <p className="text-xs font-medium">{c.coachWeeklyActivity}</p>
+        <div
+          className={styles.activityBars}
+          aria-label={c.coachActivityDescription}
+          role="img"
+        >
+          {[2, 1, 0, 2, 1, 0, 0].map((count, index) => (
+            <div key={index}>
+              <span className="font-mono text-[10px] text-muted-foreground">
+                {count}
+              </span>
+              <span
+                className={styles.activityBar}
+                style={{ height: Math.max(4, count * 18) + "px" }}
+              />
+              <span className="font-mono text-[9px] text-muted-foreground">
+                {5 + index}/10
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-4 rounded-lg border border-border bg-primary-soft p-4">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-primary">
+          {c.coachSwapTitle}
+        </p>
+        <p className="mt-2 text-sm font-medium">Maya R. · {c.coachSwapDay}</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          {c.coachSwapExample}
+        </p>
+        <p className="mt-3 flex items-start gap-2 text-xs text-primary">
+          <Check size={14} className="shrink-0" aria-hidden="true" />
+          {c.coachSwapReview}
+        </p>
+      </div>
+    </div>
   )
 }

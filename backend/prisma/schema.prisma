@@ -377,6 +377,7 @@ model User {
   weeklyMuscleSummaries  WeeklyMuscleSummary[]
   trainingRecommendationEvents TrainingRecommendationEvent[]
   exerciseOverrides      TraineeExerciseOverride[]
+  feedbackSubmissions    UserFeedback[]
   createdAt              DateTime                  @default(now())
   updatedAt              DateTime                  @updatedAt
 
@@ -384,6 +385,25 @@ model User {
   @@index([username])
   @@index([phone])
   @@index([role, coachApprovalStatus])
+}
+
+/// Private support submissions. Access is mediated by the authenticated API.
+model UserFeedback {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   String
+  message    String
+  pagePath   String?
+  appVersion String?
+  userAgent  String?
+  screenshot String?
+  status     String   @default("new")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
 }
 
 model AgentConversation {

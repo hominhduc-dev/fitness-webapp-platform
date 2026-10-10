@@ -180,6 +180,25 @@ describe("trainee exercise swap", () => {
     })
   })
 
+  it("records the assigned legacy fork even when its template lacks the current week", async () => {
+    const { program, targetExercise } = arrangeCoachProgram()
+    mocks.workoutFindFirst.mockResolvedValue({
+      exercises: [targetExercise], id: WORKOUT_ID, name: "Day 6",
+      program: { ...program, forkedFromProgramId: "library-template" },
+      programId: PROGRAM_ID, scheduledDay: 6, weekIndex: 2,
+    })
+    // The template only has week 0; old code tried to find week 2 there.
+    mocks.programFindUnique.mockResolvedValue({ forkedFromProgramId: null })
+    await swapExerciseForTraineeFromWorkout(trainee, swapInput)
+    expect(mocks.notificationCreate.mock.calls[0][0].data.metadata).toMatchObject({
+      originalProgramId: PROGRAM_ID, personalizedProgramId: PROGRAM_ID,
+      originalWorkoutId: WORKOUT_ID, originalWorkoutExerciseId: EXERCISE_ID,
+      targetOrder: 0, workoutScheduledDay: 6, workoutWeekIndex: 2,
+    })
+    expect(mocks.programFindUnique).not.toHaveBeenCalled()
+    expect(mocks.workoutFindFirst).toHaveBeenCalledTimes(1)
+  })
+
   /**
    * A second swap starts from what the trainee is looking at, which is their
    * own substitute — the coach's row still holds the original. Matching the
@@ -394,6 +413,22 @@ describe("coach approving a trainee's swap", () => {
         variationId: COACH_VARIATION_ID,
       },
     })
+  })
+
+  it("approves week 2 of an assigned legacy fork without touching its template or another day", async () => {
+    mocks.notificationFindFirst.mockResolvedValue({ id: "request", metadata: {
+      ...request, personalizedProgramId: PROGRAM_ID, workoutScheduledDay: 6, workoutWeekIndex: 2,
+    }, readAt: null })
+    mocks.programFindFirst.mockResolvedValue({ id: PROGRAM_ID, forkedFromProgramId: "library-template", workouts: [
+      { id: WORKOUT_ID, scheduledDay: 6, weekIndex: 2, exercises: [{ id: EXERCISE_ID, order: 0, variationId: COACH_VARIATION_ID }] },
+      { id: LATER_WORKOUT_ID, scheduledDay: 6, weekIndex: 3, exercises: [{ id: LATER_EXERCISE_ID, order: 0, variationId: COACH_VARIATION_ID }] },
+      { id: "other-day", scheduledDay: 3, weekIndex: 3, exercises: [{ id: "other-slot", order: 0, variationId: COACH_VARIATION_ID }] },
+    ] })
+    await expect(approveTraineeExerciseSwapForCoach(coach, "request")).resolves.toMatchObject({ updatedExerciseCount: 1, originalProgramId: PROGRAM_ID })
+    expect(mocks.assignmentFindFirst).toHaveBeenCalledTimes(1)
+    expect(mocks.assignmentFindFirst.mock.calls[0][0].where).toMatchObject({ programId: PROGRAM_ID, userId: TRAINEE_ID, program: { createdById: COACH_ID } })
+    expect(mocks.programFindFirst.mock.calls[0][0].where).toEqual({ createdById: COACH_ID, id: PROGRAM_ID })
+    expect(mocks.workoutExerciseUpdateMany.mock.calls[1][0].where.id.in).toEqual([LATER_EXERCISE_ID])
   })
 
   it("refuses a request a newer swap has replaced", async () => {
