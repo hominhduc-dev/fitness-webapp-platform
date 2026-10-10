@@ -70,7 +70,7 @@ app/layout.tsx
    │        ├─ ShellHeader              shared mobile brand/account header + bottom nav + More sheet
    │        ├─ ShellMain                <main>; mobile top offset for the AI bubble
    │        ├─ route content
-   │        ├─ AIChatBubble             dashboard trainee only; opened from Quick actions
+   │        ├─ AIChatPanel              shared /chat for trainee and coach
    │        └─ ResumeWorkoutCard        trainee only
    ├─ app/workout/*                     focused workout flow
    ├─ app/reset-password/*              public auth flow
@@ -118,7 +118,8 @@ app/layout.tsx
 | `/reset-password` | CSR auth recovery | `app/reset-password/page.tsx` |
 | `/dev/muscle-map` | CSR isolated preview | `app/dev/muscle-map/page.tsx` |
 | `/dev/design-system` | CSR visual contract lab, không cần session | `app/dev/design-system/page.tsx` |
-| `/agent` | SSR guard trainee/coach → CSR server-owned conversations, SSE progress and approvals | `components/ai/agent-workspace.tsx` |
+| `/chat` | SSR guard trainee/coach → shared trainee chat UI with Q&A and Agent tabs | `components/ai/chat-bubble.tsx`, `components/ai/agent-workspace.tsx` |
+| `/agent` | Compatibility redirect to `/chat?mode=agent` | `app/(shell)/agent/page.tsx` |
 
 Route-specific `layout.tsx` files enforce role early bằng `requireAppUser({ role })`. Page cần access token dùng `requireAppSession()`.
 
@@ -151,7 +152,7 @@ Route-specific `layout.tsx` files enforce role early bằng `requireAppUser({ ro
 - Query/mutation lấy token mới trong callback bằng `requireAccessToken()`, không key theo token.
 - Browser server-state do TanStack Query cache; Next `revalidate` chỉ áp dụng server fetch.
 - Tái sử dụng API helper hiện có, không rải `fetch()` trực tiếp trong component.
-- AI Agent dùng helpers trong `lib/fitness/api.ts`, user-scoped TanStack keys `agent`, authenticated fetch streaming cho SSE (có Authorization), polling fallback và abort khi unmount. Tab Agent trong trainee chat và nút AI Agent ở coach dashboard dùng chung `AgentWorkspace`; chat/bản nháp cũ vẫn giữ riêng luồng acceptance. Copy agent nằm ở `lib/i18n/messages/agent.ts`. Xem `docs/ai-agent-phases-2-4.md` cho migration, worker flags và phạm vi ghi dữ liệu.
+- AI Agent dùng helpers trong `lib/fitness/api.ts`, user-scoped TanStack keys `agent`, authenticated fetch streaming cho SSE (có Authorization), polling fallback và abort khi unmount. Trang `/chat` dùng chung trainee chat UI cho trainee/coach, với actions/suggestions theo role; tab Agent dùng chung `AgentWorkspace` và `/agent` redirect `/chat?mode=agent`; chat/bản nháp cũ vẫn giữ riêng luồng acceptance. Copy agent nằm ở `lib/i18n/messages/agent.ts`. Xem `docs/ai-agent-phases-2-4.md` cho migration, worker flags và phạm vi ghi dữ liệu.
 - TanStack Query Devtools mặc định tắt kể cả local development; chỉ bật khi cần debug bằng `NEXT_PUBLIC_ENABLE_QUERY_DEVTOOLS=true` rồi restart frontend.
 
 ### State boundaries
@@ -415,7 +416,7 @@ Light-mode overrides in `app/globals.css` intentionally flatten `.glass-surface`
 - Bottom nav: fixed, centered, `max-w-[390px]`, safe-area bottom; mỗi item có icon + nhãn ngắn bên dưới. Trainee dùng 5 cột ổn định: Home, Workouts, Routine (`/schedule`), Nutrition, Progress. Coach/admin dùng bốn destination đầu của role.
 - Nội dung shell phải có padding bottom để không bị nav che.
 - `ResumeWorkoutCard` nằm phía trên bottom nav; AI bubble có rule tránh đè workout chip.
-- AI Coach không dùng floating bubble toàn cục. Dashboard trainee mount panel chat cục bộ và mở panel từ nút AI Coach trong Quick actions; `ShellMain` không dành khoảng trống riêng cho AI.
+- AI Coach không dùng floating bubble toàn cục. Dashboard trainee mở `/chat` từ nút AI Coach trong Quick actions; coach mở cùng trang từ icon Sparkles; `ShellMain` không dành khoảng trống riêng cho AI.
 
 ### Dashboard trainee
 
@@ -432,6 +433,8 @@ Light-mode overrides in `app/globals.css` intentionally flatten `.glass-surface`
 - Input/select/textarea trên iOS có font floor 16px để tránh auto zoom.
 - `touch-action: manipulation` trên interactive controls; pinch zoom của trang vẫn bật.
 - Dùng `100dvh`/`100svh`, không dựa vào `100vh` cho full-screen mobile.
+
+- `/chat` là màn hình mobile toàn viewport: ẩn shell header và resume chip, giữ bottom nav và dành khoảng trống dưới composer, tự có back link theo role; header/composer có safe area, chiều cao và offset theo `visualViewport` khi bàn phím thay đổi. Desktop giữ shell và panel như bình thường. Message area cuộn riêng với overscroll containment.
 
 ## 9. Navigation theo role
 
@@ -549,7 +552,7 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 | Màu, theme, contrast | `app/globals.css` | `theme-provider.tsx`, `app/layout.tsx` |
 | Bottom nav/mobile menu | `components/layout/shell-header.tsx` | `shell-nav.ts`, glass CSS |
 | Desktop sidebar | `components/layout/sidebar.tsx` | `shell-nav.ts`, sidebar tokens |
-| AI bubble | `components/ai/chat-bubble.tsx` | `.ai-bubble-trigger` trong globals |
+| Shared AI chat | `components/ai/chat-bubble.tsx` | `.ai-bubble-trigger` trong globals |
 | Page shell/overlap/fixed UI | `app/(shell)/layout.tsx` | `components/layout/shell-main.tsx`, shell header, resume card, globals safe area |
 | Dashboard card | `components/dashboard/*` | dashboard page SSR composition |
 | Routine cards/filter/map popup | `components/workout/routines-workout-board.tsx` | routine builder, muscle profile helpers |

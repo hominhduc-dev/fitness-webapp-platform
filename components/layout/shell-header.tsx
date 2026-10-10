@@ -226,6 +226,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
   }
 
   // The trainee dashboard opens with its own greeting, so neither title bar shows there.
+  const isChat = pathname === "/chat"
   const hideTitle = role === "trainee" && pathname === "/dashboard"
 
   return (
@@ -248,7 +249,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
           notification bell stay reachable without scrolling back up. */}
       <header className={cn(
         "sticky top-0 z-40 bg-background px-3 pb-2 pt-[calc(0.45rem+env(safe-area-inset-top))] md:hidden",
-        hideTitle && "hidden",
+        (hideTitle || isChat) && "hidden",
       )}>
         <div className="mx-auto flex w-full max-w-[96rem] items-start justify-between gap-2">
           <div className="flex min-w-0 items-start gap-2">
@@ -287,7 +288,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
         </div>
       </header>
 
-      <div className="mobile-liquid-glass-root fixed bottom-[var(--mobile-nav-offset)] left-1/2 z-50 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2 md:hidden">
+      <div className={cn("mobile-liquid-glass-root fixed bottom-[var(--mobile-nav-offset)] left-1/2 z-50 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2 md:hidden")}>
         <div aria-hidden="true" className="mobile-liquid-glass-scene pointer-events-none absolute inset-0 rounded-full" />
         <nav
           className="mobile-floating-nav glass-surface relative w-full rounded-[1.75rem] border px-1.5 py-1.5"
