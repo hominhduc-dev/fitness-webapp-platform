@@ -23,6 +23,9 @@ function getMediaEditorCopy(locale: "en" | "vi") {
     fileHint: (kind: AdminExerciseMediaKind) =>
       `${EXERCISE_MEDIA_FILE_RULES[kind].extensions} · ${en ? "max" : "tối đa"} ${exerciseMediaMaxMegabytes(kind)}MB`,
     kindLabel,
+    needsBoth: en
+      ? "This exercise has no media yet: choose both a thumbnail and an animation."
+      : "Bài tập chưa có media: cần chọn cả thumbnail và animation.",
     missingHint: en
       ? "No media yet. Choose both a thumbnail and an animation."
       : "Chưa có media. Chọn cả thumbnail và animation.",
@@ -58,22 +61,34 @@ type MediaEditorCopy = ReturnType<typeof getMediaEditorCopy>
 
 /**
  * Thumbnail and animation upload for one variation, inside the admin edit
- * dialog. It saves on its own, independently of the exercise form.
+ * dialog. Its own button uploads straight away; with `files`/`onFilesChange`
+ * the dialog also holds the chosen files, so its Save uploads them too instead
+ * of silently dropping them.
  */
 export function ExerciseMediaEditor({
   exercise,
+  files: controlledFiles,
   locale,
+  onFilesChange,
   onRemove,
   onSave,
 }: {
   exercise: AdminExerciseItem
+  files?: AdminExerciseMediaFiles
   locale: "en" | "vi"
+  onFilesChange?: (files: AdminExerciseMediaFiles) => void
   onRemove: () => Promise<void>
   onSave: (files: AdminExerciseMediaFiles) => Promise<void>
 }) {
   const copy = getMediaEditorCopy(locale)
   const titleId = useId()
-  const [files, setFiles] = useState<AdminExerciseMediaFiles>({})
+  const [ownFiles, setOwnFiles] = useState<AdminExerciseMediaFiles>({})
+  const files = controlledFiles ?? ownFiles
+  function setFiles(update: (current: AdminExerciseMediaFiles) => AdminExerciseMediaFiles) {
+    const next = update(files)
+    if (onFilesChange) onFilesChange(next)
+    else setOwnFiles(next)
+  }
   const [status, setStatus] = useState<"idle" | "saving" | "removing">("idle")
   const [message, setMessage] = useState<{ text: string; tone: "error" | "success" } | null>(null)
 
@@ -118,7 +133,7 @@ export function ExerciseMediaEditor({
     if (!hasFiles || missingSide) return
     void run("saving", async () => {
       await onSave(files)
-      setFiles({})
+      setFiles(() => ({}))
     }, copy.saved)
   }
 
@@ -152,6 +167,10 @@ export function ExerciseMediaEditor({
           />
         ))}
       </div>
+
+      {!message && hasFiles && missingSide ? (
+        <p role="status" className="mt-2 text-xs text-warning-text">{copy.needsBoth}</p>
+      ) : null}
 
       {message ? (
         <p

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import {
   ArrowDownUp,
   ChevronDown,
@@ -132,6 +132,11 @@ function getExercisePanelCopy(locale: "en" | "vi") {
     },
     addToLibrary: locale === "en" ? "Add to library" : "Thêm vào thư viện",
     allEquipment: locale === "en" ? "All" : "Tất cả",
+    mediaNeedsBoth:
+      locale === "en"
+        ? "Media not saved: this exercise has none yet, so choose both a thumbnail and an animation."
+        : "Chưa lưu: bài tập chưa có media nên cần chọn cả thumbnail và animation.",
+    mediaUploadFailed: locale === "en" ? "Could not upload the media." : "Không thể tải media lên.",
     duplicateHint:
       locale === "en"
         ? "Using it keeps training history and progress in one place."
@@ -590,8 +595,11 @@ export type ExerciseFormModalProps = {
   /** Prefills the name of a new exercise, e.g. with what a picker search found nothing for. */
   initialName?: string
   locale: "en" | "vi"
-  /** Media upload for the exercise being edited; it saves independently of the form. */
-  mediaEditor?: ReactNode
+  /** Admin only: media upload for the exercise being edited. Files still waiting are uploaded by Save. */
+  media?: {
+    onRemove: () => Promise<void>
+    onSave: (files: AdminExerciseMediaFiles) => Promise<void>
+  }
   /** A coach's new exercise: offer to send it for review, ticked by default. */
   offerShare?: boolean
   /** Library exercises a new name is checked against, live and without AI. */
@@ -612,7 +620,7 @@ export function ExerciseFormModal({
   initial,
   initialName,
   locale,
-  mediaEditor,
+  media,
   offerShare = false,
   duplicateCandidates,
   onUseExisting,
@@ -633,6 +641,10 @@ export function ExerciseFormModal({
   const [primaryMuscles, setPrimaryMuscles] = useState<MuscleSlug[]>(initial?.primaryMuscles ?? [])
   const [secondaryMuscles, setSecondaryMuscles] = useState<MuscleSlug[]>(initial?.secondaryMuscles ?? [])
   const [mediaFiles, setMediaFiles] = useState<AdminExerciseMediaFiles>({})
+  // Files picked in the edit dialog's media section and not uploaded yet.
+  const [editMediaFiles, setEditMediaFiles] = useState<AdminExerciseMediaFiles>({})
+  const [savingMedia, setSavingMedia] = useState(false)
+  const [mediaError, setMediaError] = useState<string | null>(null)
   const [targetRole, setTargetRole] = useState<"primary" | "secondary">("primary")
   const [aiLoading, setAiLoading] = useState(false)
   const [aiMessage, setAiMessage] = useState<string | null>(null)
@@ -753,8 +765,26 @@ export function ExerciseFormModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function handleSave() {
-    if (!canSave) return
+  async function handleSave() {
+    if (!canSave || savingMedia) return
+    // Picked media goes up with the form rather than being dropped on close.
+    if (initial && media && hasDraftMedia(editMediaFiles)) {
+      if (!initial.media && !hasCompleteDraftMedia(editMediaFiles)) {
+        setMediaError(copy.mediaNeedsBoth)
+        return
+      }
+      setSavingMedia(true)
+      setMediaError(null)
+      try {
+        await media.onSave(editMediaFiles)
+        setEditMediaFiles({})
+      } catch (error) {
+        setMediaError(error instanceof Error ? error.message : copy.mediaUploadFailed)
+        return
+      } finally {
+        setSavingMedia(false)
+      }
+    }
     onSave({
       activityType,
       equipment,
@@ -791,7 +821,21 @@ export function ExerciseFormModal({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-          {initial ? mediaEditor : allowMedia ? (
+          {initial ? (
+            media ? (
+              <ExerciseMediaEditor
+                exercise={initial}
+                files={editMediaFiles}
+                locale={locale}
+                onFilesChange={(files) => {
+                  setEditMediaFiles(files)
+                  setMediaError(null)
+                }}
+                onRemove={media.onRemove}
+                onSave={media.onSave}
+              />
+            ) : null
+          ) : allowMedia ? (
             <CreateExerciseMediaDraft files={mediaFiles} locale={locale} onChange={setMediaFiles} />
           ) : null}
 
@@ -990,12 +1034,15 @@ export function ExerciseFormModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-6 py-4">
+          {mediaError ? (
+            <p role="alert" className="mr-auto min-w-0 flex-1 basis-full text-xs text-destructive-text sm:basis-auto">{mediaError}</p>
+          ) : null}
           <Button variant="ghost" onClick={onClose}>
             {copy.cancel}
           </Button>
-          <Button onClick={handleSave} disabled={!canSave || saving}>
-            {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+          <Button onClick={() => void handleSave()} disabled={!canSave || saving || savingMedia}>
+            {saving || savingMedia ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
             {initial ? copy.save : copy.create}
           </Button>
         </div>
@@ -1734,14 +1781,10 @@ export function ExerciseLibraryPanel({
           duplicateCandidates={exercises}
           onUseExisting={showExistingExercise}
           onAiDraft={onAiDraft}
-          mediaEditor={editingExercise && onSaveMedia && onRemoveMedia ? (
-            <ExerciseMediaEditor
-              exercise={editingExercise}
-              locale={locale}
-              onRemove={() => onRemoveMedia(editingExercise.id)}
-              onSave={(files) => onSaveMedia(editingExercise.id, files)}
-            />
-          ) : undefined}
+          media={editingExercise && onSaveMedia && onRemoveMedia ? {
+            onRemove: () => onRemoveMedia(editingExercise.id),
+            onSave: (files) => onSaveMedia(editingExercise.id, files),
+          } : undefined}
           saving={isSaving}
           onClose={() => setModal(null)}
           onSave={handleSave}
