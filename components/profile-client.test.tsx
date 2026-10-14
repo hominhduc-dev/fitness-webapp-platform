@@ -11,7 +11,7 @@ import { ProfileClient } from "./profile-client"
 
 const authState = vi.hoisted(() => ({ profile: null as AppProfile | null, updateProfile: vi.fn() }))
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => "/profile" }))
 
 vi.mock("@/components/providers/auth-provider", () => ({
   useAuth: () => ({

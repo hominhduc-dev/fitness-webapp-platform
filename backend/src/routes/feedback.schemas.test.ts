@@ -7,6 +7,9 @@ describe("feedback input privacy and limits", () => {
     expect(createFeedbackSchema.safeParse({ ...input, pagePath: "/chat" }).success).toBe(true)
     for (const pagePath of ["https://example.com", "//host", "/chat?token=secret", "/chat#fragment", "/\\host"]) expect(createFeedbackSchema.safeParse({ ...input, pagePath }).success).toBe(false)
     expect(createFeedbackSchema.safeParse({ ...input, accessToken: "private" }).success).toBe(false)
+    for (let code = 0; code < 32; code += 1) {
+      expect(createFeedbackSchema.safeParse({ ...input, pagePath: `/chat${String.fromCharCode(code)}` }).success).toBe(false)
+    }
   })
   it("bounds description, version and pagination", () => {
     expect(createFeedbackSchema.safeParse({ ...input, message: "short" }).success).toBe(false)

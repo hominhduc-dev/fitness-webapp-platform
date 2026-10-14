@@ -17,7 +17,7 @@ const feedbackStatusSchema = z.enum(["new", "in_progress", "resolved"])
 const createFeedbackSchema = z.object({
   category: feedbackCategorySchema,
   message: z.string().trim().min(10).max(3000),
-  pagePath: z.string().max(512).refine((value) => /^\/(?!\/)/.test(value) && !/[?#\\\x00-\x1f]/.test(value), "Chỉ gửi đường dẫn trang, không kèm query hoặc fragment.").optional(),
+  pagePath: z.string().max(512).refine((value) => /^\/(?!\/)/.test(value) && !/[?#\\]/.test(value) && !Array.from(value).some((character) => character.charCodeAt(0) < 32), "Chỉ gửi đường dẫn trang, không kèm query hoặc fragment.").optional(),
   appVersion: z.string().trim().max(64).optional(),
   screenshot: z.string().max(Math.ceil(MAX_SCREENSHOT_BYTES / 3) * 4 + 40).refine(isFeedbackScreenshot, "Ảnh phải là PNG, JPEG hoặc WebP hợp lệ, tối đa 1 MB.").optional(),
 }).strict()
