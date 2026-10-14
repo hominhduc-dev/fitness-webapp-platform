@@ -132,6 +132,11 @@ function getExercisePanelCopy(locale: "en" | "vi") {
     },
     addToLibrary: locale === "en" ? "Add to library" : "Thêm vào thư viện",
     allEquipment: locale === "en" ? "All" : "Tất cả",
+    missingMedia: locale === "en" ? "thumbnail and animation" : "thumbnail và animation",
+    missingPattern: locale === "en" ? "movement pattern" : "kiểu chuyển động",
+    missingPrimaryMuscles: locale === "en" ? "primary muscle" : "cơ chính",
+    reviewComplete: locale === "en" ? "Everything a shared exercise needs is filled in." : "Bài đã đủ thông tin để dùng chung.",
+    reviewMissingTitle: locale === "en" ? "Still missing before sharing:" : "Còn thiếu trước khi dùng chung:",
     mediaNeedsBoth:
       locale === "en"
         ? "Media not saved: this exercise has none yet, so choose both a thumbnail and an animation."
@@ -611,8 +616,13 @@ export type ExerciseFormModalProps = {
   saving: boolean
   /** Opened on top of another dialog (an exercise picker), so it layers above it. */
   stacked?: boolean
+  /**
+   * Reviewing a coach's exercise: adds a "save and approve" button next to Save
+   * and lists what the exercise is still missing.
+   */
+  approveLabel?: string
   onClose: () => void
-  onSave: (data: FormData) => void
+  onSave: (data: FormData, options?: { approve?: boolean }) => void
 }
 
 export function ExerciseFormModal({
@@ -627,6 +637,7 @@ export function ExerciseFormModal({
   onAiDraft,
   saving,
   stacked = false,
+  approveLabel,
   onClose,
   onSave,
 }: ExerciseFormModalProps) {
@@ -765,7 +776,16 @@ export function ExerciseFormModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function handleSave() {
+  // What a reviewer would want filled before the exercise goes to everyone.
+  const missingForReview = approveLabel
+    ? [
+        !initial?.media && !hasCompleteDraftMedia(editMediaFiles) ? copy.missingMedia : null,
+        !movementPattern ? copy.missingPattern : null,
+        activityType === "strength" && primaryMuscles.length === 0 ? copy.missingPrimaryMuscles : null,
+      ].filter((item): item is string => Boolean(item))
+    : []
+
+  async function handleSave({ approve = false }: { approve?: boolean } = {}) {
     if (!canSave || savingMedia) return
     // Picked media goes up with the form rather than being dropped on close.
     if (initial && media && hasDraftMedia(editMediaFiles)) {
@@ -797,7 +817,7 @@ export function ExerciseFormModal({
       secondaryMuscles,
       shareRequested: offerShare && !initial ? shareRequested : undefined,
       variationName: variationName.trim() || "Default",
-    })
+    }, approve ? { approve: true } : undefined)
   }
 
   return (
@@ -821,6 +841,19 @@ export function ExerciseFormModal({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          {approveLabel ? (
+            missingForReview.length > 0 ? (
+              <div role="status" className="rounded-lg border border-warning/40 bg-warning-soft px-3 py-2.5 text-xs leading-5 text-warning-text">
+                <p className="font-semibold">{copy.reviewMissingTitle}</p>
+                <p>{missingForReview.join(" · ")}</p>
+              </div>
+            ) : (
+              <p role="status" className="rounded-lg border border-primary/25 bg-primary-soft px-3 py-2.5 text-xs text-primary">
+                {copy.reviewComplete}
+              </p>
+            )
+          ) : null}
+
           {initial ? (
             media ? (
               <ExerciseMediaEditor
@@ -1041,10 +1074,16 @@ export function ExerciseFormModal({
           <Button variant="ghost" onClick={onClose}>
             {copy.cancel}
           </Button>
-          <Button onClick={() => void handleSave()} disabled={!canSave || saving || savingMedia}>
-            {saving || savingMedia ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+          <Button variant={approveLabel ? "outline" : "default"} onClick={() => void handleSave()} disabled={!canSave || saving || savingMedia}>
+            {(saving || savingMedia) && !approveLabel ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
             {initial ? copy.save : copy.create}
           </Button>
+          {approveLabel ? (
+            <Button onClick={() => void handleSave({ approve: true })} disabled={!canSave || saving || savingMedia}>
+              {saving || savingMedia ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1.5 h-3.5 w-3.5" />}
+              {approveLabel}
+            </Button>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

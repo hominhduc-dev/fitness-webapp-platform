@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { Check, ChevronDown, GitMerge, Loader2, X } from "lucide-react"
+import { Check, ChevronDown, Eye, GitMerge, Loader2, X } from "lucide-react"
 
-import { VariationSearchPicker } from "@/components/admin/admin-exercises-panel"
+import { ExerciseFormModal, VariationSearchPicker, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
 import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
 import { useToast } from "@/components/providers/toast-provider"
 import { Badge } from "@/components/ui/badge"
@@ -13,7 +13,7 @@ import { Card } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import type { AdminExerciseItem, AdminExerciseShareDecision, AdminExerciseShareRequest } from "@/lib/admin/types"
+import type { AdminExerciseItem, AdminExerciseMediaFiles, AdminExerciseShareDecision, AdminExerciseShareRequest } from "@/lib/admin/types"
 import { useAdminExerciseShareRequests, useReviewAdminExerciseShare } from "@/lib/queries/admin"
 import { cn } from "@/lib/utils"
 
@@ -21,6 +21,10 @@ function getCopy(locale: "en" | "vi") {
   const en = locale === "en"
   return {
     approve: en ? "Approve" : "Duyệt",
+    preview: en ? "Preview and edit" : "Xem trước và sửa",
+    previewMissing: en ? "This exercise is no longer in the library list. Reload the page." : "Không tìm thấy bài này trong danh sách. Hãy tải lại trang.",
+    saveAndApprove: en ? "Save & approve" : "Lưu & duyệt",
+    saveError: en ? "Unable to save the exercise." : "Không lưu được bài tập.",
     approved: (name: string) => (en ? `${name} is now in the shared library.` : `${name} đã vào thư viện chung.`),
     by: (coach: string) => (en ? `by ${coach}` : `của ${coach}`),
     cancel: en ? "Cancel" : "Hủy",
@@ -57,6 +61,7 @@ function RequestRow({
   locale,
   onApprove,
   onMerge,
+  onPreview,
   onReject,
 }: {
   busy: boolean
@@ -65,6 +70,8 @@ function RequestRow({
   locale: "en" | "vi"
   onApprove: () => void
   onMerge: () => void
+  /** Opens the exercise in the edit form; absent when the console cannot save exercises. */
+  onPreview?: () => void
   onReject: () => void
 }) {
   const copy = getCopy(locale)
@@ -96,6 +103,11 @@ function RequestRow({
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        {onPreview ? (
+          <Button type="button" size="icon-sm" variant="ghost" disabled={busy} onClick={onPreview} aria-label={`${copy.preview}: ${item.name}`} title={copy.preview}>
+            <Eye />
+          </Button>
+        ) : null}
         <Button type="button" size="icon-sm" variant="ghost" disabled={busy} onClick={onReject} aria-label={copy.reject} title={copy.reject}>
           <X />
         </Button>
@@ -121,10 +133,23 @@ const COLLAPSED_ROWS = 3
 export function ExerciseShareReviewPanel({
   libraryExercises,
   locale,
+  onRemoveMedia,
+  onSaveExercise,
+  onSaveMedia,
+  savingExerciseId,
 }: {
   /** The admin exercise list; only system and shared variations are merge targets. */
   libraryExercises: AdminExerciseItem[]
   locale: "en" | "vi"
+  /**
+   * With these, each request gets a preview that opens the edit form, so an
+   * admin can fill what the coach left out (media, pattern) before approving.
+   */
+  onSaveExercise?: (data: ExerciseSaveData) => Promise<void>
+  onSaveMedia?: (variationId: string, files: AdminExerciseMediaFiles) => Promise<void>
+  onRemoveMedia?: (variationId: string) => Promise<void>
+  /** The variation the console is saving, to show the form as busy. */
+  savingExerciseId?: string | null
 }) {
   const copy = getCopy(locale)
   const { toast } = useToast()
@@ -134,6 +159,7 @@ export function ExerciseShareReviewPanel({
   const [busyId, setBusyId] = useState<string | null>(null)
   const [rejecting, setRejecting] = useState<AdminExerciseShareRequest | null>(null)
   const [merging, setMerging] = useState<AdminExerciseShareRequest | null>(null)
+  const [previewing, setPreviewing] = useState<AdminExerciseShareRequest | null>(null)
   const [note, setNote] = useState("")
   const [targetVariationId, setTargetVariationId] = useState("")
   const [expanded, setExpanded] = useState(false)
@@ -180,6 +206,32 @@ export function ExerciseShareReviewPanel({
   const trimmedNote = note.trim() || undefined
   const dialogBusy = Boolean(busyId)
 
+  // The library list's row, read on every render so an upload made in the form shows at once.
+  const previewLead = previewing ? (previewing.variations.find((variation) => variation.isDefault) ?? previewing.variations[0]) : undefined
+  const previewExercise = previewLead ? libraryExercises.find((exercise) => exercise.id === previewLead.id) ?? null : null
+
+  function openPreview(item: AdminExerciseShareRequest) {
+    const lead = item.variations.find((variation) => variation.isDefault) ?? item.variations[0]
+    if (!lead || !libraryExercises.some((exercise) => exercise.id === lead.id)) {
+      toast({ title: copy.previewMissing, tone: "error" })
+      return
+    }
+    setPreviewing(item)
+  }
+
+  async function savePreview(item: AdminExerciseShareRequest, data: ExerciseSaveData, approve: boolean) {
+    if (!onSaveExercise) return
+    try {
+      await onSaveExercise(data)
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : copy.saveError, tone: "error" })
+      return
+    }
+    setPreviewing(null)
+    // The console already confirms the save; approving adds its own message.
+    if (approve) await decide(item, { decision: "approve" })
+  }
+
   return (
     <Card className="mb-5 overflow-hidden">
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
@@ -195,6 +247,7 @@ export function ExerciseShareReviewPanel({
           locale={locale}
           onApprove={() => void decide(item, { decision: "approve" })}
           onMerge={() => setMerging(item)}
+          onPreview={onSaveExercise ? () => openPreview(item) : undefined}
           onReject={() => setRejecting(item)}
         />
       ))}
@@ -208,6 +261,22 @@ export function ExerciseShareReviewPanel({
           {showAll ? copy.showFewer : copy.showMore(hiddenCount)}
           <ChevronDown className={cn("size-3.5 transition-transform", showAll && "rotate-180")} />
         </button>
+      ) : null}
+
+      {previewing && previewExercise ? (
+        <ExerciseFormModal
+          allowMedia={false}
+          approveLabel={copy.saveAndApprove}
+          initial={previewExercise}
+          locale={locale}
+          media={onSaveMedia && onRemoveMedia ? {
+            onRemove: () => onRemoveMedia(previewExercise.id),
+            onSave: (files) => onSaveMedia(previewExercise.id, files),
+          } : undefined}
+          saving={savingExerciseId === previewExercise.id || busyId === previewing.id}
+          onClose={() => setPreviewing(null)}
+          onSave={(data, options) => void savePreview(previewing, data, options?.approve === true)}
+        />
       ) : null}
 
       <Dialog open={rejecting !== null} onOpenChange={(open) => { if (!open && !dialogBusy) closeDialogs() }}>

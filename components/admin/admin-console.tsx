@@ -2431,7 +2431,14 @@ export function AdminConsole() {
           </TabsContent>
 
           <TabsContent value="exercises">
-            <ExerciseShareReviewPanel libraryExercises={exercises} locale={locale} />
+            <ExerciseShareReviewPanel
+              libraryExercises={exercises}
+              locale={locale}
+              onSaveExercise={handleSaveExerciseData}
+              onSaveMedia={handleSaveExerciseMedia}
+              onRemoveMedia={handleRemoveExerciseMedia}
+              savingExerciseId={actionKey?.startsWith("exercise-update-") ? actionKey.slice("exercise-update-".length) : null}
+            />
             <AdminExercisesPanel
               exercises={exercises}
               actionKey={actionKey}
