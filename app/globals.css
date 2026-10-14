@@ -1746,3 +1746,14 @@ aside.glass-surface::after {
   .driver-popover .driver-popover-footer { gap: 0.5rem; }
   .driver-popover .driver-popover-footer button { min-height: 2.5rem; padding: 0.5rem 0.75rem; }
 }
+
+/* Give typing space to the composer in both AI chat tabs on mobile. */
+@media (width < 48rem) {
+  body:has([data-chat-page] :is(input, textarea, [contenteditable="true"]):focus) .mobile-liquid-glass-root {
+    display: none;
+  }
+
+  [data-chat-page]:has(:is(input, textarea, [contenteditable="true"]):focus) {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

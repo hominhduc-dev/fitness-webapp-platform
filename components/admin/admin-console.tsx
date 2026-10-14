@@ -32,6 +32,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { AdminExercisesPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
 import { ExerciseShareReviewPanel } from "@/components/admin/exercise-share-review-panel"
 import { AdminBroadcastPanel } from "@/components/admin/admin-broadcast-panel"
+import { FeedbackPanel } from "@/components/admin/feedback-panel"
 import { AdminFoodsPanel } from "@/components/admin/admin-foods-panel"
 import { CoachSignupsPanel } from "@/components/admin/coach-signups-panel"
 import { ExerciseSyncReviewModal } from "@/components/admin/exercise-sync-review-modal"
@@ -598,6 +599,7 @@ const SECTION_DATA = {
   foods: [],
   // The notices panel loads its own audience and history.
   notifications: [],
+  feedback: [],
   programs: ["programs"],
   requests: ["coachRequests"],
   users: ["users", "dashboard"],
@@ -676,6 +678,7 @@ const VALID_SECTIONS = [
   "foods",
   "notifications",
   "audit",
+  "feedback",
 ] as const satisfies readonly AdminSectionId[]
 
 type AdminSectionId =
@@ -689,6 +692,7 @@ type AdminSectionId =
   | "foods"
   | "notifications"
   | "audit"
+  | "feedback"
 
 function AdminConsoleLoadingState({ locale }: { locale: "en" | "vi" }) {
   return (
@@ -2469,6 +2473,7 @@ export function AdminConsole() {
             <AdminBroadcastPanel locale={locale} />
           </TabsContent>
 
+          <TabsContent value="feedback"><FeedbackPanel admin /></TabsContent>
           <TabsContent value="audit" className="space-y-4">
             {/* Search + type filter chips */}
             <div className="flex flex-wrap gap-2">

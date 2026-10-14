@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 
 import { ProfileEmailChange } from "@/components/profile-email-change"
+import { FeedbackForm } from "@/components/settings/feedback-form"
 import { HuaweiHealthConnection } from "@/components/settings/huawei-health-connection"
 import { NotificationPreferencesSettings } from "@/components/settings/notification-preferences"
 
@@ -569,9 +570,10 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-page md:px-6">
-      <div className="space-y-3">
+      <div className="space-y-2">
           <SettingsSection
             collapsible
+            compactHeaderDescription
             description={
               <span className="block">
                 <span className="block truncate">{profile.email}</span>
@@ -580,14 +582,14 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             }
             headerVisual={
               <div className="relative shrink-0">
-                <Avatar className="size-14 border-2 border-primary/20 sm:size-16">
+                <Avatar className="size-11 border border-primary/20 sm:size-12">
                   <AvatarImage src={profile.avatar || "/placeholder.svg"} alt={profile.name} />
-                  <AvatarFallback className="bg-primary-soft text-xl text-primary sm:text-2xl">{initials || "YB"}</AvatarFallback>
+                  <AvatarFallback className="bg-primary-soft text-base text-primary">{initials || "YB"}</AvatarFallback>
                 </Avatar>
                 <Button
                   type="button"
                   size="icon-sm"
-                  className="absolute -bottom-0.5 -right-0.5 rounded-full shadow-lg"
+                  className="absolute -bottom-2 -right-2 size-11 rounded-full border-4 border-card bg-transparent text-primary shadow-none hover:bg-primary-soft [&_svg]:rounded-full [&_svg]:bg-primary [&_svg]:p-1 [&_svg]:text-primary-foreground [&_svg]:size-6"
                   onClick={(event) => {
                     event.stopPropagation()
                     avatarInputRef.current?.click()
@@ -910,6 +912,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
           <SettingsSection
             collapsible
             description={messages.profile.notificationsCopy}
+            descriptionWhenClosed={false}
             icon={Bell}
             id={SECTION_IDS.notifications}
             title={messages.profile.notifications}
@@ -956,10 +959,12 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
           </SettingsSection>
 
           <HuaweiHealthConnection />
+          <FeedbackForm />
 
           <SettingsSection
             collapsible
             description={messages.profile.changePasswordCopy}
+            descriptionWhenClosed={false}
             icon={Lock}
             id={SECTION_IDS.security}
             title={messages.profile.security}

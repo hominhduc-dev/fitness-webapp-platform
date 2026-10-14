@@ -22,7 +22,7 @@ export const themeStorageKey = "yeahbuddy-theme"
 const darkQuery = "(prefers-color-scheme: dark)"
 const lightThemeColor = "#e8ecf3"
 const darkThemeColor = "#080a0f"
-const defaultTheme: ThemeMode = "light"
+const defaultTheme: ThemeMode = "black-volt"
 const paletteThemes: readonly PaletteTheme[] = [
   "performance-green",
   "electric-blue",

@@ -254,20 +254,31 @@ describe("share card palette", () => {
   })
 })
 
-describe("light canvas", () => {
-  it("keeps the browser chrome colour in sync with --background", () => {
+describe("browser chrome canvas", () => {
+  it("keeps the selectable light browser chrome colour in sync with --background", () => {
     const background = resolveToken(lightTokens, "--background").toLowerCase()
     const sources = [
       "app/layout.tsx",
       "components/providers/theme-provider.tsx",
-      "public/manifest.json",
-      "public/browserconfig.xml",
     ]
 
     for (const source of sources) {
       const content = readFileSync(path.join(process.cwd(), source), "utf8").toLowerCase()
       expect(content, source).toContain(background)
     }
+  })
+
+  it("uses the Black + Volt brand canvas for static PWA and browser defaults", () => {
+    const brandTokens = paletteTokens.find(([theme]) => theme === "black-volt")?.[1]
+    expect(brandTokens).toBeDefined()
+    const background = resolveToken(brandTokens!, "--background").toLowerCase()
+    const manifest = JSON.parse(readFileSync(path.join(process.cwd(), "public/manifest.json"), "utf8"))
+    expect(manifest.background_color).toBe(background)
+    expect(manifest.theme_color).toBe(background)
+    const browserconfig = readFileSync(path.join(process.cwd(), "public/browserconfig.xml"), "utf8").toLowerCase()
+    expect(browserconfig).toContain(`<tilecolor>${background}</tilecolor>`)
+    const layout = readFileSync(path.join(process.cwd(), "app/layout.tsx"), "utf8").toLowerCase()
+    expect(layout).toContain(`themecolor: "${background}"`)
   })
 
   it.each(paletteTokens)("keeps %s browser chrome colour in sync with its background", (_theme, tokens) => {

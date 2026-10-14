@@ -17,8 +17,10 @@ export function SettingsSection({
   children,
   className,
   collapsible = false,
+  compactHeaderDescription = false,
   defaultOpen = false,
   description,
+  descriptionWhenClosed = true,
   icon: Icon,
   headerVisual,
   id,
@@ -30,8 +32,10 @@ export function SettingsSection({
   children: ReactNode
   className?: string
   collapsible?: boolean
+  compactHeaderDescription?: boolean
   defaultOpen?: boolean
   description?: ReactNode
+  descriptionWhenClosed?: boolean
   icon?: LucideIcon
   headerVisual?: ReactNode
   id: string
@@ -50,12 +54,12 @@ export function SettingsSection({
       id={id}
       aria-labelledby={`${id}-heading`}
       className={cn(
-        "scroll-mt-28 overflow-hidden rounded-xl border px-3.5 py-2.5 sm:px-4 sm:py-3",
+        "scroll-mt-28 overflow-hidden rounded-xl border px-3 py-2 sm:px-4",
         isDanger ? "border-destructive/30 bg-destructive-soft/70" : "border-border bg-card",
         className,
       )}
     >
-      <div className={cn("flex min-h-10 items-center gap-3", isOpen && children != null && "mb-3")}>
+      <div className={cn("flex min-h-11 items-center gap-2.5", isOpen && children != null && "mb-2")}>
         {headerVisual ?? (Icon ? (
           <IconTile size="sm" tone={isDanger ? "surface" : "primary"} className={cn(isDanger && "text-destructive-text")}>
             <Icon strokeWidth={1.8} />
@@ -67,7 +71,7 @@ export function SettingsSection({
               so neither picks up the whole paragraph as its accessible name. */}
           <h2
             id={`${id}-heading`}
-            className={cn("text-base font-semibold leading-6 sm:text-lg", isDanger && "text-destructive-text")}
+            className={cn("text-sm font-semibold leading-5 sm:text-base", isDanger && "text-destructive-text")}
           >
             {collapsible ? (
               <button
@@ -75,9 +79,9 @@ export function SettingsSection({
                 aria-controls={bodyId}
                 aria-expanded={open}
                 onClick={() => setOpen((current) => !current)}
-                className="flex min-h-9 w-full items-center gap-2 text-left"
+                className={cn("flex min-h-11 w-full items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring", compactHeaderDescription && "items-start pt-1")}
               >
-                <span className="min-w-0 flex-1">{title}</span>
+                <span className={cn("min-w-0 flex-1", compactHeaderDescription && "truncate")} title={compactHeaderDescription && typeof title === "string" ? title : undefined}>{title}</span>
                 {toggleLabel ? <span className="text-sm font-medium text-muted-foreground">{toggleLabel}</span> : null}
                 <ChevronDown
                   aria-hidden="true"
@@ -89,8 +93,8 @@ export function SettingsSection({
             )}
           </h2>
 
-          {description ? (
-            <p className="mt-0.5 line-clamp-2 text-xs leading-4 text-muted-foreground sm:text-sm sm:leading-5">{description}</p>
+          {description && (descriptionWhenClosed || isOpen) ? (
+            <p className={cn("mt-0.5 line-clamp-2 text-xs leading-4 text-muted-foreground sm:text-sm sm:leading-5", compactHeaderDescription && "relative -mt-3 pointer-events-none")}>{description}</p>
           ) : null}
         </div>
         {trailing ? <div className="shrink-0">{trailing}</div> : null}

@@ -6544,57 +6544,13 @@ async function adjustCoachProgramForTrainee(
 // workoutExercise in future workouts of the same program using that variation.
 // Past workouts and already-logged sessions are untouched.
 //
-// If the workout belongs to a coach's program the trainee has not personalized
-// yet, we fork the whole program into a new one owned by the coach, move
-// the trainee's assignment + logs to the fork, then apply the swap on the
-// fork. The coach's original stays pristine so their other trainees are
-// unaffected. A metadata-tagged notification tells the coach it happened.
-//
-// If it's the trainee's own personal workout program, we patch in-place with
-// no fork and no notification.
-//
-// If it's already the trainee's personalized copy, we patch that copy in place
-// and notify the coach. Forking a copy would only strand the previous one.
+// Coach-owned programs, including legacy personalized copies, remain unchanged
+// until approval. Approval edits matching future sessions in the exact program
+// assigned to this trainee, never the ancestor/library template.
+// Trainee-owned programs are patched directly without notifying a coach.
 
-/**
- * Walks a fork chain back to the coach's library entry.
- *
- * Copies made before swaps stopped re-forking can sit several links deep, so
- * this follows the chain rather than taking a single hop. The bound keeps a
- * cycle in bad data from hanging the request.
- */
-async function resolveProgramForkRoot(programId: string) {
-  const db = ensurePrisma()
-  let currentId = programId
-
-  for (let hop = 0; hop < 10; hop += 1) {
-    const program = await db.program.findUnique({
-      select: { forkedFromProgramId: true },
-      where: { id: currentId },
-    })
-
-    if (!program?.forkedFromProgramId) return currentId
-    currentId = program.forkedFromProgramId
-  }
-
-  return currentId
-}
-
-/**
- * Tells the coach a trainee swapped an exercise in one of their programs.
- *
- * Approving rewrites the coach's own rows, so the metadata has to name the
- * program that holds them. Normally that is the program the trainee is on,
- * because a swap no longer copies anything. Legacy personalized copies are
- * still out there, though, and their rows are not the ones the coach edits in
- * their library — for those the chain is walked back to the library entry and
- * the workout matched by week and day slot, which a fork copied verbatim. When
- * no such workout is found, because the coach restructured the program since,
- * the approve keys are left out: approving then fails with the existing "swap
- * again to raise a fresh request" message instead of editing the wrong workout.
- */
+/** Records the assigned program and exact session/slot needed for approval. */
 async function notifyCoachOfTraineeSwap(input: {
-  isPersonalizedCopy: boolean
   newExerciseName: string
   newVariationId: string
   oldExerciseName: string
@@ -6609,29 +6565,15 @@ async function notifyCoachOfTraineeSwap(input: {
   const prisma = ensurePrisma()
   const created = await retryTransaction(() => prisma.$transaction(async (db) => {
 
-    const rootProgramId = input.isPersonalizedCopy
-      ? await resolveProgramForkRoot(input.program.id)
-      : input.program.id
-
-    const rootWorkout = rootProgramId === input.program.id
-      ? { id: input.workout.id }
-      : await db.workout.findFirst({
-          select: { id: true },
-          where: {
-            programId: rootProgramId,
-            scheduledDay: input.workout.scheduledDay,
-            weekIndex: input.workout.weekIndex,
-          },
-        })
-
-    const approvable = rootWorkout
-      ? {
-          originalProgramId: rootProgramId,
-          originalWorkoutExerciseId: input.workoutExerciseId,
-          originalWorkoutId: rootWorkout.id,
-          targetOrder: input.targetOrder,
-        }
-      : {}
+    // A legacy fork is itself the trainee's assigned program. Its ancestor is
+    // a library template and may have different weeks or another trainee.
+    const approvalProgramId = input.program.id
+    const approvable = {
+      originalProgramId: approvalProgramId,
+      originalWorkoutExerciseId: input.workoutExerciseId,
+      originalWorkoutId: input.workout.id,
+      targetOrder: input.targetOrder,
+    }
 
     // Requests from this trainee for the same exercise that the coach has not
     // answered yet. The newer swap replaces them: approving an older one would
@@ -6649,7 +6591,7 @@ async function notifyCoachOfTraineeSwap(input: {
       readNotificationMetadataString(notification.metadata, "kind") === "trainee_swapped_exercise" &&
       readNotificationMetadataString(notification.metadata, "traineeId") === input.profile.id &&
       readNotificationMetadataString(notification.metadata, "oldVariationId") === input.oldVariationId &&
-      readNotificationMetadataString(notification.metadata, "originalProgramId") === rootProgramId &&
+      readNotificationMetadataString(notification.metadata, "originalProgramId") === approvalProgramId &&
       readNotificationMetadataNumber(notification.metadata, "targetOrder") === input.targetOrder &&
       (readNotificationMetadataNumber(notification.metadata, "workoutScheduledDay") ?? null) === input.workout.scheduledDay &&
       // The same weekday/order in later weeks overlaps even across reference weeks.
@@ -6658,11 +6600,11 @@ async function notifyCoachOfTraineeSwap(input: {
       !readNotificationMetadataString(notification.metadata, "supersededAt"),
     )
 
-    const matchingFutureWorkouts = rootWorkout && scopedPending.length > 0
+    const matchingFutureWorkouts = scopedPending.length > 0
       ? await db.workout.findMany({
           select: { scheduledDay: true, weekIndex: true },
           where: {
-            programId: rootProgramId,
+            programId: approvalProgramId,
             scheduledDay: input.workout.scheduledDay,
             weekIndex: { gt: input.workout.weekIndex ?? 0 },
             exercises: { some: { order: input.targetOrder, variationId: input.oldVariationId } },
@@ -6686,8 +6628,7 @@ async function notifyCoachOfTraineeSwap(input: {
           newVariationId: input.newVariationId,
           oldExerciseName: input.oldExerciseName,
           oldVariationId: input.oldVariationId,
-          // The program the trainee is actually on. Same as originalProgramId
-          // now that swaps do not copy; different only for a legacy copy.
+          // Both references identify the assigned program, including legacy forks.
           personalizedProgramId: input.program.id,
           // For the push copy, which has no other way to name the program.
           programName: input.program.name,
@@ -6880,7 +6821,6 @@ async function swapExerciseForTraineeFromWorkout(
   const { swappedWorkoutIds } = await resolveSwapScope()
 
   await notifyCoachOfTraineeSwap({
-    isPersonalizedCopy: Boolean(workout.program.forkedFromProgramId),
     newExerciseName: newVariation.exercise.name,
     newVariationId: input.newVariationId,
     oldExerciseName: targetExercise.variation.exercise.name,
