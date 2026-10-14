@@ -239,7 +239,7 @@ export function ExerciseRowGrid({
                 <span className="size-4 shrink-0" />
               )
             ) : null}
-            <ExerciseThumbnail media={exercise.media} name={exercise.name} previewable size="lg" className="bg-white" />
+            <ExerciseThumbnail media={exercise.media} name={exercise.name} previewable size="lg" />
             <button
               type="button"
               disabled={!canManage}
