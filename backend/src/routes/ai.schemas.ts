@@ -104,6 +104,11 @@ const foodNutritionLookupSchema = z.object({
   query: z.string().trim().min(2, "Nhập tên món cần tra cứu.").max(120, "Tên món quá dài (tối đa 120 ký tự)."),
 })
 
+const exerciseDraftSchema = z.object({
+  locale: z.enum(["vi", "en"]).optional(),
+  query: z.string().trim().min(3, "Nhập tên bài tập cần tra cứu.").max(300, "Nội dung quá dài (tối đa 300 ký tự)."),
+})
+
 const chatSchema = z.object({
   // Mirrors the service-side guard so oversized input is rejected before any
   // context building or token spend happens.
@@ -122,6 +127,7 @@ const chatSchema = z.object({
 export {
   acceptMealPlanSchema,
   chatSchema,
+  exerciseDraftSchema,
   foodNutritionLookupSchema,
   generateDailyWorkoutSchema,
   generateMealPlanSchema,

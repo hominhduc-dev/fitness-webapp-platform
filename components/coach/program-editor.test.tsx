@@ -62,6 +62,7 @@ vi.mock("@/lib/queries/coach-data", () => ({
 }))
 vi.mock("@/lib/queries/exercises", () => ({
   useCreateExerciseFromPicker: () => ({ mutateAsync: vi.fn() }),
+  useExerciseAIDraft: () => ({ mutateAsync: vi.fn() }),
   useExercises: () => ({ data: exerciseOptions, isFetching: false }),
   useUpdateExerciseFromPicker: () => ({ mutateAsync: vi.fn() }),
 }))

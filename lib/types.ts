@@ -36,6 +36,21 @@ export type ExerciseSource = "system" | "coach"
 export type ExerciseShareStatus = "private" | "pending" | "shared" | "rejected"
 
 export type ExerciseActivityType = "strength" | "cardio" | "mobility" | "sport" | "other"
+/** Mirrors the backend `MovementPattern` enum. */
+export type MovementPattern =
+  | "horizontal_push"
+  | "vertical_push"
+  | "horizontal_pull"
+  | "vertical_pull"
+  | "squat"
+  | "hinge"
+  | "lunge"
+  | "carry"
+  | "core"
+  | "isolation"
+  | "cardio"
+  | "mobility"
+  | "other"
 export type MuscleProfileStatus = "approved" | "pending"
 export type MuscleProfileSource = "ai" | "manual"
 export type MuscleSlug =
@@ -93,6 +108,8 @@ export interface ExerciseVariationOption extends ExerciseMuscleProfile {
   variationName: string
   name: string
   muscleGroup: string
+  /** Unset until the exercise is classified. */
+  movementPattern?: MovementPattern
   equipment?: string
   isDefault: boolean
   media?: ExerciseMedia

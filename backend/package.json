@@ -10,6 +10,7 @@
     "test:coverage": "vitest run --coverage",
     "create:admin": "tsx src/scripts/create-admin.ts",
     "classify:exercise-muscles": "tsx src/scripts/classify-exercise-muscles.ts",
+    "classify:movement-patterns": "tsx src/scripts/classify-movement-patterns.ts",
     "apply:muscle-profile-report": "tsx src/scripts/apply-muscle-profile-report.ts",
     "audit:muscle-profiles": "tsx src/scripts/audit-muscle-profiles.ts",
     "backup:muscle-profile-rollout": "tsx src/scripts/backup-muscle-profile-rollout.ts",

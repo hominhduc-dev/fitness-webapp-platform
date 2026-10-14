@@ -2,7 +2,7 @@ import { runAgent } from "../agent/runtime/runner"
 import { trainingReadTools, executeTrainingReadTool } from "../agent/tools/training.tools"
 import { logger } from "../lib/logger"
 import type { AIToolCall } from "../lib/ai/types"
-import { AIGenerationStatus, AIGenerationType, FoodSource, MealStatus, UserRole, type Prisma, type ProgramDifficulty, type WorkoutKind } from "@prisma/client"
+import { AIGenerationStatus, AIGenerationType, ExerciseShareStatus, FoodSource, MealStatus, UserRole, type Prisma, type ProgramDifficulty, type WorkoutKind } from "@prisma/client"
 import { randomUUID } from "crypto"
 import { generateValidatedJSON } from "../lib/ai/validated-generation"
 
@@ -50,6 +50,8 @@ import { getIntakeSummary, loadNutrientCatalog } from "./nutrition-intake.servic
 import { buildNutrientTargets } from "../lib/nutrition/nutrient-targets"
 import { parseNutrientAmounts, type NutrientCode } from "../lib/nutrition/nutrients"
 import { estimateFoodNutrition, type FoodLookupLocale } from "./ai/food-nutrition"
+import { draftExerciseFromDescription, type ExerciseDraftLocale } from "./ai/exercise-draft"
+import { findDuplicateExercise } from "../domain/exercise-name"
 import {
   applyMealPlanOverrides,
   buildDayPlanPrompt,
@@ -1687,6 +1689,46 @@ async function lookupFoodNutrition(profile: SerializedProfile, input: { query: s
   }
 }
 
+// ---------------------------------------------------------------------------
+// Custom exercise draft
+// ---------------------------------------------------------------------------
+
+/** One draft per exercise a coach could not find in the library. */
+const exerciseDraftCounter = new DailyCounter(30)
+
+async function draftCustomExercise(profile: SerializedProfile, input: { query: string; locale?: ExerciseDraftLocale }) {
+  if (profile.role !== UserRole.coach && profile.role !== UserRole.admin) {
+    throw new AuthServiceError("Chỉ coach hoặc admin mới tạo được bài tập bằng AI.", 403)
+  }
+  if (!exerciseDraftCounter.tryConsume(profile.id)) {
+    throw new TooManyRequestsError(`Bạn đã tạo bài tập bằng AI ${exerciseDraftCounter.max} lần hôm nay. Vui lòng thử lại vào ngày mai.`)
+  }
+
+  let result: Awaited<ReturnType<typeof draftExerciseFromDescription>>
+  try {
+    result = await draftExerciseFromDescription(getAIProvider(), { query: input.query, locale: input.locale ?? "vi" })
+  } catch (error) {
+    // The attempt produced nothing, so it should not count against the budget.
+    exerciseDraftCounter.release(profile.id)
+    if (error instanceof AppError) throw error
+    throw new AuthServiceError("Không thể tạo bài tập bằng AI. Vui lòng thử lại sau.", 500)
+  }
+
+  // Token usage and prompt version stay server-side; the form only needs the draft.
+  const { tokenUsage: _tokenUsage, promptVersion: _promptVersion, ...draft } = result
+  if (!draft.found) return draft
+
+  // Point the coach at an exercise they can already use instead of a near-copy,
+  // matching the canonical name AI found as well as the name they typed.
+  const visible =
+    (await prisma?.exercise.findMany({
+      select: { id: true, name: true },
+      where: { OR: [{ createdById: null }, { shareStatus: ExerciseShareStatus.shared }, { createdById: profile.id }] },
+    })) ?? []
+  const existingExercise = findDuplicateExercise(draft.name, visible) ?? findDuplicateExercise(input.query, visible) ?? null
+  return { ...draft, existingExercise }
+}
+
 export {
   acceptDailyWorkout,
   acceptAIMealPlan,
@@ -1696,6 +1738,7 @@ export {
   chatWithAI,
   createNutritionInsight,
   discardMealPlanDraft,
+  draftCustomExercise,
   generateCoachTraineeWorkoutProgram,
   generateDailyWorkout,
   generateMealPlan,

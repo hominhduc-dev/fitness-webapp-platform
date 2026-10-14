@@ -15,6 +15,7 @@ import type {
   ExerciseVariation,
   ExerciseVariationOption,
   FoodCategory,
+  MovementPattern,
   MuscleSlug,
   Meal,
   NutritionFood,
@@ -1367,9 +1368,11 @@ function mapCoachExercise(exercise: SerializedCoachExercise): CoachExercise {
     equipment: exercise.equipment,
     id: exercise.id,
     media: exercise.media,
+    movementPattern: exercise.movementPattern,
     muscleGroup: exercise.muscleGroup,
     name: exercise.name,
     shareReviewNote: exercise.shareReviewNote,
+    shareSkippedDuplicateOf: exercise.shareSkippedDuplicateOf,
     shareStatus: exercise.shareStatus ?? "private",
     source: exercise.source,
     updatedAt: new Date(exercise.updatedAt),
@@ -1551,6 +1554,34 @@ export type FoodNutritionLookup =
 
 async function lookupFoodNutrition(accessToken: string, input: { query: string; locale?: "vi" | "en" }): Promise<FoodNutritionLookup> {
   const response = await request<ApiEnvelope<FoodNutritionLookup>>("/api/ai/food-nutrition", accessToken, {
+    body: JSON.stringify(input),
+    method: "POST",
+  })
+
+  return response.data
+}
+
+/** AI draft used to pre-fill the new-exercise form; nothing is saved. */
+export type ExerciseAIDraft =
+  | {
+      found: true
+      name: string
+      variationName: string
+      activityType: ExerciseActivityType
+      equipment: string
+      movementPattern: MovementPattern
+      muscleGroup: string
+      primaryMuscles: MuscleSlug[]
+      secondaryMuscles: MuscleSlug[]
+      confidence: "high" | "medium" | "low"
+      note: string
+      /** A library exercise with the same name the coach can use instead. */
+      existingExercise: { id: string; name: string } | null
+    }
+  | { found: false; note: string }
+
+async function draftExerciseWithAI(accessToken: string, input: { query: string; locale?: "vi" | "en" }): Promise<ExerciseAIDraft> {
+  const response = await request<ApiEnvelope<ExerciseAIDraft>>("/api/ai/exercise-draft", accessToken, {
     body: JSON.stringify(input),
     method: "POST",
   })
@@ -2691,6 +2722,7 @@ function coachExerciseToVariationOption(exercise: CoachExercise): ExerciseVariat
     id: exercise.variationId,
     isDefault,
     media: exercise.media,
+    movementPattern: exercise.movementPattern,
     muscleGroup: exercise.muscleGroup,
     name: isDefault ? exercise.name : `${exercise.name} (${exercise.variationName})`,
     primaryMuscles: exercise.primaryMuscles,
@@ -3206,6 +3238,7 @@ export {
   fetchNutritionWeek,
   createNutritionInsight,
   lookupFoodNutrition,
+  draftExerciseWithAI,
   fetchCoachExercises,
   fetchDashboardAnalytics,
   fetchProgressAnalytics,

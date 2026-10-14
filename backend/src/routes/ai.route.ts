@@ -9,6 +9,7 @@ import {
   chatWithAI,
   createNutritionInsight,
   discardMealPlanDraft,
+  draftCustomExercise,
   generateDailyWorkout,
   generateMealPlan,
   generateWorkoutProgram,
@@ -21,6 +22,7 @@ import { requireCurrentProfile } from "../services/auth.service"
 import {
   acceptMealPlanSchema,
   chatSchema,
+  exerciseDraftSchema,
   foodNutritionLookupSchema,
   generateDailyWorkoutSchema,
   generateMealPlanSchema,
@@ -134,6 +136,15 @@ aiRouter.post(
   validated({ body: foodNutritionLookupSchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
     sendData(res, await lookupFoodNutrition(profile, req.body))
+  }),
+)
+
+// Coach/admin only; the role check lives in the service next to the daily budget.
+aiRouter.post(
+  "/exercise-draft",
+  validated({ body: exerciseDraftSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await draftCustomExercise(profile, req.body))
   }),
 )
 

@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { useCreateWorkout, useUpdateWorkout } from "@/lib/queries/workouts"
-import { useCreateExerciseFromPicker, useExercises, useUpdateExerciseFromPicker } from "@/lib/queries/exercises"
+import { useCreateExerciseFromPicker, useExerciseAIDraft, useExercises, useUpdateExerciseFromPicker } from "@/lib/queries/exercises"
 import { buildMuscleProfileHighlights } from "@/lib/fitness/muscle-map"
 import { normalizeSetIntensityAssignments, readSetIntensityAssignments, type SetIntensityAssignment } from "@/lib/workout/intensity-tag"
 import type { AppMessages } from "@/lib/i18n/messages"
@@ -221,6 +221,7 @@ export function RoutineBuilderDialog({
   allowCreateExercise = false,
 }: RoutineBuilderDialogProps) {
   const createExerciseMutation = useCreateExerciseFromPicker()
+  const exerciseAIDraft = useExerciseAIDraft()
   const updateExerciseMutation = useUpdateExerciseFromPicker()
   const createWorkoutMutation = useCreateWorkout()
   const updateWorkoutMutation = useUpdateWorkout()
@@ -676,10 +677,12 @@ export function RoutineBuilderDialog({
                   muscleGroup: data.muscleGroup.trim(),
                   name: data.name.trim(),
                   primaryMuscles: data.primaryMuscles,
+                  movementPattern: data.movementPattern,
                   secondaryMuscles: data.secondaryMuscles,
                   shareRequested: data.shareRequested,
                 })
               : undefined}
+            draftExercise={allowCreateExercise ? exerciseAIDraft.mutateAsync : undefined}
             updateExercise={allowCreateExercise
               ? (exerciseId, data) => updateExerciseMutation.mutateAsync({
                   exerciseId,
@@ -689,6 +692,7 @@ export function RoutineBuilderDialog({
                     muscleGroup: data.muscleGroup.trim(),
                     name: data.name.trim(),
                     primaryMuscles: data.primaryMuscles,
+                    movementPattern: data.movementPattern,
                     secondaryMuscles: data.secondaryMuscles,
                   },
                 })

@@ -85,6 +85,7 @@ export const WORKOUT_RULES = `- CHỈ dùng bài tập và variation có trong E
 - Mọi bài tập BẮT BUỘC có sets (số nguyên 1-12) và reps (số nguyên 1-200). repsMin là cận dưới tùy chọn, không thay thế reps.
 - Tổng sets phải vừa với thời lượng buổi tập: khoảng 1 set cho mỗi 2-3 phút. Không nhồi volume, cũng không trả một buổi quá mỏng (buổi tập sức mạnh cần tối thiểu 3 bài).
 - Tôn trọng tuyệt đối chấn thương và hạn chế được khai báo: bỏ hẳn bài gây đau vùng đó, không "tập nhẹ hơn".
+- Bài trong catalog có "pattern" (horizontal_push, vertical_pull, squat, hinge, lunge, isolation…). Dùng nó để cân bằng: trong một tuần, số set đẩy (push) và kéo (pull) xấp xỉ nhau; buổi chân có cả squat/lunge và hinge; đặt bài đa khớp trước isolation. Bài không có pattern thì suy ra từ tên.
 ${UNTRUSTED_INPUT_RULE}`
 
 export const TRAINING_GOAL_RULES = `- Nếu goal là hypertrophy/build_muscle: ưu tiên volume theo nhóm cơ, rep range thường 6-20, RIR tuần đầu cao hơn để lấy baseline rồi giảm dần trong chu kỳ.
@@ -111,6 +112,7 @@ type CatalogInput = ReadonlyArray<{
   id: string
   name: string
   muscleGroup: string
+  movementPattern?: string | null
   variations: ReadonlyArray<{ id: string; name: string; equipment: string | null }>
 }>
 
@@ -119,6 +121,7 @@ export type ExerciseCatalogIndex = {
   prompt: Array<{
     name: string
     muscleGroup: string
+    pattern?: string
     variations: Array<{ ref: string; name: string; equipment?: string }>
   }>
   /** Resolves a model-supplied ref back to a real variation id. */
@@ -138,6 +141,8 @@ export function buildExerciseCatalogIndex(catalog: CatalogInput): ExerciseCatalo
   const prompt = catalog.map((exercise) => ({
     name: exercise.name,
     muscleGroup: exercise.muscleGroup,
+    // Omitted rather than null for unclassified rows: fewer tokens, same meaning.
+    ...(exercise.movementPattern ? { pattern: exercise.movementPattern } : {}),
     variations: exercise.variations.map((variation) => {
       counter += 1
       const ref = `v${counter}`

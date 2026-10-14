@@ -6,6 +6,7 @@ import {
   parseMuscleListValue,
   parseMuscleProfileInput,
 } from "../domain/muscle-profile"
+import { parseMovementPatternInput } from "../domain/movement-pattern"
 
 import { AuthServiceError, requireCurrentProfile } from "../services/auth.service"
 import {
@@ -402,6 +403,7 @@ adminRouter.post("/exercises", async (req, res) => {
     const exercise = await createAdminExercise(profile, {
       equipment: getOptionalString(req.body.equipment),
       muscleGroup: String(req.body.muscleGroup ?? ""),
+      movementPattern: parseMovementPatternInput(req.body.movementPattern),
       muscleProfile: parseMuscleProfileInput(req.body),
       name: String(req.body.name ?? ""),
       variationName: getOptionalString(req.body.variationName),
@@ -543,6 +545,7 @@ adminRouter.patch("/exercises/:exerciseId", async (req, res) => {
     const exercise = await updateAdminExercise(profile, String(req.params.exerciseId), {
       equipment: getOptionalString(req.body.equipment),
       muscleGroup: String(req.body.muscleGroup ?? ""),
+      movementPattern: parseMovementPatternInput(req.body.movementPattern),
       muscleProfile: parseMuscleProfileInput(req.body),
       name: String(req.body.name ?? ""),
       variationName: getOptionalString(req.body.variationName),

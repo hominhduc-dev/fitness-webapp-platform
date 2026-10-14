@@ -5,6 +5,7 @@ import type { SerializedProfile } from "../auth.service"
 
 const mocks = vi.hoisted(() => ({
   exerciseFindFirst: vi.fn(),
+  exerciseFindMany: vi.fn(),
   exerciseUpdate: vi.fn(),
   notifyAdmins: vi.fn(),
 }))
@@ -12,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../lib/prisma", () => {
   const db = {
     $transaction: vi.fn(async (callback: (tx: unknown) => unknown) => callback(db)),
-    exercise: { findFirst: mocks.exerciseFindFirst, update: mocks.exerciseUpdate },
+    exercise: { findFirst: mocks.exerciseFindFirst, findMany: mocks.exerciseFindMany, update: mocks.exerciseUpdate },
   }
   return { prisma: db, retryTransaction: (fn: () => Promise<unknown>) => fn() }
 })
@@ -62,6 +63,8 @@ describe("canProfileAccessExercise", () => {
 describe("requestCoachExerciseShare", () => {
   beforeEach(() => {
     for (const mock of Object.values(mocks)) mock.mockReset()
+    // No shared-library duplicate unless a test says so.
+    mocks.exerciseFindMany.mockResolvedValue([{ id: "00000000-0000-4000-8000-0000000000f1", name: "Barbell Back Squat" }])
   })
 
   it("queues a private exercise for review and tells the admins", async () => {
@@ -93,6 +96,15 @@ describe("requestCoachExerciseShare", () => {
 
     await requestCoachExerciseShare(coach, EXERCISE_ID)
 
+    expect(mocks.exerciseUpdate).not.toHaveBeenCalled()
+    expect(mocks.notifyAdmins).not.toHaveBeenCalled()
+  })
+
+  it("refuses to offer a duplicate of a shared-library exercise", async () => {
+    mocks.exerciseFindFirst.mockResolvedValue(coachExercise(ExerciseShareStatus.private))
+    mocks.exerciseFindMany.mockResolvedValue([{ id: "00000000-0000-4000-8000-0000000000f2", name: "Hack Squat (Tempo)" }])
+
+    await expect(requestCoachExerciseShare(coach, EXERCISE_ID)).rejects.toMatchObject({ status: 409 })
     expect(mocks.exerciseUpdate).not.toHaveBeenCalled()
     expect(mocks.notifyAdmins).not.toHaveBeenCalled()
   })

@@ -101,6 +101,24 @@ enum ExerciseActivityType {
   other
 }
 
+/// The movement an exercise trains, independent of equipment. Used to label the
+/// library, balance generated programs and pick sensible substitutions.
+enum MovementPattern {
+  horizontal_push
+  vertical_push
+  horizontal_pull
+  vertical_pull
+  squat
+  hinge
+  lunge
+  carry
+  core
+  isolation
+  cardio
+  mobility
+  other
+}
+
 enum MuscleTargetRole {
   primary
   secondary
@@ -497,6 +515,8 @@ model Exercise {
   id          String      @id @default(uuid()) @db.Uuid
   name        String
   muscleGroup String
+  /// Null until a coach/admin sets it or the classifier backfills it.
+  movementPattern MovementPattern?
   createdById String?     @db.Uuid
   createdBy   User?       @relation("ExerciseCreator", fields: [createdById], references: [id], onDelete: SetNull)
   variations  Variation[]
@@ -510,6 +530,7 @@ model Exercise {
   updatedAt   DateTime    @updatedAt
 
   @@index([createdById])
+  @@index([movementPattern])
   @@index([shareStatus, shareRequestedAt])
   @@index([shareReviewedById])
 }

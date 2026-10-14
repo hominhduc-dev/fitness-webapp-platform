@@ -6,6 +6,7 @@ import { Download, Loader2, Upload } from "lucide-react"
 import { ExerciseLibraryPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
+import { useExerciseAIDraft } from "@/lib/queries/exercises"
 import { cn } from "@/lib/utils"
 import { queryKeys } from "@/lib/queries/keys"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -108,6 +109,7 @@ function mapCoachExerciseToPanelItem(exercise: CoachExercise): AdminExerciseItem
     id: exercise.id,
     isDefault: exercise.variationName === "Default",
     media: exercise.media,
+    movementPattern: exercise.movementPattern,
     muscleGroup: exercise.muscleGroup,
     name: exercise.name,
     // System exercises have no owner to share from; only the coach's own carry a status.
@@ -143,6 +145,10 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
         ? `Added ${created} to your library${skipped ? `, skipped ${skipped} already in the library` : ""}. An admin will review them for the shared library.`
         : `Đã thêm ${created} bài vào thư viện của bạn${skipped ? `, bỏ qua ${skipped} bài đã có` : ""}. Admin sẽ duyệt để dùng chung.`,
     submitImportError: locale === "en" ? "Unable to import these exercises." : "Không thể import các bài tập này.",
+    exerciseCreatedNotShared: (name: string) =>
+      locale === "en"
+        ? `Exercise created as private: the shared library already has "${name}", so it was not suggested for sharing.`
+        : `Đã tạo bài riêng. Thư viện chung đã có "${name}" nên bài này không được gửi đề xuất dùng chung.`,
     exerciseCreatedAndOffered:
       locale === "en"
         ? "Exercise created. You can use it now; an admin will review it for the shared library."
@@ -209,6 +215,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
   const deleteExercise = useCoachMutation(deleteCoachExerciseRequest, ["coach", "exercises"])
   const importExercises = useCoachMutation(importCoachExercisesRequest, ["coach", "exercises"])
   const requestShare = useCoachMutation(requestCoachExerciseShareRequest, ["coach", "exercises"])
+  const aiDraft = useExerciseAIDraft()
   const importRequestsQuery = useCoachData(queryKeys.coach.exerciseImportRequests(), fetchCoachExerciseImportRequests, initialImportRequests)
   const importRequests = importRequestsQuery.data ?? []
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
@@ -409,6 +416,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
         muscleGroup: data.muscleGroup.trim(),
         name: data.name.trim(),
         primaryMuscles: data.primaryMuscles,
+        movementPattern: data.movementPattern,
         secondaryMuscles: data.secondaryMuscles,
         shareRequested: data.id ? undefined : data.shareRequested,
       }
@@ -419,7 +427,15 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
       setExercises((current) =>
         sortExercises(data.id ? current.map((exercise) => (exercise.id === savedExercise.id ? savedExercise : exercise)) : [savedExercise, ...current]),
       )
-      setNotice(data.id ? copy.exerciseUpdated : data.shareRequested ? copy.exerciseCreatedAndOffered : copy.exerciseCreated)
+      setNotice(
+        data.id
+          ? copy.exerciseUpdated
+          : savedExercise.shareSkippedDuplicateOf
+            ? copy.exerciseCreatedNotShared(savedExercise.shareSkippedDuplicateOf)
+            : data.shareRequested
+              ? copy.exerciseCreatedAndOffered
+              : copy.exerciseCreated,
+      )
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : copy.saveExerciseError)
       throw saveError
@@ -559,6 +575,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
           onDownloadTemplate={() => void handleDownloadExerciseTemplate()}
           onImport={() => setIsImportDialogOpen(true)}
           onRequestShare={handleRequestShare}
+          onAiDraft={aiDraft.mutateAsync}
           onSave={handleSaveExercise}
         />
         </>

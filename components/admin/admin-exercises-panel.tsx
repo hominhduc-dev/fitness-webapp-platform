@@ -1,55 +1,54 @@
 "use client"
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import {
   ArrowDownUp,
   ChevronDown,
-  ChevronRight,
   Check,
   Download,
   Dumbbell,
   FileSpreadsheet,
   ImageUp,
   Loader2,
-  EllipsisVertical,
-  Pencil,
   Plus,
   RotateCcw,
-  Undo2,
   Search,
-  Share2,
   SlidersHorizontal,
+  Sparkles,
   Trash2,
   Upload,
   X,
 } from "lucide-react"
 
+import { ExerciseGroupGrid, ExerciseRowGrid, type ExerciseRowActionHandlers } from "@/components/admin/exercise-library-browser"
 import { ExerciseMediaEditor } from "@/components/admin/exercise-media-editor"
 import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
-import { MuscleProfileSummary, canApproveMuscleProfile } from "@/components/admin/muscle-profile-summary"
 import { Badge } from "@/components/ui/badge"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
-import { MuscleMap, preferredBodySide, TRAINABLE_MUSCLE_SLUGS, type MuscleSlug as MapMuscleSlug } from "@/components/body/muscle-map"
+import { TRAINABLE_MUSCLE_SLUGS, type MuscleSlug as MapMuscleSlug } from "@/components/body/muscle-map"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { InputWithIcon } from "@/components/ui/input-with-icon"
 import { Label } from "@/components/ui/label"
 import {
   compileExerciseSearch,
   createExerciseSearchDocument,
+  filterExerciseSearch,
   matchesExerciseSearchDocument,
   sortByExerciseRelevance,
-  sortGroupsByExerciseRelevance,
 } from "@/lib/exercise-search"
 import { buildMuscleProfileHighlights, muscleGroupFromSlug, muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
 import { cn } from "@/lib/utils"
 import type { AdminExerciseImportRequest, AdminExerciseItem, AdminExerciseMediaFiles } from "@/lib/admin/types"
 import { EXERCISE_MEDIA_FILE_RULES, exerciseMediaFileProblem, exerciseMediaMaxMegabytes } from "@/lib/admin/exercise-media-files"
-import type { ExerciseActivityType, MuscleSlug } from "@/lib/types"
+import type { ExerciseActivityType, MovementPattern, MuscleSlug } from "@/lib/types"
+import { MOVEMENT_PATTERNS, movementPatternLabel } from "@/lib/fitness/movement-pattern"
+import { getLibraryGroup, LIBRARY_GROUPS, libraryGroupOf, sortEquipmentChips, type LibraryGroupKey } from "@/lib/fitness/exercise-library-groups"
+import { findDuplicateExercise } from "@/lib/fitness/exercise-name"
+import type { ExerciseAIDraft } from "@/lib/fitness/api"
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 
 /* ------------------------------------------------------------------ */
@@ -88,23 +87,11 @@ const MUSCLE_FILTERS: MuscleSlug[] = [
   "upper-back",
 ]
 
-const GROUP_DESCRIPTIONS: Record<string, string> = {
-  arms: "Biceps, Triceps, Forearms",
-  back: "Lats, Traps, Rhomboids, Lower Back",
-  calves: "Calves, Soleus, Gastrocnemius",
-  cardio: "Running, Cycling, Rowing, HIIT",
-  chest: "Pectorals, Upper Chest, Lower Chest",
-  core: "Abs, Obliques, Lower Back",
-  glutes: "Glutes, Hip Extension",
-  legs: "Quadriceps, Hamstrings, Glutes, Adductors",
-  other: "Full Body, Mobility, Stretching, Sports",
-  shoulders: "Deltoids, Traps, Rotator Cuff",
-}
-
 type FormData = {
   activityType: ExerciseActivityType
   id?: string
   mediaFiles?: AdminExerciseMediaFiles
+  movementPattern: MovementPattern | null
   name: string
   variationName: string
   muscleGroup: string
@@ -117,6 +104,21 @@ type FormData = {
 
 function getExercisePanelCopy(locale: "en" | "vi") {
   return {
+    aiConfidence: {
+      high: locale === "en" ? "High confidence" : "Độ tin cậy cao",
+      low: locale === "en" ? "Low confidence" : "Độ tin cậy thấp",
+      medium: locale === "en" ? "Medium confidence" : "Độ tin cậy vừa",
+    },
+    aiDraftButton: locale === "en" ? "Fill with AI" : "Điền bằng AI",
+    aiDraftError: locale === "en" ? "Could not draft the exercise. Please try again." : "Không thể tạo bài tập bằng AI. Vui lòng thử lại.",
+    aiDraftHint:
+      locale === "en"
+        ? "Type the exercise name and AI fills in the rest when you leave the field."
+        : "Nhập tên bài tập, AI sẽ tự điền các trường còn lại khi bạn rời ô này.",
+    aiDraftLoading: locale === "en" ? "AI is looking up this exercise…" : "AI đang tra cứu bài tập…",
+    aiDraftUseName: (name: string) => (locale === "en" ? `Use the standard name "${name}"` : `Dùng tên chuẩn "${name}"`),
+    aiDraftNotFound: locale === "en" ? "AI could not recognise this exercise. Try a more specific description." : "AI chưa nhận ra bài tập này. Hãy mô tả cụ thể hơn.",
+    aiDraftReview: locale === "en" ? "Check the muscles and equipment before saving." : "Kiểm tra lại cơ và thiết bị trước khi lưu.",
     offerShare: locale === "en" ? "Suggest for the shared library" : "Đề xuất dùng chung cho mọi người",
     offerShareHint:
       locale === "en"
@@ -129,6 +131,39 @@ function getExercisePanelCopy(locale: "en" | "vi") {
       shared: locale === "en" ? "Shared" : "Dùng chung",
     },
     addToLibrary: locale === "en" ? "Add to library" : "Thêm vào thư viện",
+    allEquipment: locale === "en" ? "All" : "Tất cả",
+    missingMedia: locale === "en" ? "thumbnail and animation" : "thumbnail và animation",
+    missingPattern: locale === "en" ? "movement pattern" : "kiểu chuyển động",
+    missingPrimaryMuscles: locale === "en" ? "primary muscle" : "cơ chính",
+    reviewComplete: locale === "en" ? "Everything a shared exercise needs is filled in." : "Bài đã đủ thông tin để dùng chung.",
+    reviewMissingTitle: locale === "en" ? "Still missing before sharing:" : "Còn thiếu trước khi dùng chung:",
+    mediaNeedsBoth:
+      locale === "en"
+        ? "Media not saved: this exercise has none yet, so choose both a thumbnail and an animation."
+        : "Chưa lưu: bài tập chưa có media nên cần chọn cả thumbnail và animation.",
+    mediaUploadFailed: locale === "en" ? "Could not upload the media." : "Không thể tải media lên.",
+    duplicateHint:
+      locale === "en"
+        ? "Using it keeps training history and progress in one place."
+        : "Dùng bài có sẵn để lịch sử tập và tiến độ không bị tách đôi.",
+    duplicateShareHint:
+      locale === "en"
+        ? "Using it keeps history in one place. A copy would stay private: it will not be suggested for the shared library."
+        : "Dùng bài có sẵn để giữ chung lịch sử tập. Nếu vẫn tạo, bản này chỉ là bài riêng và sẽ không được đề xuất dùng chung.",
+    duplicateTitle: (name: string) => (locale === "en" ? `The library already has "${name}"` : `Thư viện đã có "${name}"`),
+    useExisting: locale === "en" ? "Use this one" : "Dùng bài này",
+    breadcrumb: locale === "en" ? "Breadcrumb" : "Đường dẫn",
+    fuzzyResults: (query: string, count: number) =>
+      locale === "en"
+        ? `No exact match for "${query}" — showing ${count.toLocaleString()} close match${count === 1 ? "" : "es"}`
+        : `Không có bài khớp đúng "${query}" — đang hiện ${count.toLocaleString()} bài gần giống`,
+    exerciseCount: (count: number) => (locale === "en" ? `${count.toLocaleString()} exercise${count === 1 ? "" : "s"}` : `${count.toLocaleString()} bài tập`),
+    libraryDescription:
+      locale === "en"
+        ? "Browse exercise categories by muscle group to find technique guides, target muscles, and movement variations."
+        : "Duyệt bài tập theo nhóm cơ để xem hướng dẫn kỹ thuật, cơ mục tiêu và các biến thể.",
+    libraryTitle: locale === "en" ? "Exercise Library" : "Thư viện bài tập",
+    searchResults: (count: number) => (locale === "en" ? `${count.toLocaleString()} results across all groups` : `${count.toLocaleString()} kết quả trong mọi nhóm`),
     approve: locale === "en" ? "Approve" : "Duyệt",
     approveProfile: locale === "en" ? "Approve muscle profile" : "Duyệt profile cơ",
     approveProfiles: locale === "en" ? "Approve muscle profiles" : "Duyệt profile cơ",
@@ -160,6 +195,8 @@ function getExercisePanelCopy(locale: "en" | "vi") {
         ? "Exercises that are already in use will be skipped."
         : "Bài tập đang được dùng sẽ được bỏ qua.",
     deselectAll: locale === "en" ? "Deselect all" : "Bỏ chọn tất cả",
+    doneSelecting: locale === "en" ? "Done" : "Xong",
+    selectMany: locale === "en" ? "Select" : "Chọn nhiều",
     downloadTemplate: locale === "en" ? "Download template" : "Tải file mẫu",
     exportAll: locale === "en" ? "Export Excel" : "Export Excel",
     transferMetadata: locale === "en" ? "Transfer metadata" : "Chuyển metadata",
@@ -179,6 +216,8 @@ function getExercisePanelCopy(locale: "en" | "vi") {
     exercise: locale === "en" ? "Exercise" : "Bài tập",
     exerciseName: locale === "en" ? "Exercise name" : "Tên bài tập",
     importExcel: locale === "en" ? "Import Excel" : "Nhập Excel",
+    movementPattern: locale === "en" ? "Movement pattern" : "Kiểu chuyển động",
+    movementPatternUnset: locale === "en" ? "Not set" : "Chưa phân loại",
     newExercise: locale === "en" ? "New exercise" : "Bài tập mới",
     noMatches: locale === "en" ? "No exercises match." : "Không có bài tập nào khớp.",
     pending: locale === "en" ? "pending" : "chờ duyệt",
@@ -205,63 +244,12 @@ function formatMuscleSlug(slug: MuscleSlug) {
   return slug.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ")
 }
 
-type PrimaryMuscleSection = {
-  key: string
-  label: string
-  items: AdminExerciseItem[]
-}
-
-function buildPrimaryMuscleSections(group: string, exercises: AdminExerciseItem[], locale: "en" | "vi"): PrimaryMuscleSection[] {
-  const groupMuscles = muscleGroupToSlugs(group).filter((muscle): muscle is MuscleSlug => (MUSCLE_FILTERS as readonly string[]).includes(muscle))
-  const sectionOrder = new Map<MuscleSlug, number>()
-  groupMuscles.forEach((muscle, index) => sectionOrder.set(muscle, index))
-
-  const sections = new Map<string, PrimaryMuscleSection>()
-  const fallbackLabel = locale === "en" ? "Other primary" : "Primary khác"
-
-  for (const exercise of exercises) {
-    const primaryMuscle = exercise.primaryMuscles.find((muscle) => sectionOrder.has(muscle)) ?? exercise.primaryMuscles[0]
-    const key = primaryMuscle ?? "__other-primary"
-    const label = primaryMuscle ? formatMuscleSlug(primaryMuscle) : fallbackLabel
-    const section = sections.get(key) ?? { key, label, items: [] }
-    section.items.push(exercise)
-    sections.set(key, section)
-  }
-
-  return Array.from(sections.values()).sort((left, right) => {
-    const leftOrder = sectionOrder.get(left.key as MuscleSlug) ?? Number.MAX_SAFE_INTEGER
-    const rightOrder = sectionOrder.get(right.key as MuscleSlug) ?? Number.MAX_SAFE_INTEGER
-    if (leftOrder !== rightOrder) return leftOrder - rightOrder
-    return left.label.localeCompare(right.label, locale === "vi" ? "vi" : "en", { sensitivity: "base" })
-  })
-}
-
 function hasDraftMedia(files: AdminExerciseMediaFiles) {
   return Boolean(files.thumbnail || files.animation)
 }
 
 function hasCompleteDraftMedia(files: AdminExerciseMediaFiles) {
   return Boolean(files.thumbnail && files.animation)
-}
-
-function GroupMuscleIcon({ group }: { group: string }) {
-  const slugs = muscleGroupToSlugs(group)
-  const highlights = slugs.reduce<Partial<Record<MapMuscleSlug, string>>>((result, slug) => {
-    result[slug as MapMuscleSlug] = "var(--primary)"
-    return result
-  }, {})
-
-  return (
-    <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted/50">
-      <MuscleMap
-        side={preferredBodySide(slugs)}
-        highlights={highlights}
-        defaultFill="color-mix(in oklab, var(--body-fill) 86%, white)"
-        outline="var(--body-line)"
-        className="h-10 w-auto"
-      />
-    </div>
-  )
 }
 
 function CreateExerciseMediaDraft({
@@ -605,22 +593,36 @@ function ExerciseComboboxSingleSelect({
 /* ExerciseFormModal                                                    */
 /* ------------------------------------------------------------------ */
 
-type ExerciseFormModalProps = {
+export type ExerciseFormModalProps = {
   /** Offer media files when creating; only admins can upload them. */
   allowMedia?: boolean
   initial: AdminExerciseItem | null
   /** Prefills the name of a new exercise, e.g. with what a picker search found nothing for. */
   initialName?: string
   locale: "en" | "vi"
-  /** Media upload for the exercise being edited; it saves independently of the form. */
-  mediaEditor?: ReactNode
+  /** Admin only: media upload for the exercise being edited. Files still waiting are uploaded by Save. */
+  media?: {
+    onRemove: () => Promise<void>
+    onSave: (files: AdminExerciseMediaFiles) => Promise<void>
+  }
   /** A coach's new exercise: offer to send it for review, ticked by default. */
   offerShare?: boolean
+  /** Library exercises a new name is checked against, live and without AI. */
+  duplicateCandidates?: ReadonlyArray<{ id: string; name: string }>
+  /** Offered on a duplicate warning: use the existing exercise instead of creating a copy. */
+  onUseExisting?: (id: string) => void
+  /** Offers an AI pre-fill when creating; the draft is only saved when the form is. */
+  onAiDraft?: (input: { locale: "en" | "vi"; query: string }) => Promise<ExerciseAIDraft>
   saving: boolean
   /** Opened on top of another dialog (an exercise picker), so it layers above it. */
   stacked?: boolean
+  /**
+   * Reviewing a coach's exercise: adds a "save and approve" button next to Save
+   * and lists what the exercise is still missing.
+   */
+  approveLabel?: string
   onClose: () => void
-  onSave: (data: FormData) => void
+  onSave: (data: FormData, options?: { approve?: boolean }) => void
 }
 
 export function ExerciseFormModal({
@@ -628,10 +630,14 @@ export function ExerciseFormModal({
   initial,
   initialName,
   locale,
-  mediaEditor,
+  media,
   offerShare = false,
+  duplicateCandidates,
+  onUseExisting,
+  onAiDraft,
   saving,
   stacked = false,
+  approveLabel,
   onClose,
   onSave,
 }: ExerciseFormModalProps) {
@@ -642,10 +648,47 @@ export function ExerciseFormModal({
   const [muscleGroup, setMuscle] = useState(initial?.muscleGroup ?? MUSCLES[0])
   const [equipment, setEquipment] = useState(initial?.equipment ?? EQUIP[0])
   const [activityType, setActivityType] = useState<ExerciseActivityType>(initial?.activityType ?? "strength")
+  const [movementPattern, setMovementPattern] = useState<MovementPattern | "">(initial?.movementPattern ?? "")
   const [primaryMuscles, setPrimaryMuscles] = useState<MuscleSlug[]>(initial?.primaryMuscles ?? [])
   const [secondaryMuscles, setSecondaryMuscles] = useState<MuscleSlug[]>(initial?.secondaryMuscles ?? [])
   const [mediaFiles, setMediaFiles] = useState<AdminExerciseMediaFiles>({})
+  // Files picked in the edit dialog's media section and not uploaded yet.
+  const [editMediaFiles, setEditMediaFiles] = useState<AdminExerciseMediaFiles>({})
+  const [savingMedia, setSavingMedia] = useState(false)
+  const [mediaError, setMediaError] = useState<string | null>(null)
   const [targetRole, setTargetRole] = useState<"primary" | "secondary">("primary")
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiMessage, setAiMessage] = useState<string | null>(null)
+  const [aiEstimate, setAiEstimate] = useState<Extract<ExerciseAIDraft, { found: true }> | null>(null)
+  // Once the coach edits a field by hand, leaving the name box no longer overwrites it; the AI button still does.
+  const [fieldsTouched, setFieldsTouched] = useState(false)
+  // The name the last lookup ran for, so tabbing in and out does not spend another lookup.
+  const lastLookupName = useRef("")
+  // Guards against the blur and the button firing one lookup each for the same click.
+  const aiInFlight = useRef(false)
+  const mounted = useRef(true)
+  useEffect(() => {
+    // Set here, not only in the initialiser: StrictMode runs cleanup then this again.
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+  const showAiDraft = Boolean(onAiDraft) && !initial
+  // Typed-name match first (free, live); the AI's canonical-name match catches what spelling alone misses.
+  const typedDuplicate = useMemo(
+    () => (!initial && duplicateCandidates && name.trim().length >= 3 ? findDuplicateExercise(name, duplicateCandidates) : undefined),
+    [duplicateCandidates, initial, name],
+  )
+  const duplicate = typedDuplicate ?? aiEstimate?.existingExercise ?? null
+
+  /** Wraps a field's setter so a manual edit stops automatic AI fills. */
+  function manual<T>(setter: (value: T) => void) {
+    return (value: T) => {
+      setFieldsTouched(true)
+      setter(value)
+    }
+  }
 
   const hasIncompleteMedia = hasDraftMedia(mediaFiles) && !hasCompleteDraftMedia(mediaFiles)
   const canSave = name.trim().length > 0 && (activityType !== "strength" || primaryMuscles.length > 0) && !hasIncompleteMedia
@@ -684,20 +727,97 @@ export function ExerciseFormModal({
     setSecondaryMuscles(nextMuscles.filter((entry) => !primaryMuscles.includes(entry)))
   }
 
-  function handleSave() {
-    if (!canSave) return
+  /**
+   * Looks the typed name up and fills every other field. `auto` is a lookup the
+   * form starts by itself (leaving the name box, opening with a name); it is
+   * skipped when nothing changed or the coach already filled fields by hand.
+   */
+  async function handleAiDraft({ auto }: { auto: boolean }) {
+    const query = name.trim()
+    if (!onAiDraft || !showAiDraft || query.length < 3 || aiInFlight.current) return
+    if (auto && (fieldsTouched || query.toLowerCase() === lastLookupName.current.toLowerCase())) return
+    lastLookupName.current = query
+    aiInFlight.current = true
+    setAiLoading(true)
+    setAiMessage(null)
+    try {
+      const draft = await onAiDraft({ locale, query })
+      if (!draft.found) {
+        setAiEstimate(null)
+        setAiMessage(draft.note || copy.aiDraftNotFound)
+        return
+      }
+      // The coach's own wording stays; a different canonical name is offered instead (see the hint below the field).
+      setVariation(draft.variationName)
+      setActivityType(draft.activityType)
+      setMovementPattern(draft.movementPattern)
+      setEquipment(EQUIP.includes(draft.equipment) ? draft.equipment : "Other")
+      setMuscle(MUSCLES.includes(draft.muscleGroup) ? draft.muscleGroup : (muscleGroupFromSlug(draft.primaryMuscles[0]) ?? "Other"))
+      setPrimaryMuscles(draft.primaryMuscles)
+      setSecondaryMuscles(draft.secondaryMuscles.filter((slug) => !draft.primaryMuscles.includes(slug)))
+      setAiEstimate(draft)
+      setFieldsTouched(false)
+    } catch (draftError) {
+      setAiEstimate(null)
+      setAiMessage(draftError instanceof Error ? draftError.message : copy.aiDraftError)
+    } finally {
+      aiInFlight.current = false
+      setAiLoading(false)
+    }
+  }
+
+  // Opened with a name (a picker search that found nothing): look it up straight away.
+  const openedWithName = useRef(false)
+  useEffect(() => {
+    if (openedWithName.current || !showAiDraft || (initialName?.trim().length ?? 0) < 3) return
+    openedWithName.current = true
+    void handleAiDraft({ auto: true })
+    // Runs once on open; later name changes go through blur, Enter or the button.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // What a reviewer would want filled before the exercise goes to everyone.
+  const missingForReview = approveLabel
+    ? [
+        !initial?.media && !hasCompleteDraftMedia(editMediaFiles) ? copy.missingMedia : null,
+        !movementPattern ? copy.missingPattern : null,
+        activityType === "strength" && primaryMuscles.length === 0 ? copy.missingPrimaryMuscles : null,
+      ].filter((item): item is string => Boolean(item))
+    : []
+
+  async function handleSave({ approve = false }: { approve?: boolean } = {}) {
+    if (!canSave || savingMedia) return
+    // Picked media goes up with the form rather than being dropped on close.
+    if (initial && media && hasDraftMedia(editMediaFiles)) {
+      if (!initial.media && !hasCompleteDraftMedia(editMediaFiles)) {
+        setMediaError(copy.mediaNeedsBoth)
+        return
+      }
+      setSavingMedia(true)
+      setMediaError(null)
+      try {
+        await media.onSave(editMediaFiles)
+        setEditMediaFiles({})
+      } catch (error) {
+        setMediaError(error instanceof Error ? error.message : copy.mediaUploadFailed)
+        return
+      } finally {
+        setSavingMedia(false)
+      }
+    }
     onSave({
       activityType,
       equipment,
       id: initial?.id,
       mediaFiles: !initial && hasCompleteDraftMedia(mediaFiles) ? mediaFiles : undefined,
+      movementPattern: movementPattern || null,
       muscleGroup,
       name: name.trim(),
       primaryMuscles,
       secondaryMuscles,
       shareRequested: offerShare && !initial ? shareRequested : undefined,
       variationName: variationName.trim() || "Default",
-    })
+    }, approve ? { approve: true } : undefined)
   }
 
   return (
@@ -721,21 +841,128 @@ export function ExerciseFormModal({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-          {initial ? mediaEditor : allowMedia ? (
+          {approveLabel ? (
+            missingForReview.length > 0 ? (
+              <div role="status" className="rounded-lg border border-warning/40 bg-warning-soft px-3 py-2.5 text-xs leading-5 text-warning-text">
+                <p className="font-semibold">{copy.reviewMissingTitle}</p>
+                <p>{missingForReview.join(" · ")}</p>
+              </div>
+            ) : (
+              <p role="status" className="rounded-lg border border-primary/25 bg-primary-soft px-3 py-2.5 text-xs text-primary">
+                {copy.reviewComplete}
+              </p>
+            )
+          ) : null}
+
+          {initial ? (
+            media ? (
+              <ExerciseMediaEditor
+                exercise={initial}
+                files={editMediaFiles}
+                locale={locale}
+                onFilesChange={(files) => {
+                  setEditMediaFiles(files)
+                  setMediaError(null)
+                }}
+                onRemove={media.onRemove}
+                onSave={media.onSave}
+              />
+            ) : null
+          ) : allowMedia ? (
             <CreateExerciseMediaDraft files={mediaFiles} locale={locale} onChange={setMediaFiles} />
           ) : null}
 
-          {/* Name */}
+          {/* Name — on a new exercise, also what the AI looks up */}
           <div>
-            <Label className={EXERCISE_FORM_LABEL_CLASS}>{copy.exerciseName}</Label>
-            <Input
-              className="mt-1.5"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Bench Press"
-              autoFocus
-            />
+            <Label htmlFor="exercise-form-name" className={EXERCISE_FORM_LABEL_CLASS}>{copy.exerciseName}</Label>
+            <div className="mt-1.5 flex gap-2">
+              <Input
+                id="exercise-form-name"
+                value={name}
+                maxLength={120}
+                onChange={(e) => setName(e.target.value)}
+                // A beat later, so leaving via Cancel or the close button (which unmounts the form) costs no lookup.
+                onBlur={() => window.setTimeout(() => { if (mounted.current) void handleAiDraft({ auto: true }) }, 150)}
+                onKeyDown={(e) => {
+                  if (showAiDraft && e.key === "Enter") {
+                    e.preventDefault()
+                    void handleAiDraft({ auto: false })
+                  }
+                }}
+                placeholder="e.g. Bench Press"
+                aria-describedby={showAiDraft ? "exercise-form-ai-status" : undefined}
+                autoFocus
+              />
+              {showAiDraft ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={() => void handleAiDraft({ auto: false })}
+                  disabled={aiLoading || name.trim().length < 3}
+                  aria-label={copy.aiDraftButton}
+                  title={copy.aiDraftButton}
+                >
+                  {aiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-primary" />}
+                  <span className="hidden sm:inline">{copy.aiDraftButton}</span>
+                </Button>
+              ) : null}
+            </div>
+            {showAiDraft ? (
+              <div id="exercise-form-ai-status" className="mt-2 space-y-1" role="status" aria-live="polite">
+                {aiLoading ? (
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                    {copy.aiDraftLoading}
+                  </p>
+                ) : aiEstimate ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant={aiEstimate.confidence === "low" ? "destructive" : "secondary"} className="text-micro">
+                        <Sparkles className="h-3 w-3" aria-hidden="true" />
+                        {copy.aiConfidence[aiEstimate.confidence]}
+                      </Badge>
+                      {aiEstimate.name.toLowerCase() !== name.trim().toLowerCase() ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setName(aiEstimate.name)
+                            lastLookupName.current = aiEstimate.name
+                          }}
+                          className="text-xs text-primary underline-offset-2 hover:underline"
+                        >
+                          {copy.aiDraftUseName(aiEstimate.name)}
+                        </button>
+                      ) : null}
+                    </div>
+                    {aiEstimate.note ? <p className="text-xs text-muted-foreground">{aiEstimate.note}</p> : null}
+                    <p className="text-xs text-muted-foreground">{copy.aiDraftReview}</p>
+                  </>
+                ) : aiMessage ? (
+                  <p className="text-xs text-destructive-text" role="alert">{aiMessage}</p>
+                ) : (
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Sparkles className="h-3 w-3 text-primary" aria-hidden="true" />
+                    {copy.aiDraftHint}
+                  </p>
+                )}
+              </div>
+            ) : null}
           </div>
+
+          {duplicate ? (
+            <div role="alert" className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2.5 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1 text-xs leading-5 text-warning-text">
+                <p className="font-semibold">{copy.duplicateTitle(duplicate.name)}</p>
+                <p>{offerShare ? copy.duplicateShareHint : copy.duplicateHint}</p>
+              </div>
+              {onUseExisting ? (
+                <Button type="button" size="sm" variant="outline" className="shrink-0 bg-background" onClick={() => onUseExisting(duplicate.id)}>
+                  {copy.useExisting}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
 
           {/* Variation */}
           <div>
@@ -743,7 +970,7 @@ export function ExerciseFormModal({
             <Input
               className="mt-1.5"
               value={variationName}
-              onChange={(e) => setVariation(e.target.value)}
+              onChange={(e) => manual(setVariation)(e.target.value)}
               placeholder={locale === "en" ? "e.g. Wide Grip" : "VD: Wide Grip"}
             />
           </div>
@@ -753,7 +980,18 @@ export function ExerciseFormModal({
             options={ACTIVITY_TYPES.map((type) => ({ label: type, value: type }))}
             placeholder={locale === "en" ? "Select..." : "Chọn..."}
             value={activityType}
-            onChange={(value) => setActivityType(value as ExerciseActivityType)}
+            onChange={(value) => manual(setActivityType)(value as ExerciseActivityType)}
+          />
+
+          <ExerciseComboboxSingleSelect
+            label={copy.movementPattern}
+            options={[
+              { label: copy.movementPatternUnset, value: "" },
+              ...MOVEMENT_PATTERNS.map((pattern) => ({ label: movementPatternLabel(pattern, locale), value: pattern })),
+            ]}
+            placeholder={locale === "en" ? "Select..." : "Chọn..."}
+            value={movementPattern}
+            onChange={(value) => manual(setMovementPattern)(value as MovementPattern | "")}
           />
 
           <ExerciseComboboxSingleSelect
@@ -761,7 +999,7 @@ export function ExerciseFormModal({
             options={EQUIP.map((eq) => ({ label: eq, value: eq }))}
             placeholder={locale === "en" ? "Select..." : "Chọn..."}
             value={equipment}
-            onChange={setEquipment}
+            onChange={manual(setEquipment)}
           />
 
           <MuscleComboboxMultiSelect
@@ -769,7 +1007,7 @@ export function ExerciseFormModal({
             placeholder={locale === "en" ? "Select..." : "Chọn..."}
             options={MUSCLE_FILTERS}
             selected={primaryMuscles}
-            onChange={handlePrimaryMusclesChange}
+            onChange={manual(handlePrimaryMusclesChange)}
           />
 
           <MuscleComboboxMultiSelect
@@ -777,7 +1015,7 @@ export function ExerciseFormModal({
             placeholder={locale === "en" ? "Select..." : "Chọn..."}
             options={MUSCLE_FILTERS.filter((muscle) => !primaryMuscles.includes(muscle))}
             selected={secondaryMuscles}
-            onChange={handleSecondaryMusclesChange}
+            onChange={manual(handleSecondaryMusclesChange)}
           />
 
           <div className="rounded-lg border border-border p-3">
@@ -803,7 +1041,7 @@ export function ExerciseFormModal({
               className="mt-3"
               highlights={muscleHighlights}
               label={locale === "en" ? "Exercise muscle targets" : "Vùng cơ của bài tập"}
-              onMuscleClick={toggleMuscle}
+              onMuscleClick={manual(toggleMuscle)}
             />
             <div className="mt-3 space-y-1 text-xs text-muted-foreground">
               <p><span className="font-medium text-foreground">Primary:</span> {primaryMuscles.join(", ") || "—"}</p>
@@ -829,46 +1067,27 @@ export function ExerciseFormModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-6 py-4">
+          {mediaError ? (
+            <p role="alert" className="mr-auto min-w-0 flex-1 basis-full text-xs text-destructive-text sm:basis-auto">{mediaError}</p>
+          ) : null}
           <Button variant="ghost" onClick={onClose}>
             {copy.cancel}
           </Button>
-          <Button onClick={handleSave} disabled={!canSave || saving}>
-            {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+          <Button variant={approveLabel ? "outline" : "default"} onClick={() => void handleSave()} disabled={!canSave || saving || savingMedia}>
+            {(saving || savingMedia) && !approveLabel ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
             {initial ? copy.save : copy.create}
           </Button>
+          {approveLabel ? (
+            <Button onClick={() => void handleSave({ approve: true })} disabled={!canSave || saving || savingMedia}>
+              {saving || savingMedia ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1.5 h-3.5 w-3.5" />}
+              {approveLabel}
+            </Button>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>
   )
-}
-
-/* ------------------------------------------------------------------ */
-/* GroupBlock                                                            */
-/* ------------------------------------------------------------------ */
-
-type GroupBlockProps = {
-  group: string
-  exercises: AdminExerciseItem[]
-  forceSectionOpen?: boolean
-  open: boolean
-  selected: Set<string>
-  onToggle: () => void
-  onToggleSelect: (id: string) => void
-  onToggleGroupSelect: (ids: string[]) => void
-  onEdit: (e: AdminExerciseItem) => void
-  onDelete: (e: AdminExerciseItem) => void
-  /** Approves one pending muscle profile; the row button is hidden without it. */
-  onApproveProfile?: (e: AdminExerciseItem) => void
-  approvingProfiles: boolean
-  deletingId: string | null
-  locale: "en" | "vi"
-  onTransferMetadata?: (e: AdminExerciseItem) => void
-  /** Offered on a row whose newest metadata change is a transfer that can be undone. */
-  onUndoMetadataTransfer?: (e: AdminExerciseItem) => void
-  /** A coach offers their own private or declined exercise to the shared library. */
-  onRequestShare?: (e: AdminExerciseItem) => void
-  transferringId?: string | null
 }
 
 /** How many matches the source picker renders; the query narrows the rest. */
@@ -970,213 +1189,6 @@ export function VariationSearchPicker({
   )
 }
 
-function GroupBlock({ group, exercises, forceSectionOpen = false, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, onApproveProfile, approvingProfiles, deletingId, locale, onRequestShare, onTransferMetadata, onUndoMetadataTransfer, transferringId }: GroupBlockProps) {
-  const copy = getExercisePanelCopy(locale)
-  const [openSectionKeys, setOpenSectionKeys] = useState<Set<string>>(() => new Set())
-  const selectableIds = exercises.filter((e) => ((e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true)).map((e) => e.id)
-  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
-  const someSelected = selectableIds.some((id) => selected.has(id))
-  const groupDescription = GROUP_DESCRIPTIONS[group.trim().toLowerCase()] ?? ""
-  const primaryMuscleSections = buildPrimaryMuscleSections(group, exercises, locale)
-
-  function toggleSection(sectionKey: string) {
-    setOpenSectionKeys((current) => {
-      const next = new Set(current)
-      if (next.has(sectionKey)) next.delete(sectionKey)
-      else next.add(sectionKey)
-      return next
-    })
-  }
-
-  const renderExerciseRow = (e: AdminExerciseItem) => {
-    const canManage = (e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true
-    const canSelect = canManage
-    const isSelected = selected.has(e.id)
-
-    return (
-      <div
-        key={e.id}
-        style={{ contentVisibility: "auto", containIntrinsicSize: "64px" }}
-        className={cn(
-          "grid grid-cols-[24px_minmax(0,1.4fr)_56px_84px] items-center gap-2 border-b border-border/50 px-4 py-2.5 last:border-0 sm:grid-cols-[24px_minmax(0,1.4fr)_minmax(0,1fr)_96px_64px_84px]",
-          isSelected ? "bg-primary/5" : "hover:bg-muted/20",
-        )}
-      >
-        <div className="flex items-center justify-center">
-          {canSelect ? (
-            <Checkbox
-              checked={isSelected}
-              onCheckedChange={() => onToggleSelect(e.id)}
-            />
-          ) : (
-            <span className="h-4 w-4" />
-          )}
-        </div>
-
-        <div className="flex min-w-0 items-center gap-2">
-          <ExerciseThumbnail media={e.media} name={e.name} previewable />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate text-sm font-medium text-foreground">{e.name}</span>
-              {/* Admins' own exercises are library data from the start; only a coach's carry a review status. */}
-              {e.shareStatus && e.shareStatus !== "private" && e.createdBy?.role !== "admin" ? (
-                <Badge
-                  variant="outline"
-                  title={e.shareStatus === "rejected" ? e.shareReviewNote : undefined}
-                  className={cn(
-                    "shrink-0 text-micro",
-                    e.shareStatus === "shared" && "border-primary/30 text-primary",
-                    e.shareStatus === "rejected" && "text-muted-foreground",
-                  )}
-                >
-                  {copy.shareStatus[e.shareStatus]}
-                </Badge>
-              ) : null}
-            </div>
-            <MuscleProfileSummary exercise={e} locale={locale} />
-            <span className="truncate text-micro text-muted-foreground sm:hidden">
-              {e.variationName !== "Default" ? e.variationName : ""}
-              {e.equipment ? `${e.variationName !== "Default" ? " · " : ""}${e.equipment}` : ""}
-            </span>
-          </div>
-        </div>
-
-        <span className="hidden truncate text-xs text-muted-foreground sm:block">{e.variationName !== "Default" ? e.variationName : ""}</span>
-        <span className="hidden text-xs text-muted-foreground sm:block">{e.equipment ?? "—"}</span>
-        <span className="text-right font-mono text-xs text-muted-foreground tnum">
-          {e.usageCount}
-        </span>
-
-        <div className="flex items-center justify-end gap-0.5">
-          {onApproveProfile && canManage && e.muscleProfileStatus === "pending" ? (
-            <button
-              type="button"
-              aria-label={`${copy.approveProfile}: ${e.name}`}
-              title={canApproveMuscleProfile(e) ? copy.approveProfile : copy.cannotApproveProfile}
-              disabled={approvingProfiles || !canApproveMuscleProfile(e)}
-              onClick={() => onApproveProfile(e)}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
-            >
-              <Check className="h-3.5 w-3.5" />
-            </button>
-          ) : null}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={`${locale === "en" ? "Actions" : "Thao tác"}: ${e.name}`}>
-                {transferringId === e.id || deletingId === e.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <EllipsisVertical className="h-4 w-4" />}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              {onTransferMetadata ? <DropdownMenuItem disabled={!canManage || transferringId === e.id} onSelect={() => onTransferMetadata(e)}><ArrowDownUp />{copy.transferMetadata}</DropdownMenuItem> : null}
-              {onUndoMetadataTransfer && e.undoableMetadataTransferId ? <DropdownMenuItem disabled={!canManage || transferringId === e.id} onSelect={() => onUndoMetadataTransfer(e)}><Undo2 />{copy.undoTransfer}</DropdownMenuItem> : null}
-              <DropdownMenuItem disabled={!canManage} onSelect={() => onEdit(e)}><Pencil />{copy.edit}</DropdownMenuItem>
-              {onRequestShare && canManage && (e.shareStatus === "private" || e.shareStatus === "rejected") ? (
-                <DropdownMenuItem onSelect={() => onRequestShare(e)}><Share2 />{copy.requestShare}</DropdownMenuItem>
-              ) : null}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" disabled={!canManage || e.usageCount > 0 || deletingId === e.id} onSelect={() => onDelete(e)} title={!canManage ? copy.cannotManageShared : e.usageCount > 0 ? copy.cannotDeleteInUse : copy.delete}><Trash2 />{copy.delete}</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <Card className="overflow-hidden">
-      {/* Group header */}
-      <div className={cn("flex w-full items-center gap-3 px-4 py-2.5 transition-colors", open && "bg-muted/30")}>
-        <button
-          type="button"
-          onClick={onToggle}
-          className="grid flex-1 grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-3 text-left hover:opacity-80"
-        >
-          <ChevronRight className={cn("h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform", open && "rotate-90")} />
-          <GroupMuscleIcon group={group} />
-          <span className="flex min-w-0 items-center gap-3">
-            <span className="shrink-0 text-base font-semibold text-foreground">{group}</span>
-            <span className="hidden truncate text-sm text-muted-foreground md:block">{groupDescription}</span>
-          </span>
-          <span className="flex items-center justify-end gap-3 whitespace-nowrap">
-            <span className="font-mono text-xs text-muted-foreground tnum">
-              {copy.variationCount(exercises.length)}
-            </span>
-          </span>
-          <span className="flex items-center gap-4">
-            <ChevronRight className="hidden h-4 w-4 text-muted-foreground lg:block" />
-          </span>
-        </button>
-        {open && selectableIds.length > 0 ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="shrink-0 gap-2"
-            aria-label={`${allSelected ? copy.deselectAll : copy.selectGroup}: ${group}`}
-            onClick={(event) => {
-              event.stopPropagation()
-              onToggleGroupSelect(selectableIds)
-            }}
-          >
-            <span
-              aria-hidden="true"
-              className={cn(
-                "flex size-4 items-center justify-center rounded border border-input",
-                (allSelected || someSelected) && "border-primary bg-primary text-primary-foreground",
-              )}
-            >
-              {allSelected ? <Check className="size-3" /> : someSelected ? <span className="h-0.5 w-2 rounded bg-current" /> : null}
-            </span>
-            <span className="hidden md:inline">{allSelected ? copy.deselectAll : copy.selectGroup}</span>
-          </Button>
-        ) : null}
-      </div>
-
-      {/* Exercise rows */}
-      {open && (
-        <div className="border-t border-border">
-          {/* Column header */}
-          <div className="grid grid-cols-[24px_minmax(0,1.4fr)_56px_84px] items-center gap-2 border-b border-border/50 bg-muted/20 px-4 py-2 sm:grid-cols-[24px_minmax(0,1.4fr)_minmax(0,1fr)_96px_64px_84px]">
-            <span />
-            <span className="label-micro text-muted-foreground">{copy.exercise}</span>
-            <span className="label-micro hidden text-muted-foreground sm:block">{copy.variation}</span>
-            <span className="label-micro hidden text-muted-foreground sm:block">{copy.equipment}</span>
-            <span className="label-micro text-right text-muted-foreground">{copy.uses}</span>
-            <span />
-          </div>
-
-          {primaryMuscleSections.map((section) => {
-            const sectionOpen = forceSectionOpen || openSectionKeys.has(section.key)
-
-            return (
-              <div key={section.key} className="border-b border-border/50 last:border-b-0">
-                <button
-                  type="button"
-                  onClick={() => toggleSection(section.key)}
-                  className="grid w-full grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 border-b border-border/40 bg-surface-subtle px-4 py-2 text-left transition-colors hover:bg-surface-hover sm:grid-cols-[24px_minmax(0,1fr)_96px_64px_84px]"
-                  aria-expanded={sectionOpen}
-                >
-                  <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", sectionOpen && "rotate-90")} />
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="text-xs font-semibold text-foreground">{section.label}</span>
-                    <Badge variant="outline" className="font-mono text-micro">
-                      {copy.variationCount(section.items.length)}
-                    </Badge>
-                  </div>
-                  <span className="hidden sm:block" />
-                  <span className="hidden sm:block" />
-                  <span />
-                </button>
-                {sectionOpen ? section.items.map(renderExerciseRow) : null}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </Card>
-  )
-}
-
 /* ------------------------------------------------------------------ */
 /* AdminExercisesPanel (main export)                                    */
 /* ------------------------------------------------------------------ */
@@ -1185,6 +1197,7 @@ export type ExerciseSaveData = {
   activityType: ExerciseActivityType
   id?: string
   mediaFiles?: AdminExerciseMediaFiles
+  movementPattern: MovementPattern | null
   name: string
   variationName: string
   muscleGroup: string
@@ -1214,6 +1227,8 @@ type ExerciseLibraryPanelProps = {
   onUndoMetadataTransfer?: (transferId: string, variationId: string) => Promise<void>
   /** Coach only: offer an own exercise to the shared library; also adds the offer to the create form. */
   onRequestShare?: (exercise: AdminExerciseItem) => Promise<void>
+  /** Adds the AI pre-fill to the create form. */
+  onAiDraft?: ExerciseFormModalProps["onAiDraft"]
   capabilities?: { canExport?: boolean; canBulkApprove?: boolean }
 }
 
@@ -1235,12 +1250,13 @@ export function ExerciseLibraryPanel({
   onTransferMetadata,
   onUndoMetadataTransfer,
   onRequestShare,
+  onAiDraft,
   capabilities = {},
 }: ExerciseLibraryPanelProps) {
   const copy = getExercisePanelCopy(locale)
   const [rawQ, setRawQ] = useState("")
   const q = useDeferredValue(rawQ)
-  const [openGroups, setOpenGroups] = useState<string[]>([])
+  const [activeGroup, setActiveGroup] = useState<LibraryGroupKey | null>(null)
   const [modal, setModal] = useState<"new" | AdminExerciseItem | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<
     | { type: "single"; exercise: AdminExerciseItem }
@@ -1249,12 +1265,14 @@ export function ExerciseLibraryPanel({
   >(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  // Checkboxes stay hidden, as in the browse design, until someone asks to select.
+  const [selecting, setSelecting] = useState(false)
   const [muscleFilter, setMuscleFilter] = useState<"all" | MuscleSlug>("all")
   const [equipmentFilter, setEquipmentFilter] = useState("all")
   const [profileFilter, setProfileFilter] = useState<"all" | "pending" | "approved">("all")
   const [activityFilter, setActivityFilter] = useState<"all" | ExerciseActivityType>("all")
   const [mediaFilter, setMediaFilter] = useState<"all" | "missing" | "present">("all")
-  const [sortBy, setSortBy] = useState<"name" | "variations">("name")
+  const [sortBy, setSortBy] = useState<"popular" | "name">("popular")
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [excelToolsOpen, setExcelToolsOpen] = useState(false)
   const [transferTarget, setTransferTarget] = useState<AdminExerciseItem | null>(null)
@@ -1272,7 +1290,7 @@ export function ExerciseLibraryPanel({
     setProfileFilter("all")
     setActivityFilter("all")
     setMediaFilter("all")
-    setSortBy("name")
+    setSortBy("popular")
   }
 
   const equipmentOptions = useMemo(
@@ -1295,27 +1313,38 @@ export function ExerciseLibraryPanel({
     [exercises],
   )
 
-  /* Derived: filter + group */
-  const filtered = useMemo(
+  /* Derived: every filter but equipment, which the group page's chips also offer */
+  const searchResult = useMemo(
     () => {
       const search = compileExerciseSearch(q)
-
-      return searchableExercises.flatMap(({ document, exercise: e }) => {
-        if (!matchesExerciseSearchDocument(document, search)) return []
+      const passesFilters = (e: AdminExerciseItem) => {
         if (
           muscleFilter !== "all" &&
           !e.primaryMuscles.includes(muscleFilter) &&
           !e.secondaryMuscles.includes(muscleFilter) &&
           !muscleGroupToSlugs(e.muscleGroup).includes(muscleFilter)
-        ) return []
-        if (equipmentFilter !== "all" && (e.equipment ?? "").toLowerCase() !== equipmentFilter.toLowerCase()) return []
-        if (profileFilter !== "all" && (e.muscleProfileStatus ?? "pending") !== profileFilter) return []
-        if (activityFilter !== "all" && e.activityType !== activityFilter) return []
-        if (mediaFilter !== "all" && Boolean(e.media) !== (mediaFilter === "present")) return []
-        return [e]
-      })
+        ) return false
+        if (profileFilter !== "all" && (e.muscleProfileStatus ?? "pending") !== profileFilter) return false
+        if (activityFilter !== "all" && e.activityType !== activityFilter) return false
+        if (mediaFilter !== "all" && Boolean(e.media) !== (mediaFilter === "present")) return false
+        return true
+      }
+
+      // Exact matches first; typo-tolerant only when they find nothing.
+      return filterExerciseSearch(
+        searchableExercises,
+        search,
+        ({ document, exercise }, fuzzy) => passesFilters(exercise) && matchesExerciseSearchDocument(document, search, { fuzzy }),
+      )
     },
-    [activityFilter, equipmentFilter, mediaFilter, muscleFilter, profileFilter, q, searchableExercises],
+    [activityFilter, mediaFilter, muscleFilter, profileFilter, q, searchableExercises],
+  )
+  const filteredBeforeEquipment = useMemo(() => searchResult.items.map(({ exercise }) => exercise), [searchResult])
+  const filtered = useMemo(
+    () => equipmentFilter === "all"
+      ? filteredBeforeEquipment
+      : filteredBeforeEquipment.filter((e) => (e.equipment ?? "").toLowerCase() === equipmentFilter.toLowerCase()),
+    [equipmentFilter, filteredBeforeEquipment],
   )
 
   // The dialog reads the latest list entry, so a media upload shows up without reopening it.
@@ -1323,28 +1352,76 @@ export function ExerciseLibraryPanel({
     ? exercises.find((exercise) => exercise.id === modal.id) ?? modal
     : null
 
-  const grouped = useMemo(() => {
-    const map: Record<string, AdminExerciseItem[]> = {}
-    filtered.forEach((e) => {
-      const g = e.muscleGroup || "Other"
-      ;(map[g] ??= []).push(e)
-    })
-    const groups = Object.keys(map).map((group) => ({ group, items: sortByExerciseRelevance(map[group], q, (e) => e.name) }))
-    const sortedGroups = sortGroupsByExerciseRelevance(groups, q, (g) => g.group, (g) => g.items)
-    if (q.trim()) return sortedGroups
-    return sortedGroups.sort((left, right) =>
-      sortBy === "variations"
-        ? right.items.length - left.items.length
-        : left.group.localeCompare(right.group, locale, { sensitivity: "base" }),
-    )
-  }, [filtered, locale, q, sortBy])
+  const groupOf = useMemo(() => new Map(exercises.map((e) => [e.id, libraryGroupOf(e)])), [exercises])
 
-  /* Auto-expand when searching */
-  const forceOpen = q.trim().length > 0
+  /* Grid cards: every group keeps its card, even when the filters empty it. */
+  const groupCards = useMemo(
+    () => LIBRARY_GROUPS.map((group) => ({ group, items: filtered.filter((e) => groupOf.get(e.id) === group.key) })),
+    [filtered, groupOf],
+  )
+
+  /** Popular first, like the mockup's shelves; a search ranks by relevance instead. */
+  const sortRows = useCallback(
+    (items: AdminExerciseItem[]) => q.trim()
+      ? sortByExerciseRelevance(items, q, (e) => e.name)
+      : [...items].sort((left, right) =>
+          sortBy === "popular"
+            ? right.usageCount - left.usageCount || left.name.localeCompare(right.name, locale, { sensitivity: "base" })
+            : left.name.localeCompare(right.name, locale, { sensitivity: "base" })),
+    [locale, q, sortBy],
+  )
+
+  const activeGroupInfo = activeGroup ? getLibraryGroup(activeGroup) : null
+  const activeRows = useMemo(
+    () => activeGroup ? sortRows(filtered.filter((e) => groupOf.get(e.id) === activeGroup)) : [],
+    [activeGroup, filtered, groupOf, sortRows],
+  )
+  const activeEquipmentChips = useMemo(
+    () => activeGroup
+      ? sortEquipmentChips(filteredBeforeEquipment.filter((e) => groupOf.get(e.id) === activeGroup).flatMap((e) => (e.equipment ? [e.equipment] : [])))
+      : [],
+    [activeGroup, filteredBeforeEquipment, groupOf],
+  )
+  /* A search on the grid page lists matches from every group instead of the cards. */
+  const searchRows = useMemo(() => (!activeGroup && q.trim() ? sortRows(filtered) : []), [activeGroup, filtered, q, sortRows])
+  const visibleRows = activeGroup ? activeRows : searchRows
   const isSearchPending = rawQ !== q
 
-  function toggle(g: string) {
-    setOpenGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]))
+  /** "Use this one" from the create form: close it and show the existing exercise. */
+  function showExistingExercise(id: string) {
+    const existing = exercises.find((e) => e.id === id)
+    setModal(null)
+    if (!existing) return
+    openGroup(groupOf.get(id) ?? null)
+    setRawQ(existing.name)
+  }
+
+  function openGroup(key: LibraryGroupKey | null) {
+    setActiveGroup(key)
+    // Chips belong to one group; carrying a "Cable" chip into Abs would look like an empty group.
+    setEquipmentFilter("all")
+  }
+
+  const rowHandlers: ExerciseRowActionHandlers = {
+    approvingProfiles: actionKey === "exercise-bulk-approve",
+    deletingId,
+    onApproveProfile: capabilities.canBulkApprove && onBulkApprove ? (e) => void onBulkApprove([e.id]) : undefined,
+    onDelete: (e) => void handleDelete(e),
+    onEdit: (e) => setModal(e),
+    onRequestShare: onRequestShare ? (e) => void onRequestShare(e).catch(() => undefined) : undefined,
+    onTransferMetadata: onTransferMetadata ? (e) => { setTransferTarget(e); setTransferSourceId("") } : undefined,
+    onUndoMetadataTransfer: onUndoMetadataTransfer
+      ? (e) => { if (e.undoableMetadataTransferId) void onUndoMetadataTransfer(e.undoableMetadataTransferId, e.id).catch(() => undefined) }
+      : undefined,
+    transferringId: transferBusyId,
+  }
+  const selectableVisibleIds = visibleRows.filter((e) => ((e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true)).map((e) => e.id)
+  const allVisibleSelected = selectableVisibleIds.length > 0 && selectableVisibleIds.every((id) => selected.has(id))
+  const showCheckboxes = selecting || selected.size > 0
+
+  function stopSelecting() {
+    setSelected(new Set())
+    setSelecting(false)
   }
 
   function toggleSelect(id: string) {
@@ -1419,6 +1496,30 @@ export function ExerciseLibraryPanel({
 
   return (
     <div className="space-y-5">
+      {activeGroupInfo ? (
+        <div className="space-y-2">
+          <nav aria-label={copy.breadcrumb} className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+            <button type="button" onClick={() => openGroup(null)} className="truncate hover:text-foreground hover:underline">
+              {copy.libraryTitle}
+            </button>
+            <span aria-hidden="true">/</span>
+            <span aria-current="page" className="truncate text-foreground">{activeGroupInfo.label[locale]}</span>
+          </nav>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+              {copy.libraryTitle}: {activeGroupInfo.label[locale]}
+            </h2>
+            <Badge variant="outline" className="rounded-full px-2.5 font-mono text-xs tnum">{activeRows.length}</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">{activeGroupInfo.description[locale]}</p>
+        </div>
+      ) : (
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{copy.libraryTitle}</h2>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{copy.libraryDescription}</p>
+        </div>
+      )}
+
       {importRequests.length > 0 ? (
         <Card>
           <div className="flex flex-col gap-1 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1557,8 +1658,8 @@ export function ExerciseLibraryPanel({
                 value={sortBy}
                 onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
               >
+                <option value="popular">{locale === "en" ? "Most used" : "Dùng nhiều nhất"}</option>
                 <option value="name">{locale === "en" ? "Name A-Z" : "Tên A-Z"}</option>
-                <option value="variations">{locale === "en" ? "Most variations" : "Nhiều variation"}</option>
               </select>
             </label>
               </div>
@@ -1620,7 +1721,7 @@ export function ExerciseLibraryPanel({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setSelected(new Set())}
+            onClick={stopSelecting}
           >
             {copy.deselectAll}
           </Button>
@@ -1642,38 +1743,72 @@ export function ExerciseLibraryPanel({
         </div>
       )}
 
-      {/* Groups */}
-      <div className="flex flex-col gap-2.5">
-        {grouped.map(({ group, items }) => (
-          <GroupBlock
-            key={group}
-            group={group}
-            exercises={items}
-            forceSectionOpen={forceOpen}
-            open={forceOpen || openGroups.includes(group)}
-            selected={selected}
-            onToggle={() => toggle(group)}
-            onToggleSelect={toggleSelect}
-            onToggleGroupSelect={toggleGroupSelect}
-            onEdit={(e) => setModal(e)}
-            onDelete={handleDelete}
-            onApproveProfile={capabilities.canBulkApprove && onBulkApprove ? (e) => void onBulkApprove([e.id]) : undefined}
-            approvingProfiles={actionKey === "exercise-bulk-approve"}
-            deletingId={deletingId}
-            onTransferMetadata={onTransferMetadata ? (e) => { setTransferTarget(e); setTransferSourceId("") } : undefined}
-            onUndoMetadataTransfer={onUndoMetadataTransfer ? (e) => { if (e.undoableMetadataTransferId) void onUndoMetadataTransfer(e.undoableMetadataTransferId, e.id).catch(() => undefined) } : undefined}
-            transferringId={transferBusyId}
-            onRequestShare={onRequestShare ? (e) => void onRequestShare(e).catch(() => undefined) : undefined}
-            locale={locale}
-          />
-        ))}
-        {grouped.length === 0 && (
-          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border py-12 text-center">
-            <Dumbbell aria-hidden className="size-8 text-muted-foreground/60" />
-            <p className="text-sm text-muted-foreground">{copy.noMatches}</p>
+      {activeGroup && activeEquipmentChips.length > 0 ? (
+        // One scrolling row on phones, where wrapped chips would push the list off screen.
+        <div role="group" aria-label={copy.equipment} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
+          {["all", ...activeEquipmentChips].map((value) => {
+            const active = equipmentFilter.toLowerCase() === value.toLowerCase()
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setEquipmentFilter(value)}
+                className={cn(
+                  "h-9 shrink-0 whitespace-nowrap rounded-full border px-4 text-sm transition-colors pointer-coarse:h-10",
+                  active
+                    ? "border-foreground bg-foreground font-medium text-background"
+                    : "border-border bg-card text-foreground hover:bg-surface-hover",
+                )}
+              >
+                {value === "all" ? copy.allEquipment : value}
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
+
+      {activeGroup || q.trim() ? (
+        <div className="space-y-3">
+          <div className="flex min-h-8 items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground" aria-live="polite">
+              {searchResult.fuzzy && visibleRows.length > 0
+                ? copy.fuzzyResults(q.trim(), visibleRows.length)
+                : activeGroup ? copy.exerciseCount(visibleRows.length) : copy.searchResults(visibleRows.length)}
+            </p>
+            {selectableVisibleIds.length === 0 ? null : showCheckboxes ? (
+              <div className="flex items-center gap-1">
+                <Button type="button" variant="ghost" size="sm" onClick={() => toggleGroupSelect(selectableVisibleIds)}>
+                  {allVisibleSelected ? copy.deselectAll : copy.selectAll}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={stopSelecting}>
+                  {copy.doneSelecting}
+                </Button>
+              </div>
+            ) : (
+              <Button type="button" variant="ghost" size="sm" onClick={() => setSelecting(true)}>
+                {copy.selectMany}
+              </Button>
+            )}
           </div>
-        )}
-      </div>
+          {visibleRows.length > 0 ? (
+            <ExerciseRowGrid
+              exercises={visibleRows}
+              handlers={rowHandlers}
+              locale={locale}
+              selected={showCheckboxes ? selected : undefined}
+              onToggleSelect={showCheckboxes ? toggleSelect : undefined}
+            />
+          ) : (
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border py-12 text-center">
+              <Dumbbell aria-hidden className="size-8 text-muted-foreground/60" />
+              <p className="text-sm text-muted-foreground">{copy.noMatches}</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <ExerciseGroupGrid groups={groupCards} locale={locale} onOpen={openGroup} />
+      )}
 
       {/* Modal */}
       {modal !== null && (
@@ -1682,14 +1817,13 @@ export function ExerciseLibraryPanel({
           initial={modal === "new" ? null : editingExercise}
           locale={locale}
           offerShare={Boolean(onRequestShare)}
-          mediaEditor={editingExercise && onSaveMedia && onRemoveMedia ? (
-            <ExerciseMediaEditor
-              exercise={editingExercise}
-              locale={locale}
-              onRemove={() => onRemoveMedia(editingExercise.id)}
-              onSave={(files) => onSaveMedia(editingExercise.id, files)}
-            />
-          ) : undefined}
+          duplicateCandidates={exercises}
+          onUseExisting={showExistingExercise}
+          onAiDraft={onAiDraft}
+          media={editingExercise && onSaveMedia && onRemoveMedia ? {
+            onRemove: () => onRemoveMedia(editingExercise.id),
+            onSave: (files) => onSaveMedia(editingExercise.id, files),
+          } : undefined}
           saving={isSaving}
           onClose={() => setModal(null)}
           onSave={handleSave}

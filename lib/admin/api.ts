@@ -1,7 +1,7 @@
 import { ApiError } from "@/lib/auth/api"
 import { getApiBaseUrl } from "@/lib/supabase/config"
 import { getTimeZoneHeaders } from "@/lib/time-zone"
-import type { ExerciseActivityType, MuscleProfileStatus, MuscleSlug } from "@/lib/types"
+import type { ExerciseActivityType, MovementPattern, MuscleProfileStatus, MuscleSlug } from "@/lib/types"
 
 import type {
   AdminAuditLogItem,
@@ -513,6 +513,7 @@ async function createAdminExerciseRequest(
   input: {
     activityType: ExerciseActivityType
     equipment?: string
+    movementPattern?: MovementPattern | null
     muscleGroup: string
     name: string
     primaryMuscles: MuscleSlug[]
@@ -533,6 +534,7 @@ async function updateAdminExerciseRequest(
   input: {
     activityType: ExerciseActivityType
     equipment?: string
+    movementPattern?: MovementPattern | null
     muscleGroup: string
     name: string
     primaryMuscles: MuscleSlug[]
