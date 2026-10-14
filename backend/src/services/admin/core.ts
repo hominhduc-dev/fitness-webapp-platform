@@ -25,6 +25,7 @@ import {
   type MuscleProfileInput,
   type MuscleSlugValue,
 } from "../../domain/muscle-profile"
+import type { MovementPatternValue } from "../../domain/movement-pattern"
 import { env } from "../../config/env"
 import {
   CUSTOM_EXERCISE_MEDIA_METADATA_KEY,
@@ -373,6 +374,7 @@ function serializeExerciseSummary(exercise: ExerciseSummaryRecord) {
     isDefault: exercise.isDefault,
     media: resolvedMedia?.media,
     mediaSource: resolvedMedia?.source,
+    movementPattern: exercise.exercise.movementPattern ?? undefined,
     muscleGroup: exercise.exercise.muscleGroup,
     name: exercise.exercise.name,
     updatedAt: exercise.updatedAt,
@@ -1755,6 +1757,7 @@ async function createAdminExercise(
   profile: SerializedProfile,
   input: {
     equipment?: string
+    movementPattern?: MovementPatternValue | null
     muscleGroup: string
     muscleProfile: MuscleProfileInput
     name: string
@@ -1781,6 +1784,7 @@ async function createAdminExercise(
     exercise = await db.exercise.create({
       data: {
         createdById: profile.id,
+        movementPattern: input.movementPattern ?? null,
         muscleGroup,
         name,
         ...adminSharedExercise(profile.id),
@@ -2342,6 +2346,8 @@ async function updateAdminExercise(
   exerciseId: string,
   input: {
     equipment?: string
+    /** Undefined keeps the stored pattern. */
+    movementPattern?: MovementPatternValue | null
     muscleGroup: string
     muscleProfile: MuscleProfileInput
     name: string
@@ -2376,6 +2382,7 @@ async function updateAdminExercise(
     exercise = await db.$transaction(async (transaction) => {
       await transaction.exercise.update({
         data: {
+          movementPattern: input.movementPattern,
           muscleGroup,
           name,
         },

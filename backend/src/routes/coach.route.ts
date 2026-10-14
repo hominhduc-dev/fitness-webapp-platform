@@ -1,6 +1,7 @@
 import { CoachRequestStatus, ProgramDifficulty } from "@prisma/client"
 import { Router } from "express"
 import { parseMuscleListValue, parseMuscleProfileInput } from "../domain/muscle-profile"
+import { parseMovementPatternInput } from "../domain/movement-pattern"
 import { isSetIntensityTag, type SetIntensityAssignment } from "../domain/set-intensity-tag"
 
 import { requireCurrentProfile } from "../services/auth.service"
@@ -537,6 +538,7 @@ coachRouter.post("/exercises", async (req, res) => {
     const exercise = await createCoachExercise(profile.profile, {
       equipment: typeof req.body.equipment === "string" ? req.body.equipment : undefined,
       muscleGroup: String(req.body.muscleGroup ?? ""),
+      movementPattern: parseMovementPatternInput(req.body.movementPattern),
       muscleProfile: parseMuscleProfileInput(req.body),
       name: String(req.body.name ?? ""),
       shareRequested: req.body.shareRequested === true,
@@ -587,6 +589,7 @@ coachRouter.patch("/exercises/:exerciseId", async (req, res) => {
     const exercise = await updateCoachExercise(profile.profile, String(req.params.exerciseId), {
       equipment: typeof req.body.equipment === "string" ? req.body.equipment : undefined,
       muscleGroup: String(req.body.muscleGroup ?? ""),
+      movementPattern: parseMovementPatternInput(req.body.movementPattern),
       muscleProfile: parseMuscleProfileInput(req.body),
       name: String(req.body.name ?? ""),
     })

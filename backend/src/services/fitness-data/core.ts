@@ -74,6 +74,8 @@ import {
   type MuscleProfileInput,
   type MuscleSlugValue,
 } from "../../domain/muscle-profile"
+import type { MovementPatternValue } from "../../domain/movement-pattern"
+import { findDuplicateExercise } from "../../domain/exercise-name"
 import { enrichExerciseSnapshot, type SnapshotMuscleProfile } from "../../domain/workout-muscle-snapshot"
 import { collectSessionChanges } from "../../domain/workout-session-changes"
 import {
@@ -659,6 +661,7 @@ function serializeVariationOption(
     // catalogue and program payload, and nothing on the client reads it: the
     // media and display name derived from it are sent instead.
     media: serializeExerciseMedia(variation.displayMetadata),
+    movementPattern: variation.exercise.movementPattern ?? undefined,
     muscleGroup: variation.exercise.muscleGroup,
     name: displayName,
     source: visibility.source,
@@ -2481,6 +2484,7 @@ function serializeCoachExercise(exercise: CoachExerciseRecord, profile: Serializ
     id: exercise.id,
     // The library row shows the default variation, so its media stands in for the exercise.
     media: defaultVariation ? serializeExerciseMedia(defaultVariation.displayMetadata) : undefined,
+    movementPattern: exercise.movementPattern ?? undefined,
     muscleGroup: exercise.muscleGroup,
     name: exercise.name,
     shareReviewNote: exercise.shareReviewNote ?? undefined,
@@ -3439,6 +3443,22 @@ function shareRequestData() {
   return { shareRequestedAt: new Date(), shareReviewNote: null, shareStatus: ExerciseShareStatus.pending }
 }
 
+/**
+ * The shared-library exercise a name duplicates (spelling, plurals and word
+ * order aside). A coach may keep a private copy, but offering it to everyone
+ * would only put a second "Bench Press" in front of the admins.
+ */
+async function findSharedLibraryDuplicate(name: string, excludeExerciseId?: string) {
+  const library = await ensurePrisma().exercise.findMany({
+    select: { id: true, name: true },
+    where: {
+      OR: [{ createdById: null }, { shareStatus: ExerciseShareStatus.shared }],
+      ...(excludeExerciseId ? { id: { not: excludeExerciseId } } : {}),
+    },
+  })
+  return findDuplicateExercise(name, library)
+}
+
 /** A shared exercise sits in other coaches' programs, so only admins change it. */
 function assertNotShared(exercise: { shareStatus: ExerciseShareStatus }) {
   if (exercise.shareStatus === ExerciseShareStatus.shared) {
@@ -3450,6 +3470,7 @@ async function createCoachExercise(
   profile: SerializedProfile,
   input: {
     equipment?: string | null
+    movementPattern?: MovementPatternValue | null
     muscleGroup: string
     muscleProfile: MuscleProfileInput
     name: string
@@ -3486,12 +3507,17 @@ async function createCoachExercise(
     throw new AuthServiceError("Bài tập này đã tồn tại trong thư viện cá nhân.", 400)
   }
 
+  // The private copy is still created; only the offer to share it is dropped.
+  const sharedDuplicate = input.shareRequested ? await findSharedLibraryDuplicate(name) : undefined
+  const shareRequested = Boolean(input.shareRequested && !sharedDuplicate)
+
   const exercise = await db.exercise.create({
     data: {
       createdById: profile.id,
+      movementPattern: input.movementPattern ?? null,
       muscleGroup,
       name,
-      ...(input.shareRequested ? shareRequestData() : {}),
+      ...(shareRequested ? shareRequestData() : {}),
       variations: {
         create: {
           equipment,
@@ -3506,10 +3532,14 @@ async function createCoachExercise(
   })
 
   invalidateExerciseLibrary()
-  if (input.shareRequested) {
+  if (shareRequested) {
     void notifyAdminsOfExerciseShare({ coachName: profile.name, exercises: [exercise] })
   }
-  return serializeCoachExercise(exercise, profile)
+  return {
+    ...serializeCoachExercise(exercise, profile),
+    // Tells the form why the exercise stayed private although sharing was ticked.
+    ...(sharedDuplicate ? { shareSkippedDuplicateOf: sharedDuplicate.name } : {}),
+  }
 }
 
 /** The coach offers one of their own exercises to the shared library. */
@@ -3530,6 +3560,10 @@ async function requestCoachExerciseShare(profile: SerializedProfile, exerciseId:
   // Asking twice is a no-op, not a second notice to every admin.
   if (exercise.shareStatus === ExerciseShareStatus.pending) {
     return serializeCoachExercise(exercise, profile)
+  }
+  const sharedDuplicate = await findSharedLibraryDuplicate(exercise.name, exercise.id)
+  if (sharedDuplicate) {
+    throw new AuthServiceError(`Thư viện chung đã có "${sharedDuplicate.name}"; hãy dùng bài đó thay vì đề xuất bản trùng.`, 409)
   }
 
   const updated = await db.exercise.update({
@@ -3636,6 +3670,8 @@ async function updateCoachExercise(
   exerciseId: string,
   input: {
     equipment?: string | null
+    /** Undefined keeps the stored pattern. */
+    movementPattern?: MovementPatternValue | null
     muscleGroup: string
     muscleProfile: MuscleProfileInput
     name: string
@@ -3702,6 +3738,7 @@ async function updateCoachExercise(
   const exercise = await db.$transaction(async (transaction) => {
     await transaction.exercise.update({
       data: {
+        movementPattern: input.movementPattern,
         muscleGroup,
         name,
       },

@@ -15,6 +15,7 @@ type CatalogExercise = {
   id: string
   name: string
   muscleGroup: string
+  movementPattern?: string | null
   createdById: string | null
   variations: Array<{ id: string; name: string; equipment: string | null }>
 }
@@ -23,6 +24,7 @@ type PromptExercise = {
   id: string
   name: string
   muscleGroup: string
+  movementPattern?: string | null
   variations: Array<{ id: string; name: string; equipment: string | null }>
 }
 
@@ -126,6 +128,7 @@ function selectCatalogForPrompt(
       id: exercise.id,
       name: exercise.name,
       muscleGroup: exercise.muscleGroup,
+      movementPattern: exercise.movementPattern ?? null,
       variations: usable,
     }
   })
