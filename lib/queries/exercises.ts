@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
-import { coachExerciseToVariationOption, createCoachExerciseRequest, fetchExercises, updateCoachExerciseRequest } from "@/lib/fitness/api"
+import { coachExerciseToVariationOption, createCoachExerciseRequest, draftExerciseWithAI, fetchExercises, updateCoachExerciseRequest } from "@/lib/fitness/api"
 import type { CoachExerciseInput } from "@/lib/fitness/types"
 import { queryKeys } from "@/lib/queries/keys"
 import { useUserQuery } from "@/lib/queries/scoped"
@@ -53,5 +53,13 @@ export function useUpdateExerciseFromPicker() {
         client.invalidateQueries({ queryKey: queryKeys.exercises.all }),
         client.invalidateQueries({ queryKey: ["coach", "exercises"] }),
       ]),
+  })
+}
+
+/** AI pre-fill for the new-exercise form; nothing is saved until the coach submits the form. */
+export function useExerciseAIDraft() {
+  return useMutation({
+    mutationFn: async (input: Parameters<typeof draftExerciseWithAI>[1]) =>
+      draftExerciseWithAI(await requireAccessToken(), input),
   })
 }

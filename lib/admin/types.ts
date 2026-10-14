@@ -1,4 +1,4 @@
-import type { ExerciseActivityType, ExerciseMedia, ExerciseMuscleProfile, ExerciseShareStatus, MuscleProfileSource, MuscleProfileStatus, MuscleSlug, UserRole } from "@/lib/types"
+import type { ExerciseActivityType, ExerciseMedia, ExerciseMuscleProfile, ExerciseShareStatus, MovementPattern, MuscleProfileSource, MuscleProfileStatus, MuscleSlug, UserRole } from "@/lib/types"
 import type { CoachApprovalStatus } from "@/lib/auth/types"
 
 type AdminMiniUser = {
@@ -98,6 +98,7 @@ type AdminExerciseItem = ExerciseMuscleProfile & {
   media?: ExerciseMedia
   /** Where `media` comes from: admin upload or Cloudinary CDN metadata. */
   mediaSource?: "custom" | "cdn"
+  movementPattern?: MovementPattern
   muscleGroup: string
   muscleProfileRationale?: string
   muscleProfileSource?: MuscleProfileSource

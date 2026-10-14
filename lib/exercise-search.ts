@@ -1,6 +1,10 @@
+import { editDistance, EXERCISE_ABBREVIATIONS } from "@/lib/fitness/exercise-name"
+
 export type ExerciseSearchDocument = {
   compact: string
   text: string
+  /** Distinct words, for the typo-tolerant fallback. */
+  words: string[]
 }
 
 export type CompiledExerciseSearch = {
@@ -32,25 +36,68 @@ export function compileExerciseSearch(query: string): CompiledExerciseSearch {
   return {
     compact: normalized.replace(/\s+/g, ""),
     normalized,
-    tokens: normalized ? normalized.split(" ") : [],
+    // Gym shorthand reads as the words it stands for: "db press" finds Dumbbell Press.
+    tokens: normalized ? normalized.split(" ").flatMap((token) => (EXERCISE_ABBREVIATIONS[token] ?? token).split(" ")) : [],
   }
 }
 
 /** Build once when the exercise collection changes, not once per keystroke. */
 export function createExerciseSearchDocument(fields: Array<string | null | undefined>): ExerciseSearchDocument {
   const text = normalizeExerciseSearchText(fields.filter(Boolean).join(" "))
-  return { compact: text.replace(/\s+/g, ""), text }
+  return { compact: text.replace(/\s+/g, ""), text, words: [...new Set(text.split(" ").filter(Boolean))] }
 }
 
+/** Typos a search word may carry in fuzzy mode: none for short words, where one letter changes the word. */
+function typoAllowance(token: string) {
+  if (token.length < 4) return 0
+  return token.length >= 7 ? 2 : 1
+}
+
+/** A word, or the start of one still being typed, within the token's typo allowance. */
+function matchesWithTypos(token: string, words: readonly string[]) {
+  const allowance = typoAllowance(token)
+  if (allowance === 0) return false
+  return words.some(
+    (word) =>
+      editDistance(token, word, allowance) <= allowance ||
+      (word.length > token.length && editDistance(token, word.slice(0, token.length), allowance) <= allowance),
+  )
+}
+
+/**
+ * Every search word must appear in the document. With `fuzzy`, a word may
+ * also match with a typo or two ("becnh" finds Bench) — only use it as the
+ * fallback in {@link filterExerciseSearch}, since "incline" is two typos from
+ * "decline".
+ */
 export function matchesExerciseSearchDocument(
   document: ExerciseSearchDocument,
   search: CompiledExerciseSearch,
+  options: { fuzzy?: boolean } = {},
 ): boolean {
   if (search.tokens.length === 0) return true
 
   return search.tokens.every(
-    (token) => document.text.includes(token) || document.compact.includes(token),
+    (token) =>
+      document.text.includes(token) ||
+      document.compact.includes(token) ||
+      (options.fuzzy === true && matchesWithTypos(token, document.words)),
   )
+}
+
+/**
+ * Filters with exact matching and, only when that finds nothing, again with
+ * typos allowed. `fuzzy` says the second pass produced the results, so the UI
+ * can call them close matches.
+ */
+export function filterExerciseSearch<T>(
+  items: readonly T[],
+  search: CompiledExerciseSearch,
+  matches: (item: T, fuzzy: boolean) => boolean,
+): { items: T[]; fuzzy: boolean } {
+  const exact = items.filter((item) => matches(item, false))
+  if (exact.length > 0 || search.tokens.length === 0) return { fuzzy: false, items: exact }
+  return { fuzzy: true, items: items.filter((item) => matches(item, true)) }
 }
 
 /** Backwards-compatible convenience API for small, one-off collections. */

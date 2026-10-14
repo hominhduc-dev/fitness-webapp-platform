@@ -549,10 +549,13 @@ type CoachExercise = ExerciseMuscleProfile & {
   id: string
   /** Media of the default variation, when it has any. */
   media?: import("@/lib/types").ExerciseMedia
+  movementPattern?: import("@/lib/types").MovementPattern
   muscleGroup: string
   name: string
   /** Why an admin declined to share it, when they said. */
   shareReviewNote?: string
+  /** Set on create only: sharing was asked for but the shared library already has this exercise. */
+  shareSkippedDuplicateOf?: string
   shareStatus: import("@/lib/types").ExerciseShareStatus
   source: ExerciseSource
   updatedAt: Date
@@ -564,6 +567,8 @@ type CoachExercise = ExerciseMuscleProfile & {
 type CoachExerciseInput = {
   activityType: import("@/lib/types").ExerciseActivityType
   equipment?: string
+  /** Null clears it; omitted keeps it on update. */
+  movementPattern?: import("@/lib/types").MovementPattern | null
   muscleGroup: string
   name: string
   primaryMuscles: import("@/lib/types").MuscleSlug[]

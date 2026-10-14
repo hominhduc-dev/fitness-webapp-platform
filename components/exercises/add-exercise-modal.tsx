@@ -5,7 +5,7 @@ import dynamic from "next/dynamic"
 import { Check, Pencil, Plus, Search, SlidersHorizontal, X } from "lucide-react"
 import type { ReactNode } from "react"
 
-import type { ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
+import type { ExerciseFormModalProps, ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
 import type { AdminExerciseItem } from "@/lib/admin/types"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useToast } from "@/components/providers/toast-provider"
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import {
   compileExerciseSearch,
   createExerciseSearchDocument,
+  filterExerciseSearch,
   matchesExerciseSearchDocument,
   sortByExerciseRelevance,
 } from "@/lib/exercise-search"
@@ -56,6 +57,8 @@ type AddExerciseModalProps = {
    * The new exercise is picked straight away (or selected, in multi-pick mode).
    */
   createExercise?: (data: ExerciseSaveData) => Promise<ExerciseVariationOption>
+  /** Offers the AI pre-fill in the create form; only with `createExercise`. */
+  draftExercise?: ExerciseFormModalProps["onAiDraft"]
   /**
    * Lets a coach edit an exercise of their own that is not shared yet
    * (`canManage`). Resolves with the updated option.
@@ -77,6 +80,7 @@ function toExerciseFormItem(option: ExerciseVariationOption): AdminExerciseItem 
     id: option.exerciseId,
     isDefault: option.isDefault,
     media: option.media,
+    movementPattern: option.movementPattern,
     muscleGroup: option.muscleGroup,
     name: option.exerciseName,
     primaryMuscles: option.primaryMuscles,
@@ -106,6 +110,7 @@ export function AddExerciseModal({
   loading = false,
   footer,
   createExercise,
+  draftExercise,
   updateExercise,
   onExerciseUpdated,
 }: AddExerciseModalProps) {
@@ -209,28 +214,52 @@ export function AddExerciseModal({
     return ["all", ...(hasNone ? [NONE_EQUIPMENT] : []), ...named]
   }, [exercises])
 
-  const visible = useMemo(() => {
+  const { visible, closeMatchesOnly } = useMemo(() => {
     const search = compileExerciseSearch(deferredQuery)
-    const filtered = searchableExercises.flatMap(({ document, exercise }) => {
-      if (scope === "mine" && !(profileId && exercise.createdById === profileId)) return []
+    const passesFilters = (exercise: ExerciseVariationOption) => {
+      if (scope === "mine" && !(profileId && exercise.createdById === profileId)) return false
       if (muscle !== "all") {
         const explicitMuscles = [...exercise.primaryMuscles, ...exercise.secondaryMuscles]
         const targetMuscles = explicitMuscles.length > 0
           ? explicitMuscles
           : muscleGroupToSlugs(exercise.muscleGroup)
-        if (!targetMuscles.includes(muscle)) return []
+        if (!targetMuscles.includes(muscle)) return false
       }
-      if (activityType !== "all" && exercise.activityType !== activityType) return []
+      if (activityType !== "all" && exercise.activityType !== activityType) return false
       if (equipment !== "all") {
-        if (equipment === NONE_EQUIPMENT) { if (exercise.equipment) return [] }
-        else if (exercise.equipment !== equipment) return []
+        if (equipment === NONE_EQUIPMENT) { if (exercise.equipment) return false }
+        else if (exercise.equipment !== equipment) return false
       }
-      return matchesExerciseSearchDocument(document, search) ? [exercise] : []
-    })
-    return sortByExerciseRelevance(filtered, deferredQuery, (exercise) => exercise.displayName ?? exercise.name)
+      return true
+    }
+    // Exact matches first; typo-tolerant only when they find nothing.
+    const result = filterExerciseSearch(
+      searchableExercises,
+      search,
+      ({ document, exercise }, fuzzy) => passesFilters(exercise) && matchesExerciseSearchDocument(document, search, { fuzzy }),
+    )
+    return {
+      closeMatchesOnly: result.fuzzy,
+      visible: sortByExerciseRelevance(result.items.map(({ exercise }) => exercise), deferredQuery, (exercise) => exercise.displayName ?? exercise.name),
+    }
   }, [activityType, deferredQuery, equipment, muscle, profileId, scope, searchableExercises])
 
   const isSearchPending = query !== deferredQuery
+  // Checked by exercise name: every variation of a match is the same exercise to the coach.
+  const duplicateCandidates = useMemo(
+    () => exercises.map((exercise) => ({ id: exercise.id, name: exercise.exerciseName })),
+    [exercises],
+  )
+
+  /** "Use this one" from the create form: pick the library exercise instead of a copy. */
+  function useExistingExercise(id: string) {
+    const option = exercises.find((exercise) => exercise.id === id)
+    if (!option) return
+    setCreating(false)
+    setQuery("")
+    if (onPickMany) setSelectedIds((current) => (current.includes(id) ? current : [...current, id]))
+    else onPick(option)
+  }
 
   async function handleCreateExercise(data: ExerciseSaveData) {
     if (!createExercise) return
@@ -390,6 +419,11 @@ export function AddExerciseModal({
             <>
             {/* Offered first while searching, where a miss is most likely. */}
             {query.trim() && createButton ? <div className="border-b border-border">{createButton}</div> : null}
+            {closeMatchesOnly ? (
+              <p className="border-b border-border px-[22px] py-2 text-xs text-muted-foreground" aria-live="polite">
+                {messages.workoutPage.closeExerciseMatches(deferredQuery.trim())}
+              </p>
+            ) : null}
             {
             visible.map((exercise, index) => {
               const added = existingSet.has(exercise.id)
@@ -481,8 +515,11 @@ export function AddExerciseModal({
           allowMedia={false}
           initial={null}
           initialName={query.trim()}
+          duplicateCandidates={duplicateCandidates}
+          onUseExisting={useExistingExercise}
           locale={locale}
           offerShare
+          onAiDraft={draftExercise}
           saving={savingExercise}
           stacked
           onClose={() => { if (!savingExercise) setCreating(false) }}
