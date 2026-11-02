@@ -79,11 +79,13 @@ import {
   coachRequestAnswerSchema,
   coachRequestParamsSchema,
   coachTraineeInsightBodySchema,
+  programImageImportSchema,
   coachTraineeAlertParamsSchema,
   coachTraineeAlertQuerySchema,
   coachTraineeInsightQuerySchema,
 } from "./coach.schemas"
 import { createCoachTraineeInsight, getCoachTraineeInsight } from "../services/coach-trainee-insight.service"
+import { importCoachProgramFromImages } from "../services/program-image-import.service"
 import { getCoachTraineeAlertDetail } from "../services/notifications/coach-alert-detail.service"
 import { getCoachTraineeProgressOverview } from "../services/coach-trainee-progress.service"
 import { createCoachNote, deleteCoachNote, updateCoachNote } from "../services/fitness-data/coach-notes"
@@ -458,6 +460,15 @@ coachRouter.post(
   validated({ body: coachTraineeInsightBodySchema, params: coachNoteTraineeParamsSchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
     sendData(res, { insight: await createCoachTraineeInsight(profile, req.params.traineeId, req.body) }, { status: 201 })
+  }),
+)
+
+// Reads photos of a program into an import draft; nothing is saved until the coach creates it.
+coachRouter.post(
+  "/programs/import-image",
+  validated({ body: programImageImportSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, { draft: await importCoachProgramFromImages(profile, req.body) })
   }),
 )
 

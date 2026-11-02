@@ -14,7 +14,13 @@ vi.mock("@/components/providers/locale-provider", () => ({
 }))
 vi.mock("@/lib/queries/coach-data", () => ({
   useCoachData: () => ({ data: { configured: true, connected: true }, setData: vi.fn() }),
-  useCoachMutation: () => ({ mutateAsync: save }),
+  useCoachMutation: () => ({ isPending: false, mutateAsync: save, reset: vi.fn() }),
+}))
+vi.mock("@/lib/images/downscale", () => ({
+  downscaleImage: async (file: File) => {
+    if (!file.type.startsWith("image/")) throw new Error("not an image")
+    return { data: "aW1hZ2U=", mediaType: "image/jpeg" }
+  },
 }))
 vi.mock("./google-program-source", () => ({
   GoogleProgramSource: ({ onImport }: { onImport: (...args: unknown[]) => void }) => (
@@ -234,5 +240,75 @@ describe("reviewing an AI draft", () => {
         { scheduledDay: 1, weekIndex: 1 },
       ],
     })
+  })
+})
+
+describe("creating a program from an image", () => {
+  const imageDraft = {
+    programName: "Minicut",
+    unmatchedCount: 1,
+    workouts: [{
+      name: "Session 1",
+      scheduledDay: 1,
+      exercises: [
+        { sourceName: "Barbell Bench Press", variationId: "bench", sets: 2, reps: "6-8", rir: 2, weight: null, notes: "Topset-Backoffset" },
+        { sourceName: "Hack Squat", variationId: null, sets: 2, reps: "5-10", rir: 2, weight: null, notes: "" },
+      ],
+    }],
+  }
+
+  beforeEach(() => {
+    save.mockImplementation(async ([input]: [{ images?: unknown[] }]) =>
+      input?.images ? imageDraft : { id: "program", name: "Minicut" })
+  })
+
+  async function readImage() {
+    render(<ImportProgramDialog open exerciseOptions={options} trainees={trainees} onClose={vi.fn()} onImported={vi.fn()} />)
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "From image" }), { button: 0, ctrlKey: false })
+    const input = document.querySelector<HTMLInputElement>('input[type="file"][accept^="image/"]')!
+    fireEvent.change(input, { target: { files: [new File(["x"], "week2.png", { type: "image/png" })] } })
+    await screen.findByRole("img", { name: "week2.png" })
+    fireEvent.click(screen.getByRole("button", { name: "Read with AI" }))
+    await screen.findByText(/1 exercise is not in your library yet/)
+  }
+
+  it("sends the downsized image and shows unmatched rows by the name in the image", async () => {
+    await readImage()
+    expect(save.mock.calls[0][0][0]).toEqual({ images: [{ data: "aW1hZ2U=", mediaType: "image/jpeg" }], locale: "en" })
+    expect(screen.getByDisplayValue("Minicut")).toBeInTheDocument()
+    expect(screen.getByText("In the image: Hack Squat")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Create program" })).toBeDisabled()
+  })
+
+  it("creates the program once the coach picks an exercise for the unmatched row", async () => {
+    await readImage()
+    fireEvent.click(screen.getByRole("button", { name: "Expand exercise: Hack Squat" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Swap exercise: Hack Squat" }))
+    fireEvent.click(screen.getByText("Pick Squat"))
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create program" })).toBeEnabled())
+    fireEvent.click(screen.getByRole("button", { name: "Create program" }))
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2))
+    expect(save.mock.calls[1][0][0]).toMatchObject({
+      name: "Minicut",
+      workouts: [{
+        name: "Session 1",
+        scheduledDay: 1,
+        weekIndex: undefined,
+        exercises: [
+          { variationId: "bench", sets: 2, repsMin: 6, reps: 8, rir: 2, notes: "Topset-Backoffset" },
+          { variationId: "squat", sets: 2, repsMin: 5, reps: 10, rir: 2 },
+        ],
+      }],
+    })
+  })
+
+  it("explains when the file is not an image", async () => {
+    render(<ImportProgramDialog open exerciseOptions={options} trainees={trainees} onClose={vi.fn()} onImported={vi.fn()} />)
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "From image" }), { button: 0, ctrlKey: false })
+    const input = document.querySelector<HTMLInputElement>('input[type="file"][accept^="image/"]')!
+    fireEvent.change(input, { target: { files: [new File(["x"], "notes.txt", { type: "text/plain" })] } })
+    expect(await screen.findByText("Could not read this image. Choose a JPG, PNG or WebP file.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Read with AI" })).toBeDisabled()
   })
 })

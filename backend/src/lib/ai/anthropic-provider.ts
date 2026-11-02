@@ -6,6 +6,7 @@ import { getAIRequestTimeoutMs, withAIRequestTimeout } from "./request-timeout"
 import { extractJSON, stripThoughts } from "./response-parsing"
 import type {
   AIConversationMessage,
+  AIImageInput,
   AIProvider,
   AIResponse,
   AIToolCall,
@@ -110,18 +111,29 @@ function createAnthropicProvider(apiKey: string, model: string): AIProvider {
       systemPrompt,
       userPrompt,
       maxTokens = 4096,
+      images,
     }: {
       systemPrompt: string
       userPrompt: string
       maxTokens?: number
+      images?: AIImageInput[]
     }): Promise<AIResponse<T>> {
+      const content: Anthropic.MessageParam["content"] = images?.length
+        ? [
+            ...images.map((image) => ({
+              type: "image" as const,
+              source: { type: "base64" as const, media_type: image.mediaType, data: image.data },
+            })),
+            { type: "text" as const, text: userPrompt },
+          ]
+        : userPrompt
       const response = await withAIRequestTimeout(
         client.messages.create(
           {
             model,
             max_tokens: maxTokens,
             system: systemPrompt,
-            messages: [{ role: "user", content: userPrompt }],
+            messages: [{ role: "user", content }],
           },
           { timeout: getAIRequestTimeoutMs() },
         ),

@@ -18,6 +18,8 @@ const allowedLiterals = new Map([
   ["components/providers/theme-provider.test.tsx", new Set(["#0d0f0e"])],
   ["lib/design-system/color-contrast.test.ts", new Set(["#0d0f0e", "#101311", "#16a05d", "#171717", "#171a18", "#172012", "#1d211e", "#242824", "#2b302c", "#3b82f6", "#3f6f0d", "#4ade80", "#667085", "#707872", "#89c8ff", "#8bc926", "#a3e635", "#a5ada7", "#b6f23a", "#c2410c", "#c7ff32", "#e7e5e4", "#ef4444", "#f0f7e7", "#f3f6f5", "#f7f9f7", "#f97316", "#facc15", "#faf9f7", "#ff5a5f", "#ffb020", "#fff0e5", "#fff7ed", "#ffffff"])],
   ["components/ui/brand-icons.tsx", new Set(["#4285f4", "#34a853", "#fbbc05", "#ea4335"])],
+  // Canvas backdrop behind a transparent image before JPEG encoding, not UI.
+  ["lib/images/downscale.ts", new Set(["#ffffff"])],
 ])
 
 const literalColorPattern = /#[0-9a-fA-F]{3,8}\b|\b(?:rgb|rgba|hsl|hsla|oklch|oklab)\s*\(\s*(?:[.\d+-]|var\()/g

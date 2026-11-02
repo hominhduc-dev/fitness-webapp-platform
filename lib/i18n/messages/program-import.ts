@@ -16,6 +16,26 @@ const en = {
       label: "Google Sheets",
       title: "Create a program from Google Sheets",
     },
+    image: {
+      description: "Upload a photo or screenshot of a program; AI reads it into exercises you review.",
+      label: "From image",
+      title: "Create a program from an image",
+    },
+  },
+  image: {
+    add: "Add another image",
+    analyze: "Read with AI",
+    analyzing: "Reading the program…",
+    choose: "Choose image",
+    dropHint: "or choose a photo or screenshot",
+    dropTitle: "Drop an image of the program here",
+    help: "Works best with a clear screenshot of the sheet: exercise names, sets, reps and RIR visible. Up to 3 images for one program.",
+    remove: "Remove image",
+    supported: "JPG, PNG or WebP · up to 3 images",
+    tooMany: "Up to 3 images per import.",
+    unreadable: "Could not read this image. Choose a JPG, PNG or WebP file.",
+    unmatched: (count: number) => `${count} ${count === 1 ? "exercise is" : "exercises are"} not in your library yet. Use “Swap exercise” on each one to choose the matching exercise.`,
+    sourceName: "In the image",
   },
   excel: {
     choose: "Choose Excel file",
@@ -54,6 +74,7 @@ const en = {
   errors: {
     create: "Could not create the program.",
     excelRead: "Could not read the Excel file.",
+    imageRead: "Could not read the program from the image.",
     template: "Could not build the Excel template.",
   },
 }
@@ -75,6 +96,26 @@ const vi: typeof en = {
       label: "Google Sheets",
       title: "Tạo program từ Google Sheets",
     },
+    image: {
+      description: "Tải ảnh chụp hoặc ảnh màn hình chương trình tập; AI đọc thành bài tập để bạn kiểm tra.",
+      label: "Từ ảnh",
+      title: "Tạo program từ ảnh",
+    },
+  },
+  image: {
+    add: "Thêm ảnh",
+    analyze: "Đọc bằng AI",
+    analyzing: "Đang đọc chương trình…",
+    choose: "Chọn ảnh",
+    dropHint: "hoặc chọn ảnh chụp / ảnh màn hình",
+    dropTitle: "Kéo ảnh chương trình tập vào đây",
+    help: "Ảnh màn hình bảng tính rõ nét cho kết quả tốt nhất: thấy rõ tên bài, số set, rep và RIR. Tối đa 3 ảnh cho một program.",
+    remove: "Xoá ảnh",
+    supported: "JPG, PNG hoặc WebP · tối đa 3 ảnh",
+    tooMany: "Tối đa 3 ảnh mỗi lần.",
+    unreadable: "Không đọc được ảnh này. Hãy chọn file JPG, PNG hoặc WebP.",
+    unmatched: (count: number) => `${count} bài chưa có trong thư viện. Bấm “Đổi bài tập” ở từng bài để chọn bài tương ứng.`,
+    sourceName: "Trong ảnh",
   },
   excel: {
     choose: "Chọn file Excel",
@@ -113,6 +154,7 @@ const vi: typeof en = {
   errors: {
     create: "Không thể tạo program.",
     excelRead: "Không đọc được file Excel.",
+    imageRead: "Không đọc được chương trình từ ảnh.",
     template: "Không tạo được template Excel.",
   },
 }

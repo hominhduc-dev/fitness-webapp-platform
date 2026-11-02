@@ -33,6 +33,12 @@ interface AIToolTurn {
   tokenUsage: number
 }
 
+/** An image sent alongside the user prompt, base64 without the data: prefix. */
+interface AIImageInput {
+  mediaType: "image/jpeg" | "image/png" | "image/webp"
+  data: string
+}
+
 interface AIProvider {
   /** False for providers/models that cannot do function calling. */
   readonly supportsTools: boolean
@@ -41,6 +47,8 @@ interface AIProvider {
     systemPrompt: string
     userPrompt: string
     maxTokens?: number
+    /** Images the model should read; needs a vision-capable model. */
+    images?: AIImageInput[]
   }): Promise<AIResponse<T>>
 
   generateText(options: {
@@ -60,6 +68,7 @@ interface AIProvider {
 
 export type {
   AIConversationMessage,
+  AIImageInput,
   AIProvider,
   AIResponse,
   AIToolCall,

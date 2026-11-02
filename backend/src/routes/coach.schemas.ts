@@ -51,3 +51,24 @@ export const coachTraineeAlertParamsSchema = coachNoteTraineeParamsSchema.extend
 export const coachTraineeAlertQuerySchema = z.object({
   week: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tuần phải có dạng YYYY-MM-DD."),
 })
+
+/** ~1.1 MB of image per photo once decoded, so three fit under the 5 MB body limit; the client downsizes before sending. */
+const MAX_IMAGE_BASE64_LENGTH = 1_500_000
+
+/** Photos or screenshots of a program for the AI to read into an import draft. */
+export const programImageImportSchema = z.object({
+  images: z
+    .array(
+      z.object({
+        data: z
+          .string()
+          .min(100, "Ảnh không hợp lệ.")
+          .max(MAX_IMAGE_BASE64_LENGTH, "Ảnh quá lớn, hãy chọn ảnh nhỏ hơn.")
+          .regex(/^[A-Za-z0-9+/]+={0,2}$/, "Ảnh không hợp lệ."),
+        mediaType: z.enum(["image/jpeg", "image/png", "image/webp"], "Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP."),
+      }),
+    )
+    .min(1, "Hãy chọn ít nhất một ảnh.")
+    .max(3, "Tối đa 3 ảnh mỗi lần."),
+  locale: z.enum(["vi", "en"]).optional(),
+})

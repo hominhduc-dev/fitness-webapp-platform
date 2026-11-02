@@ -1,10 +1,10 @@
 import { AppError } from "../../services/errors"
-import type { AIProvider } from "./types"
+import type { AIImageInput, AIProvider } from "./types"
 
 /** One repair attempt for invalid model data, always before any business writes. */
 export async function generateValidatedJSON<T>(
   provider: AIProvider,
-  options: { systemPrompt: string; userPrompt: string; maxTokens: number; repairInstruction?: string },
+  options: { systemPrompt: string; userPrompt: string; maxTokens: number; repairInstruction?: string; images?: AIImageInput[] },
   validate: (data: unknown) => T,
 ): Promise<{ data: T; tokenUsage: number }> {
   const { repairInstruction, ...request } = options

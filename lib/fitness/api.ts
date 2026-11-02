@@ -276,6 +276,25 @@ export type GoogleImportResult = {
   sheetName: string
   existingProgram: { id: string; name: string; archivedAt: string | null; assignedTraineeCount: number } | null
 }
+/** A program read from photos by AI; exercises without a library match carry `variationId: null`. */
+export type ProgramImageDraft = {
+  programName: string | null
+  unmatchedCount: number
+  workouts: Array<{
+    name: string
+    scheduledDay: number
+    exercises: Array<{
+      sourceName: string
+      variationId: string | null
+      sets: number
+      reps: string
+      rir: number | null
+      weight: number | null
+      notes: string
+    }>
+  }>
+}
+
 export type GoogleTemplateResult = {
   exerciseCount: number
   folderId?: string
@@ -384,6 +403,18 @@ export async function fetchGoogleSpreadsheet(token: string, spreadsheet: string)
 }
 export async function importGoogleProgram(token: string, spreadsheet: string, sheetName: string) {
   return (await request<ApiEnvelope<GoogleImportResult>>("/api/coach/google/program-import", token, { method: "POST", body: JSON.stringify({ spreadsheet, sheetName }) })).data
+}
+/** Sends downsized photos of a program to be read by AI; nothing is saved. */
+export async function importProgramFromImages(
+  token: string,
+  input: { images: Array<{ data: string; mediaType: "image/jpeg" | "image/png" | "image/webp" }>; locale: "vi" | "en" },
+) {
+  return (
+    await request<ApiEnvelope<{ draft: ProgramImageDraft }>>("/api/coach/programs/import-image", token, {
+      body: JSON.stringify(input),
+      method: "POST",
+    })
+  ).data.draft
 }
 export async function overwriteGoogleProgram(token: string, programId: string, input: CreateCoachProgramInput) {
   const response = await request<ApiEnvelope<{ program: SerializedCoachProgram }>>(`/api/coach/google/program-import/${programId}`, token, { method: "PUT", body: JSON.stringify(input) })
