@@ -1,9 +1,12 @@
+import { ExerciseShareStatus } from "@prisma/client"
+
 import { getAIProvider } from "../lib/ai/ai-client"
 import type { AIImageInput } from "../lib/ai/types"
 import { DailyCounter } from "./ai/daily-counter"
 import { importProgramFromImages, type ImportedProgram } from "./ai/program-image-import"
 import type { SerializedProfile } from "./auth.service"
 import { AppError, AuthServiceError, TooManyRequestsError } from "./errors"
+import { buildVariationDisplayName } from "./fitness-data/core"
 import { assertCoach, ensurePrisma } from "./fitness-data/shared/guards"
 
 /** Each import is two model calls, one of them reading images: generous, but bounded. */
@@ -27,16 +30,26 @@ async function importCoachProgramFromImages(
 
   try {
     const db = ensurePrisma()
-    // The same library the coach picks from in the program editor.
+    // The same library the coach picks from in the exercise picker: system
+    // exercises, ones other coaches shared, and the coach's own.
     const exercises = await db.exercise.findMany({
       select: {
         name: true,
-        variations: { select: { equipment: true, id: true, name: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] },
+        variations: {
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          select: { displayMetadata: true, equipment: true, id: true, isDefault: true, name: true },
+        },
       },
-      where: { OR: [{ createdById: null }, { createdById: coach.id }] },
+      where: { OR: [{ createdById: null }, { shareStatus: ExerciseShareStatus.shared }, { createdById: coach.id }] },
     })
     const library = exercises.flatMap((exercise) =>
       exercise.variations.map((variation) => ({
+        displayName: buildVariationDisplayName({
+          exerciseName: exercise.name,
+          isDefault: variation.isDefault,
+          metadata: variation.displayMetadata,
+          variationName: variation.name,
+        }),
         equipment: variation.equipment,
         exerciseName: exercise.name,
         variationId: variation.id,

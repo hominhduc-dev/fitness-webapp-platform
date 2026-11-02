@@ -106,6 +106,8 @@ async function transcribeProgramImages(provider: AIProvider, images: AIImageInpu
 
 type LibraryVariation = {
   variationId: string
+  /** The label the coach sees in the exercise picker, e.g. "High to Low Cable Chest Fly". */
+  displayName?: string
   exerciseName: string
   variationName: string
   equipment: string | null
@@ -164,21 +166,35 @@ function variationLabel(variation: LibraryVariation) {
   return /^default$/i.test(variationName) ? variation.exerciseName : `${variation.exerciseName} ${variationName}`
 }
 
+/**
+ * Every name a coach may know the variation by: the picker's display name
+ * (variation words in front, as in "High to Low Cable Chest Fly") and the raw
+ * "exercise + variation" pair a sheet might copy instead.
+ */
+function variationNames(variation: LibraryVariation) {
+  return [...new Set([variation.displayName?.trim(), variationLabel(variation)].filter((name): name is string => Boolean(name)))]
+}
+
 /** Overlap of the row's words with the variation's, weighted toward covering the row. */
 function similarity(rowTokens: Set<string>, variation: LibraryVariation) {
-  const candidate = tokensOf(`${variationLabel(variation)} ${variation.equipment ?? ""}`)
-  if (rowTokens.size === 0 || candidate.size === 0) return 0
-  let shared = 0
-  for (const token of rowTokens) if (candidate.has(token)) shared += 1
-  const nameTokens = tokensOf(variationLabel(variation))
-  return shared / rowTokens.size + shared / Math.max(nameTokens.size, 1) * 0.5
+  if (rowTokens.size === 0) return 0
+  return Math.max(
+    ...variationNames(variation).map((name) => {
+      const candidate = tokensOf(`${name} ${variation.equipment ?? ""}`)
+      let shared = 0
+      for (const token of rowTokens) if (candidate.has(token)) shared += 1
+      return shared / rowTokens.size + (shared / Math.max(tokensOf(name).size, 1)) * 0.5
+    }),
+  )
 }
 
 function buildLibraryIndex(library: LibraryVariation[]) {
   const exact = new Map<string, LibraryVariation>()
   for (const variation of library) {
-    const key = normalizeExerciseName(variationLabel(variation))
-    if (!exact.has(key)) exact.set(key, variation)
+    for (const name of variationNames(variation)) {
+      const key = normalizeExerciseName(name)
+      if (!exact.has(key)) exact.set(key, variation)
+    }
     // "Leg Press" with its Default variation also answers to the exercise name alone.
     const exerciseKey = normalizeExerciseName(variation.exerciseName)
     if (/^default$/i.test(variation.variationName.trim()) && !exact.has(exerciseKey)) exact.set(exerciseKey, variation)
@@ -224,7 +240,7 @@ async function matchWithModel(provider: AIProvider, rows: PendingRow[]) {
     const options = row.candidates.map((candidate, index) => {
       const ref = `${row.key}.${index + 1}`
       byRef.set(ref, candidate.variationId)
-      return `    - ${ref} | ${sanitizeUserText(variationLabel(candidate))} | ${candidate.equipment ?? "?"}`
+      return `    - ${ref} | ${sanitizeUserText(candidate.displayName ?? variationLabel(candidate))} | ${candidate.equipment ?? "?"}`
     })
     refs.set(row.key, byRef)
     return [`- ${row.key}: <trainee_input>${sanitizeUserText(row.name)}</trainee_input>`, ...options].join("\n")

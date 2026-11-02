@@ -9194,6 +9194,7 @@ async function listCoachInvitesForTrainee(profile: SerializedProfile) {
 
 export {
   addWorkoutToTraineeProgram,
+  buildVariationDisplayName,
   adjustCoachProgramForTrainee,
   approveTraineeExerciseSwapForCoach,
   rejectTraineeExerciseSwapForCoach,
