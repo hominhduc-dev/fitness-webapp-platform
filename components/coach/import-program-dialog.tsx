@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertCircle, AlertTriangle, ArrowLeft, Check, CheckCircle2, FileDown, FileSpreadsheet, Loader2, Plus, UserPlus, X } from "lucide-react"
+import { AlertCircle, AlertTriangle, ArrowLeft, Check, CheckCircle2, FileDown, FileSpreadsheet, ImagePlus, Loader2, Plus, Sparkles, Trash2, UserPlus, X } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
@@ -38,7 +38,8 @@ import type {
 import { parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
 import { GoogleProgramSource } from "./google-program-source"
-import { fetchGoogleConnection, overwriteGoogleProgram, type GoogleImportResult } from "@/lib/fitness/api"
+import { fetchGoogleConnection, importProgramFromImages, overwriteGoogleProgram, type GoogleImportResult, type ProgramImageDraft } from "@/lib/fitness/api"
+import { downscaleImage, type DownscaledImage } from "@/lib/images/downscale"
 import { useLocale } from "@/components/providers/locale-provider"
 import { googleImportMessages } from "@/lib/i18n/messages/google-import"
 import { programImportMessages } from "@/lib/i18n/messages/program-import"
@@ -57,7 +58,12 @@ type ImportProgramDialogProps = {
 
 type Step = "upload" | "review" | "done"
 type Difficulty = CreateCoachProgramInput["difficulty"]
-type ImportSource = "excel" | "google"
+type ImportSource = "excel" | "image" | "google"
+
+/** Photos a program is read from; up to three per import. */
+const MAX_PROGRAM_IMAGES = 3
+
+type SelectedImage = DownscaledImage & { id: string; name: string }
 
 const STEP_ORDER: Step[] = ["upload", "review", "done"]
 
@@ -66,6 +72,7 @@ const PROGRAM_GOALS = TRAINING_GOAL_OPTIONS
 
 function ImportSourceIcon({ source }: { source: ImportSource }) {
   if (source === "excel") return <FileSpreadsheet className="size-5" />
+  if (source === "image") return <ImagePlus className="size-5" />
   // The multicolour mark needs a light chip to stay legible on the selected tab.
   return (
     <IconTile size="sm" tone="surface" className="size-7 rounded-full [&_svg]:size-4">
@@ -78,6 +85,8 @@ function ImportSourceIcon({ source }: { source: ImportSource }) {
 
 type EditableExercise = {
   id: string
+  /** The name as read from an image, shown while it has no library match. */
+  sourceName?: string
   notes: string
   restTime: string
   variationId: string
@@ -115,6 +124,29 @@ function workoutToEditable(workout: CreateCoachProgramInput["workouts"][number])
       rir: ex.rir != null ? String(ex.rir) : "",
     })),
   }
+}
+
+/**
+ * An AI-read program is one week. It stays one set of sessions with no week
+ * index, which repeats for every week of the program, so a coach who picks the
+ * exercise for an unmatched row does it once rather than once per week.
+ */
+function imageDraftToEditable(draft: ProgramImageDraft): EditableWorkout[] {
+  return draft.workouts.map((workout) => ({
+    exercises: workout.exercises.map((exercise) => ({
+      id: crypto.randomUUID(),
+      notes: exercise.notes,
+      reps: exercise.reps,
+      restTime: "",
+      rir: exercise.rir != null ? String(exercise.rir) : "",
+      sets: String(exercise.sets),
+      sourceName: exercise.sourceName,
+      variationId: exercise.variationId ?? "",
+      weight: exercise.weight != null ? String(exercise.weight) : "",
+    })),
+    name: workout.name,
+    scheduledDay: workout.scheduledDay,
+  }))
 }
 
 function editableToPayloadWorkout(
@@ -170,6 +202,9 @@ export function ImportProgramDialog({
   const setGoogleConnection = googleQuery.setData
   const [googleSource, setGoogleSource] = useState<GoogleImportResult | null>(null)
   const createProgram = useCoachMutation(createCoachProgram)
+  const readImages = useCoachMutation(importProgramFromImages, [])
+  const [images, setImages] = useState<SelectedImage[]>([])
+  const [unmatchedCount, setUnmatchedCount] = useState(0)
   const overwriteGoogle = useCoachMutation(overwriteGoogleProgram)
   const [step, setStep] = useState<Step>("upload")
   const [fileName, setFileName] = useState("")
@@ -196,6 +231,7 @@ export function ImportProgramDialog({
   const steps = STEP_ORDER.map((value) => ({ label: t.steps[value], value }))
   const visibleSources: ImportSource[] = [
     "excel",
+    "image",
     ...(googleConnection.configured ? (["google"] as const) : []),
   ]
   const workbookSheets = [
@@ -264,6 +300,9 @@ export function ImportProgramDialog({
     setSelectedTraineeId(null)
     setSource("excel")
     setDidOverwrite(false)
+    setImages([])
+    setUnmatchedCount(0)
+    readImages.reset()
   }
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -311,6 +350,7 @@ export function ImportProgramDialog({
   const handleFile = async (file?: File | null) => {
     if (!file) return
     setGoogleSource(null)
+    setUnmatchedCount(0)
     setIsParsing(true)
     setError(null)
     setDraft(null)
@@ -339,6 +379,41 @@ export function ImportProgramDialog({
     }
   }
 
+  const handleImageFile = async (file?: File | null) => {
+    if (!file) return
+    if (images.length >= MAX_PROGRAM_IMAGES) {
+      setError(t.image.tooMany)
+      return
+    }
+    setError(null)
+    try {
+      const image = await downscaleImage(file)
+      setImages((current) => [...current, { ...image, id: crypto.randomUUID(), name: file.name }].slice(0, MAX_PROGRAM_IMAGES))
+    } catch {
+      setError(t.image.unreadable)
+    }
+  }
+
+  const handleReadImages = async () => {
+    if (images.length === 0 || readImages.isPending) return
+    setError(null)
+    setGoogleSource(null)
+    try {
+      const imageDraft = await readImages.mutateAsync([
+        { images: images.map(({ data, mediaType }) => ({ data, mediaType })), locale: locale === "en" ? "en" : "vi" },
+      ])
+      const workouts = imageDraftToEditable(imageDraft)
+      setDraft({ workouts: workouts.map(editableToPayloadWorkout) })
+      setEditableWorkouts(workouts)
+      setUnmatchedCount(imageDraft.unmatchedCount)
+      setFileName(images[0]?.name ?? "")
+      setProgramName(imageDraft.programName?.trim() || "")
+      setStep("review")
+    } catch (readError) {
+      setError(readError instanceof Error && readError.message ? readError.message : t.errors.imageRead)
+    }
+  }
+
   const handleGoogleImport = (result: GoogleImportResult, name: string, weeks: number) => {
     const built = buildWorkoutsFromRows(result.rows, exerciseOptions, { duration: weeks })
     if (built.issues.length) {
@@ -346,6 +421,7 @@ export function ImportProgramDialog({
       return
     }
     setGoogleSource(result)
+    setUnmatchedCount(0)
     setError(null)
     setDraft({ workouts: built.workouts, weekTemplate: true })
     setEditableWorkouts(built.workouts.map(workoutToEditable))
@@ -541,6 +617,48 @@ export function ImportProgramDialog({
                 </Card>
               </TabsContent>
 
+              <TabsContent value="image" className="space-y-4">
+                {images.length < MAX_PROGRAM_IMAGES ? (
+                  <FileDropzone
+                    accept="image/jpeg,image/png,image/webp"
+                    actionLabel={images.length > 0 ? t.image.add : t.image.choose}
+                    busy={readImages.isPending}
+                    footnote={t.image.supported}
+                    hint={t.image.dropHint}
+                    icon={<ImagePlus />}
+                    onFile={(file) => void handleImageFile(file)}
+                    title={t.image.dropTitle}
+                  />
+                ) : null}
+
+                {images.length > 0 ? (
+                  <ul className="grid grid-cols-3 gap-3">
+                    {images.map((image) => (
+                      <li key={image.id} className="relative overflow-hidden rounded-lg border border-border bg-muted">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- a local data URL preview */}
+                        <img alt={image.name} className="aspect-[3/4] w-full object-cover object-top" src={`data:${image.mediaType};base64,${image.data}`} />
+                        <button
+                          aria-label={`${t.image.remove}: ${image.name}`}
+                          className="absolute right-1.5 top-1.5 flex size-8 items-center justify-center rounded-full bg-card/90 text-foreground shadow-sm hover:bg-card disabled:opacity-50"
+                          disabled={readImages.isPending}
+                          type="button"
+                          onClick={() => setImages((current) => current.filter((item) => item.id !== image.id))}
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+
+                <p className="text-xs leading-5 text-muted-foreground">{t.image.help}</p>
+
+                <Button type="button" className="w-full sm:w-auto" disabled={images.length === 0 || readImages.isPending || !authenticated} onClick={() => void handleReadImages()}>
+                  {readImages.isPending ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                  {readImages.isPending ? t.image.analyzing : t.image.analyze}
+                </Button>
+              </TabsContent>
+
               <TabsContent value="google">
                 {authenticated ? (
                   <GoogleProgramSource
@@ -709,7 +827,12 @@ export function ImportProgramDialog({
                   </DisclosureCard>
 
                   {/* Validation badge */}
-                  {invalidVariationCount > 0 ? (
+                  {unmatchedCount > 0 && invalidVariationCount > 0 ? (
+                    <div className="flex items-start gap-2 rounded-lg bg-warn-soft px-4 py-3 text-sm text-warning-text">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>{t.image.unmatched(invalidVariationCount)}</span>
+                    </div>
+                  ) : invalidVariationCount > 0 ? (
                     <div className="flex items-center gap-2 rounded-lg bg-warn-soft px-4 py-3 text-sm text-warning-text">
                       <AlertCircle className="h-4 w-4 shrink-0" />
                       <span>
@@ -750,7 +873,7 @@ export function ImportProgramDialog({
                                   defaultExpanded={addedExerciseIds.includes(ex.id)}
                                   index={exerciseIdx}
                                   total={workout.exercises.length}
-                                  title={option?.displayName ?? option?.name ?? t.review.unknownExercise}
+                                  title={option?.displayName ?? option?.name ?? ex.sourceName ?? t.review.unknownExercise}
                                   meta={[option?.muscleGroup, option?.equipment].filter(Boolean).join(" · ") || ex.variationId}
                                   media={option?.media}
                                   values={ex}
@@ -767,7 +890,7 @@ export function ImportProgramDialog({
                                 {!option && (
                                   <p className="mt-1 flex items-center gap-1 text-xs text-destructive-text">
                                     <AlertCircle className="size-3.5" />
-                                    {t.review.unknownExercise}: {ex.variationId}
+                                    {ex.sourceName ? `${t.image.sourceName}: ${ex.sourceName}` : `${t.review.unknownExercise}: ${ex.variationId}`}
                                   </p>
                                 )}
                               </div>

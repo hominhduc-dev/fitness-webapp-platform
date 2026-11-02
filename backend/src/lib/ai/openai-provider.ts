@@ -7,6 +7,7 @@ import { getAIRequestTimeoutMs, withAIRequestTimeout } from "./request-timeout"
 import { extractJSON, stripThoughts } from "./response-parsing"
 import type {
   AIConversationMessage,
+  AIImageInput,
   AIProvider,
   AIResponse,
   AIToolCall,
@@ -134,11 +135,22 @@ function createOpenAIProvider(
       systemPrompt,
       userPrompt,
       maxTokens = 4096,
+      images,
     }: {
       systemPrompt: string
       userPrompt: string
       maxTokens?: number
+      images?: AIImageInput[]
     }): Promise<AIResponse<T>> {
+      const userContent = images?.length
+        ? [
+            ...images.map((image) => ({
+              type: "image_url" as const,
+              image_url: { url: `data:${image.mediaType};base64,${image.data}` },
+            })),
+            { type: "text" as const, text: userPrompt },
+          ]
+        : userPrompt
       const response = await withAIRequestTimeout(
         client.chat.completions.create(
           {
@@ -150,7 +162,7 @@ function createOpenAIProvider(
             ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
             messages: [
               { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
+              { role: "user", content: userContent },
             ],
           },
           { timeout: getAIRequestTimeoutMs() },

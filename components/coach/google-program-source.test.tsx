@@ -10,7 +10,7 @@ const api = vi.hoisted(() => ({ connection: vi.fn(), spreadsheet: vi.fn(), impor
 vi.mock("@/components/providers/locale-provider", () => ({
   useLocale: () => ({ locale: "en", messages: { common: { dismissNotification: "Dismiss notification" } } }),
 }))
-vi.mock("@/lib/fitness/api", () => ({ fetchGoogleConnection: api.connection, fetchGoogleSpreadsheet: api.spreadsheet, importGoogleProgram: api.import, disconnectGoogle: api.disconnect, createGoogleProgramTemplate: api.createTemplate, authorizeGoogle: vi.fn(), createCoachProgram: vi.fn(), overwriteGoogleProgram: vi.fn() }))
+vi.mock("@/lib/fitness/api", () => ({ fetchGoogleConnection: api.connection, fetchGoogleSpreadsheet: api.spreadsheet, importGoogleProgram: api.import, disconnectGoogle: api.disconnect, createGoogleProgramTemplate: api.createTemplate, authorizeGoogle: vi.fn(), createCoachProgram: vi.fn(), importProgramFromImages: vi.fn(), overwriteGoogleProgram: vi.fn() }))
 /** Toasts now come from the shared provider, so every render needs it. */
 const render: typeof baseRender = (ui, options) => baseRender(<ToastProvider>{ui}</ToastProvider>, options)
 
