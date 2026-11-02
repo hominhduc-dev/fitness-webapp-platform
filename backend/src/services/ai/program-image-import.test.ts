@@ -18,6 +18,14 @@ const library: LibraryVariation[] = [
   { equipment: "Cable", exerciseName: "Lat Pulldown", variationId: "v-lat-single", variationName: "Single Arm" },
   { equipment: "Machine", exerciseName: "Pec Deck Fly", variationId: "v-pec-deck", variationName: "Default" },
   { equipment: "Barbell", exerciseName: "Romanian Deadlift", variationId: "v-rdl", variationName: "Barbell" },
+  // The picker shows the variation words in front of the exercise name.
+  {
+    displayName: "High to Low Cable Chest Fly",
+    equipment: "Cable",
+    exerciseName: "Cable Chest Fly",
+    variationId: "v-fly-high-low",
+    variationName: "High to Low",
+  },
 ]
 
 describe("normalizeExerciseName", () => {
@@ -37,6 +45,12 @@ describe("buildLibraryIndex", () => {
     expect(index.exact("leg  press")?.variationId).toBe("v-leg-press")
     expect(index.exact("Lat Pulldown Single Arm")?.variationId).toBe("v-lat-single")
     expect(index.exact("Incline Barbell Bench Press")).toBeNull()
+  })
+
+  it("matches the name the coach sees in the exercise picker", () => {
+    expect(index.exact("High to Low Cable Chest Fly")?.variationId).toBe("v-fly-high-low")
+    expect(index.exact("Cable Chest Fly High to Low")?.variationId).toBe("v-fly-high-low")
+    expect(index.candidates("High-to-Low Cable Flyes")[0]?.variationId).toBe("v-fly-high-low")
   })
 
   it("ranks candidates by the words they share with the row", () => {
