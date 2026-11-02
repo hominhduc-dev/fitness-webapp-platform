@@ -71,6 +71,7 @@ async function expandImportedCard() {
 }
 
 beforeEach(() => {
+  window.localStorage.clear()
   save.mockReset()
   save.mockResolvedValue({ id: "program", name: "Imported program" })
 })
@@ -310,5 +311,45 @@ describe("creating a program from an image", () => {
     fireEvent.change(input, { target: { files: [new File(["x"], "notes.txt", { type: "text/plain" })] } })
     expect(await screen.findByText("Could not read this image. Choose a JPG, PNG or WebP file.")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Read with AI" })).toBeDisabled()
+  })
+})
+
+describe("an unfinished import", () => {
+  const DRAFT_KEY = "yeahbuddy:program-import-draft:coach"
+
+  it("survives closing the dialog and comes back on Review until the coach discards it", async () => {
+    await openReview()
+    fireEvent.change(screen.getByDisplayValue("Imported program"), { target: { value: "Push week" } })
+    await waitFor(() => expect(window.localStorage.getItem(DRAFT_KEY)).toContain("Push week"))
+    cleanup()
+
+    render(<ImportProgramDialog open exerciseOptions={options} trainees={trainees} onClose={vi.fn()} onImported={vi.fn()} />)
+    expect(await screen.findByText(/Picked up where you left off/)).toBeInTheDocument()
+    expect(screen.getByDisplayValue("Push week")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Expand exercise: Bench" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Discard draft" }))
+    expect(window.localStorage.getItem(DRAFT_KEY)).toBeNull()
+    expect(screen.getByRole("tab", { name: "From Excel" })).toBeInTheDocument()
+  })
+
+  it("is forgotten once the program is created", async () => {
+    await openReview()
+    await waitFor(() => expect(window.localStorage.getItem(DRAFT_KEY)).not.toBeNull())
+    fireEvent.click(screen.getByRole("button", { name: "Create program" }))
+    await waitFor(() => expect(save).toHaveBeenCalledOnce())
+    await waitFor(() => expect(window.localStorage.getItem(DRAFT_KEY)).toBeNull())
+  })
+
+  it("does not close on a click outside the dialog during Review", async () => {
+    const onClose = vi.fn()
+    render(<ImportProgramDialog open exerciseOptions={options} trainees={trainees} onClose={onClose} onImported={vi.fn()} />)
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Google Sheets" }), { button: 0, ctrlKey: false })
+    fireEvent.click(await screen.findByText("Load sheet fixture"))
+    await screen.findByRole("button", { name: "Expand exercise: Bench" })
+
+    fireEvent.pointerDown(document.body)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "Create program" })).toBeInTheDocument()
   })
 })
