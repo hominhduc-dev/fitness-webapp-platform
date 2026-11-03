@@ -61,6 +61,7 @@ import {
 import { buildProgramAssignedDraft, buildProgramUpdatedDraft } from "../notifications/program-notifications"
 import { notifyAdminsOfExerciseShare } from "../notifications/exercise-share-notifications"
 import { serializeExerciseMedia } from "../../lib/exercise-media"
+import { cleanupUnreferencedExerciseMedia, serializeExerciseMediaMutation, snapshotExerciseMedia } from "../../lib/exercise-media-cleanup"
 import { buildExerciseDisplayName, type ExerciseDisplayNameInput } from "../../domain/exercise-display"
 import {
   buildApprovedMuscleProfileData,
@@ -3789,7 +3790,7 @@ async function updateCoachExercise(
   return serializeCoachExercise(exercise as CoachExerciseRecord, profile)
 }
 
-async function deleteCoachExercise(profile: SerializedProfile, exerciseId: string) {
+async function deleteCoachExerciseInternal(profile: SerializedProfile, exerciseId: string) {
   const db = ensurePrisma()
   assertCoach(profile)
 
@@ -3823,6 +3824,7 @@ async function deleteCoachExercise(profile: SerializedProfile, exerciseId: strin
     throw new AuthServiceError("Không thể xóa bài tập đang được dùng trong workout.", 400)
   }
 
+  const media = await snapshotExerciseMedia(db, exercise.variations.map((variation) => variation.id))
   await db.exercise.delete({
     where: {
       id: exerciseId,
@@ -3830,6 +3832,7 @@ async function deleteCoachExercise(profile: SerializedProfile, exerciseId: strin
   })
 
   invalidateExerciseLibrary()
+  await cleanupUnreferencedExerciseMedia(db, media)
   return {
     deleted: true,
     id: exerciseId,
@@ -9191,6 +9194,9 @@ async function listCoachInvitesForTrainee(profile: SerializedProfile) {
     id: invite.id,
   }))
 }
+
+const deleteCoachExercise = serializeExerciseMediaMutation(deleteCoachExerciseInternal)
+
 
 export {
   addWorkoutToTraineeProgram,

@@ -12,16 +12,17 @@ const mocks = vi.hoisted(() => ({
   notifyCoach: vi.fn(),
   overrideUpdateMany: vi.fn(),
   variationFindUnique: vi.fn(),
+  variationFindMany: vi.fn().mockResolvedValue([]),
   workoutExerciseUpdateMany: vi.fn(),
 }))
 
 vi.mock("../../lib/prisma", () => {
   const db = {
     $transaction: vi.fn(async (callback: (tx: unknown) => unknown) => callback(db)),
-    adminAuditLog: { create: mocks.auditCreate },
+    adminAuditLog: { create: mocks.auditCreate, findMany: vi.fn().mockResolvedValue([]) },
     exercise: { delete: mocks.exerciseDelete, findUnique: mocks.exerciseFindUnique, update: mocks.exerciseUpdate },
     traineeExerciseOverride: { updateMany: mocks.overrideUpdateMany },
-    variation: { findUnique: mocks.variationFindUnique },
+    variation: { findUnique: mocks.variationFindUnique, findMany: mocks.variationFindMany },
     workoutExercise: { updateMany: mocks.workoutExerciseUpdateMany },
   }
   return { prisma: db }
@@ -62,6 +63,7 @@ describe("reviewAdminExerciseShare", () => {
   beforeEach(() => {
     for (const mock of Object.values(mocks)) mock.mockReset()
     mocks.exerciseFindUnique.mockResolvedValue(pendingExercise())
+    mocks.variationFindMany.mockResolvedValue([])
   })
 
   it("only lets admins decide", async () => {

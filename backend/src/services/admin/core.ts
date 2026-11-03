@@ -31,8 +31,6 @@ import {
   CUSTOM_EXERCISE_MEDIA_METADATA_KEY,
   EXERCISE_MEDIA_BUCKET,
   buildCustomExerciseMedia,
-  customExerciseMediaCloudinaryPublicIds,
-  customExerciseMediaStoragePaths,
   exerciseMediaFileError,
   readCustomExerciseMedia,
   resolveExerciseMedia,
@@ -42,13 +40,12 @@ import {
   type UploadedExerciseMediaFile,
 } from "../../lib/exercise-media"
 import {
-  cloudinarySignature,
   createExerciseMediaObjectPath,
   createStorageUploadGrant,
   isAdminExerciseMediaObjectPath,
   readStorageObjectInfo,
-  removeStorageObjects,
 } from "../../lib/exercise-media-upload"
+import { cleanupUnreferencedExerciseMedia, serializeExerciseMediaMutation, snapshotExerciseMedia } from "../../lib/exercise-media-cleanup"
 import { logger } from "../../lib/logger"
 import { sendCoachSignupDecisionEmail, type CoachSignupEmailStatus } from "../../lib/coach-signup-email"
 import { invalidateExerciseLibrary } from "../../lib/library-cache"
@@ -2346,7 +2343,7 @@ async function reviewExerciseImportRequest(
   }
 }
 
-async function updateAdminExercise(
+async function updateAdminExerciseInternal(
   profile: SerializedProfile,
   exerciseId: string,
   input: {
@@ -2380,6 +2377,8 @@ async function updateAdminExercise(
   if (!existingExercise) {
     throw new AuthServiceError("Không tìm thấy bài tập.", 404)
   }
+
+  const media = await snapshotExerciseMedia(db, [existingExercise.id])
 
   let exercise
 
@@ -2450,6 +2449,7 @@ async function updateAdminExercise(
     },
   })
 
+  await cleanupUnreferencedExerciseMedia(db, media)
   return serializeExerciseSummary(exercise as ExerciseSummaryRecord)
 }
 
@@ -2464,32 +2464,6 @@ async function findAdminExerciseVariation(db: DbClient, variationId: string) {
 
 function toMetadataObject(metadata: Prisma.JsonValue | null): Prisma.JsonObject {
   return metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {}
-}
-
-async function removeCloudinaryExerciseMedia(publicIds: string[]) {
-  if (publicIds.length === 0 || !env.cloudinaryCloudName || !env.cloudinaryApiKey || !env.cloudinaryApiSecret) return
-  for (const publicId of publicIds) {
-    for (const resourceType of ["image", "video"] as const) {
-      const timestamp = Math.floor(Date.now() / 1000)
-      const body = new URLSearchParams({
-        api_key: env.cloudinaryApiKey,
-        public_id: publicId,
-        signature: cloudinarySignature({ public_id: publicId, timestamp }),
-        timestamp: String(timestamp),
-      })
-      try {
-        const response = await fetch(
-          `https://api.cloudinary.com/v1_1/${encodeURIComponent(env.cloudinaryCloudName)}/${resourceType}/destroy`,
-          { body, method: "POST" },
-        )
-        if (!response.ok) {
-          logger.warn("unable to remove Cloudinary exercise media", { publicId, resourceType, status: response.status })
-        }
-      } catch (error) {
-        logger.warn("unable to remove Cloudinary exercise media", { error, publicId, resourceType })
-      }
-    }
-  }
 }
 
 async function createAdminExerciseMediaUpload(
@@ -2545,7 +2519,7 @@ async function verifyStorageUploadedExerciseMedia(
   }
 }
 
-async function saveAdminExerciseMedia(
+async function saveAdminExerciseMediaInternal(
   profile: SerializedProfile,
   variationId: string,
   input: {
@@ -2576,6 +2550,7 @@ async function saveAdminExerciseMedia(
     throw new ValidationError("Bài tập chưa có media: cần tải lên cả thumbnail và animation.")
   }
 
+  const media = await snapshotExerciseMedia(db, [existing.id])
   const exercise = await db.variation.update({
     data: {
       metadata: { ...toMetadataObject(existing.metadata), [CUSTOM_EXERCISE_MEDIA_METADATA_KEY]: nextMedia },
@@ -2584,19 +2559,6 @@ async function saveAdminExerciseMedia(
     where: { id: existing.id },
   })
   invalidateExerciseLibrary()
-
-  // The replaced objects are only dropped once the variation points elsewhere, so
-  // a failure here leaves orphans rather than a variation without media.
-  const previousStorage = customExerciseMediaStoragePaths(previousCustom)
-  const orphaned = previousStorage.paths.filter(
-    (path) => path !== nextMedia.thumbnailPath && path !== nextMedia.animationPath,
-  )
-  try {
-    await removeStorageObjects(previousStorage.bucket, orphaned)
-  } catch (error) {
-    logger.warn("unable to remove replaced exercise media", { error, paths: orphaned })
-  }
-  await removeCloudinaryExerciseMedia(customExerciseMediaCloudinaryPublicIds(previousCustom))
 
   await logAdminAudit(db, profile.id, {
     action: "exercise.media_updated",
@@ -2610,10 +2572,12 @@ async function saveAdminExerciseMedia(
     },
   })
 
+  await cleanupUnreferencedExerciseMedia(db, media)
+
   return serializeExerciseSummary(exercise)
 }
 
-async function transferAdminExerciseMetadata(
+async function transferAdminExerciseMetadataInternal(
   profile: SerializedProfile,
   input: { sourceVariationId: string; targetVariationId: string },
 ) {
@@ -2627,6 +2591,7 @@ async function transferAdminExerciseMetadata(
     findAdminExerciseVariation(db, input.targetVariationId),
   ])
   if (source.metadata === null) throw new ValidationError("Bài tập nguồn chưa có metadata để chuyển.")
+  const media = await snapshotExerciseMedia(db, [target.id])
   const transferId = await db.$transaction(async (tx) => {
     const updated = await tx.variation.update({
       data: { metadata: source.metadata as Prisma.InputJsonValue }, where: { id: target.id },
@@ -2642,6 +2607,7 @@ async function transferAdminExerciseMetadata(
     return audit.id
   })
   invalidateExerciseLibrary()
+  await cleanupUnreferencedExerciseMedia(db, media)
   return {
     exercise: serializeExerciseSummary(await findAdminExerciseVariation(db, target.id) as ExerciseSummaryRecord),
     transferId,
@@ -2664,7 +2630,7 @@ async function findMetadataAuditEntries(db: DbClient, variationIds?: string[]) {
  * Puts back the target's metadata from before a transfer. Refused once anything
  * else has written that variation's metadata since, so later work is never lost.
  */
-async function undoAdminExerciseMetadataTransfer(profile: SerializedProfile, transferId: string) {
+async function undoAdminExerciseMetadataTransferInternal(profile: SerializedProfile, transferId: string) {
   assertAdmin(profile)
   const db = ensurePrisma()
   const transfer = await db.adminAuditLog.findUnique({ where: { id: transferId } })
@@ -2681,6 +2647,7 @@ async function undoAdminExerciseMetadataTransfer(profile: SerializedProfile, tra
 
   const previous = transfer.metadata.previousMetadata
   const target = await findAdminExerciseVariation(db, variationId)
+  const media = await snapshotExerciseMedia(db, [target.id])
   await db.$transaction(async (tx) => {
     await tx.variation.update({
       data: { metadata: previous === null ? Prisma.DbNull : (previous as Prisma.InputJsonValue) },
@@ -2692,17 +2659,19 @@ async function undoAdminExerciseMetadataTransfer(profile: SerializedProfile, tra
     })
   })
   invalidateExerciseLibrary()
+  await cleanupUnreferencedExerciseMedia(db, media)
   return serializeExerciseSummary(await findAdminExerciseVariation(db, variationId) as ExerciseSummaryRecord)
 }
 
 /** Drops uploaded media; the variation falls back to its synced media, if any. */
-async function removeAdminExerciseMedia(profile: SerializedProfile, variationId: string) {
+async function removeAdminExerciseMediaInternal(profile: SerializedProfile, variationId: string) {
   assertAdmin(profile)
   const db = ensurePrisma()
   const existing = await findAdminExerciseVariation(db, variationId)
   const previousCustom = readCustomExerciseMedia(existing.metadata)
   if (!previousCustom) return serializeExerciseSummary(existing)
 
+  const media = await snapshotExerciseMedia(db, [existing.id])
   const { [CUSTOM_EXERCISE_MEDIA_METADATA_KEY]: _removedMedia, ...metadata } = toMetadataObject(existing.metadata)
   const exercise = await db.variation.update({
     data: { metadata },
@@ -2711,8 +2680,6 @@ async function removeAdminExerciseMedia(profile: SerializedProfile, variationId:
   })
   invalidateExerciseLibrary()
 
-  await removeCloudinaryExerciseMedia(customExerciseMediaCloudinaryPublicIds(previousCustom))
-
   await logAdminAudit(db, profile.id, {
     action: "exercise.media_removed",
     entityId: exercise.id,
@@ -2720,6 +2687,8 @@ async function removeAdminExerciseMedia(profile: SerializedProfile, variationId:
     entityType: "exercise",
     metadata: { variationName: exercise.name },
   })
+
+  await cleanupUnreferencedExerciseMedia(db, media)
 
   return serializeExerciseSummary(exercise)
 }
@@ -2771,7 +2740,7 @@ async function approveAdminMuscleProfiles(profile: SerializedProfile, variationI
   return { approvedCount: approvedIds.length, approvedIds, skippedCount: skippedIds.length, skippedIds }
 }
 
-async function deleteAdminExercise(profile: SerializedProfile, exerciseId: string) {
+async function deleteAdminExerciseInternal(profile: SerializedProfile, exerciseId: string) {
   assertAdmin(profile)
   const db = ensurePrisma()
   const exercise = await db.variation.findUnique({
@@ -2788,6 +2757,8 @@ async function deleteAdminExercise(profile: SerializedProfile, exerciseId: strin
   if (exercise._count.workoutExercises > 0) {
     throw new AuthServiceError("Bài tập này đang được sử dụng trong workout, chưa thể xoá.", 400)
   }
+
+  const media = await snapshotExerciseMedia(db, [exercise.id])
 
   await db.$transaction(async (transaction) => {
     await transaction.variation.delete({
@@ -2813,13 +2784,12 @@ async function deleteAdminExercise(profile: SerializedProfile, exerciseId: strin
     })
   })
 
-  return {
-    deleted: true,
-    id: exercise.id,
-  }
+  invalidateExerciseLibrary()
+  await cleanupUnreferencedExerciseMedia(db, media)
+  return { deleted: true, id: exercise.id }
 }
 
-async function bulkDeleteAdminExercises(profile: SerializedProfile, ids: string[]) {
+async function bulkDeleteAdminExercisesInternal(profile: SerializedProfile, ids: string[]) {
   assertAdmin(profile)
   const db = ensurePrisma()
 
@@ -2844,6 +2814,7 @@ async function bulkDeleteAdminExercises(profile: SerializedProfile, ids: string[
 
   const deletableIds = deletable.map((v) => v.id)
   const exerciseIds = [...new Set(deletable.map((v) => v.exercise.id))]
+  const media = await snapshotExerciseMedia(db, deletableIds)
 
   await db.$transaction(async (tx) => {
     await tx.variation.deleteMany({ where: { id: { in: deletableIds } } })
@@ -2859,6 +2830,8 @@ async function bulkDeleteAdminExercises(profile: SerializedProfile, ids: string[
     entityType: "exercise",
   })
 
+  invalidateExerciseLibrary()
+  await cleanupUnreferencedExerciseMedia(db, media)
   return { deletedCount: deletable.length, deletedIds: deletableIds, skippedCount }
 }
 
@@ -3098,7 +3071,7 @@ async function previewExerciseSync(profile: SerializedProfile, rawRows: Exercise
   return computeExerciseSyncDiff(db, rows)
 }
 
-async function applyExerciseSync(profile: SerializedProfile, rawRows: ExerciseSyncRowInput[]) {
+async function applyExerciseSyncInternal(profile: SerializedProfile, rawRows: ExerciseSyncRowInput[]) {
   assertAdmin(profile)
   const db = ensurePrisma()
   const rows = parseSyncRows(rawRows)
@@ -3279,6 +3252,7 @@ async function applyExerciseSync(profile: SerializedProfile, rawRows: ExerciseSy
     }
   }
 
+  const media = await snapshotExerciseMedia(db, deleteIds)
   const addedCount = await db.$transaction(async (transaction) => {
     if (deleteIds.length > 0) {
       await transaction.variation.deleteMany({ where: { id: { in: deleteIds } } })
@@ -3358,6 +3332,7 @@ async function applyExerciseSync(profile: SerializedProfile, rawRows: ExerciseSy
     timeout: 120_000,
   })
 
+  await cleanupUnreferencedExerciseMedia(db, media)
   const modifiedCount = equipOnlyMods.length + variationUpdates.length
   const deletedCount = deleteIds.length
   const result = { addedCount, modifiedCount, deletedCount, skippedModifyCount }
@@ -3377,7 +3352,7 @@ async function applyExerciseSync(profile: SerializedProfile, rawRows: ExerciseSy
   return { ...result, skippedDeleteCount }
 }
 
-async function deleteAdminExerciseGroup(profile: SerializedProfile, muscleGroupInput: string) {
+async function deleteAdminExerciseGroupInternal(profile: SerializedProfile, muscleGroupInput: string) {
   assertAdmin(profile)
   const db = ensurePrisma()
   const muscleGroup = sanitizeText(muscleGroupInput)
@@ -3413,6 +3388,7 @@ async function deleteAdminExerciseGroup(profile: SerializedProfile, muscleGroupI
     }))
   const deletedIds = deletableExercises.map((exercise) => exercise.id)
   const deletedExerciseIds = Array.from(new Set(deletableExercises.map((exercise) => exercise.exerciseId)))
+  const media = await snapshotExerciseMedia(db, deletedIds)
 
   await db.$transaction(async (transaction) => {
     if (deletedIds.length > 0) {
@@ -3450,6 +3426,8 @@ async function deleteAdminExerciseGroup(profile: SerializedProfile, muscleGroupI
     })
   })
 
+  invalidateExerciseLibrary()
+  await cleanupUnreferencedExerciseMedia(db, media)
   return {
     deletedCount: deletedIds.length,
     deletedIds,
@@ -3487,6 +3465,17 @@ async function listAdminAuditLogs(
     )
     .map((log) => serializeAuditLog(log as AuditLogRecord))
 }
+
+const saveAdminExerciseMedia = serializeExerciseMediaMutation(saveAdminExerciseMediaInternal)
+const transferAdminExerciseMetadata = serializeExerciseMediaMutation(transferAdminExerciseMetadataInternal)
+const undoAdminExerciseMetadataTransfer = serializeExerciseMediaMutation(undoAdminExerciseMetadataTransferInternal)
+const removeAdminExerciseMedia = serializeExerciseMediaMutation(removeAdminExerciseMediaInternal)
+const deleteAdminExercise = serializeExerciseMediaMutation(deleteAdminExerciseInternal)
+const bulkDeleteAdminExercises = serializeExerciseMediaMutation(bulkDeleteAdminExercisesInternal)
+const applyExerciseSync = serializeExerciseMediaMutation(applyExerciseSyncInternal)
+const deleteAdminExerciseGroup = serializeExerciseMediaMutation(deleteAdminExerciseGroupInternal)
+const updateAdminExercise = serializeExerciseMediaMutation(updateAdminExerciseInternal)
+
 
 export {
   applyExerciseSync,
