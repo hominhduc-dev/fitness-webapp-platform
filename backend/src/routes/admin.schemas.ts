@@ -10,13 +10,13 @@ import { ADMIN_BROADCAST_TARGETS } from "../services/admin/broadcasts"
  */
 
 const largestMediaFileBytes = Math.max(...Object.values(EXERCISE_MEDIA_FILE_RULES).map((rule) => rule.maxBytes))
-const uploadedCloudinaryMedia = z.object({
-  cloudName: z.string().trim().min(1).max(120),
+/**
+ * What the browser reports after uploading to storage: only the object it wrote
+ * to. The service reads the file's real type and size back from storage.
+ */
+const uploadedStorageMedia = z.object({
   contentType: z.string().trim().min(1).max(100),
-  publicId: z.string().trim().min(1).max(300),
-  resourceType: z.enum(["image", "video"]),
-  secureUrl: z.url(),
-  version: z.number().int().positive(),
+  path: z.string().trim().min(1).max(300),
 })
 
 const exerciseIdParams = z.object({
@@ -35,8 +35,8 @@ const exerciseMediaUploadSchema = z.object({
 
 const saveExerciseMediaSchema = z
   .object({
-    animationUpload: uploadedCloudinaryMedia.optional(),
-    thumbnailUpload: uploadedCloudinaryMedia.optional(),
+    animationUpload: uploadedStorageMedia.optional(),
+    thumbnailUpload: uploadedStorageMedia.optional(),
   })
   .refine((value) => Boolean(value.animationUpload || value.thumbnailUpload), {
     message: "Chọn ít nhất một file media.",

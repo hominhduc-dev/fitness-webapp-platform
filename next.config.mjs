@@ -1,6 +1,16 @@
 /** @type {import('next').NextConfig} */
 const apiOrigin = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"
 
+// Exercise media is served from the project's own Supabase Storage, which may be
+// self-hosted on any domain, so the image host comes from the configured URL.
+const supabaseHostname = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").hostname
+  } catch {
+    return undefined
+  }
+})()
+
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
@@ -12,6 +22,9 @@ const nextConfig = {
         protocol: "https",
         hostname: "*.supabase.co",
       },
+      ...(supabaseHostname && !supabaseHostname.endsWith(".supabase.co")
+        ? [{ protocol: "https", hostname: supabaseHostname }]
+        : []),
       {
         protocol: "https",
         hostname: "res.cloudinary.com",

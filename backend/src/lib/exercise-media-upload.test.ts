@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import {
   assertMediaUploadFlags,
-  cloudinaryResourceTypeFor,
   cloudinarySignature,
+  createExerciseMediaObjectPath,
+  isAdminExerciseMediaObjectPath,
 } from "./exercise-media-upload"
 
 describe("exercise media uploads", () => {
@@ -13,13 +14,24 @@ describe("exercise media uploads", () => {
     expect(() => assertMediaUploadFlags({ apply: true, confirmMediaRights: true, uploadMedia: true })).not.toThrow()
   })
 
-  it("picks the resource type from the file, not from the media slot", () => {
-    // An account can refuse a GIF sent to the video endpoint, so animations that are
-    // images (GIF, WebP) upload as images and are delivered as MP4 later.
-    expect(cloudinaryResourceTypeFor("video/mp4")).toBe("video")
-    expect(cloudinaryResourceTypeFor("image/gif")).toBe("image")
-    expect(cloudinaryResourceTypeFor("image/webp")).toBe("image")
-    expect(cloudinaryResourceTypeFor("image/png")).toBe("image")
+  it("names the object after the variation, the slot and the file type", () => {
+    const variationId = "4c321b33-092a-4f49-9814-596676047ec4"
+    const path = createExerciseMediaObjectPath(variationId, "animation", "video/mp4")
+
+    expect(path).toMatch(new RegExp(`^admin/${variationId}/animation-[0-9a-f-]{36}\\.mp4$`))
+    expect(isAdminExerciseMediaObjectPath(variationId, "animation", path)).toBe(true)
+    expect(() => createExerciseMediaObjectPath(variationId, "thumbnail", "video/mp4")).toThrow()
+  })
+
+  it("rejects an uploaded path that belongs to another variation, slot or type", () => {
+    const variationId = "4c321b33-092a-4f49-9814-596676047ec4"
+    const other = "11111111-2222-3333-4444-555555555555"
+    const path = createExerciseMediaObjectPath(variationId, "thumbnail", "image/png")
+
+    expect(isAdminExerciseMediaObjectPath(other, "thumbnail", path)).toBe(false)
+    expect(isAdminExerciseMediaObjectPath(variationId, "animation", path)).toBe(false)
+    expect(isAdminExerciseMediaObjectPath(variationId, "thumbnail", path.replace(".png", ".mp4"))).toBe(false)
+    expect(isAdminExerciseMediaObjectPath(variationId, "thumbnail", `../${path}`)).toBe(false)
   })
 
   it("signs Cloudinary upload params in sorted order", () => {

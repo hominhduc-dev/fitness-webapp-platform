@@ -3,16 +3,11 @@
 import { createAdminExerciseMediaUploadRequest, saveAdminExerciseMediaRequest } from "@/lib/admin/api"
 import type { AdminExerciseMediaFiles, AdminExerciseMediaKind, AdminExerciseMediaUploadedAsset } from "@/lib/admin/types"
 
-type CloudinaryUploadResponse = {
-  public_id?: string
-  resource_type?: string
-  secure_url?: string
-  version?: number
-}
-
 /**
- * Uploads one file straight to Cloudinary with signed params from the API, so large
- * animations never go through the API's JSON body limit or the frontend proxy.
+ * Uploads one file straight to Supabase Storage with a signed upload URL from the
+ * API, so large animations never go through the API's JSON body limit or the
+ * frontend proxy. The URL carries its own single-use token, so no key is exposed
+ * here, and the API reads the stored file back before trusting it.
  */
 async function uploadExerciseMediaFile(accessToken: string, exerciseId: string, kind: AdminExerciseMediaKind, file: File) {
   const upload = await createAdminExerciseMediaUploadRequest(accessToken, exerciseId, {
@@ -21,36 +16,17 @@ async function uploadExerciseMediaFile(accessToken: string, exerciseId: string, 
     size: file.size,
   })
 
-  const body = new FormData()
-  body.set("api_key", upload.apiKey)
-  body.set("file", file)
-  body.set("public_id", upload.publicId)
-  body.set("signature", upload.signature)
-  body.set("timestamp", String(upload.timestamp))
-
-  const response = await fetch(upload.uploadUrl, { body, method: "POST" })
+  const response = await fetch(upload.uploadUrl, {
+    body: file,
+    headers: { "content-type": file.type, "x-upsert": "true" },
+    method: "PUT",
+  })
   if (!response.ok) {
     const details = await response.text().catch(() => "")
-    throw new Error(details || "Cloudinary upload failed.")
-  }
-  const result = await response.json() as CloudinaryUploadResponse
-  if (
-    result.public_id !== upload.publicId ||
-    result.resource_type !== upload.resourceType ||
-    typeof result.secure_url !== "string" ||
-    typeof result.version !== "number"
-  ) {
-    throw new Error("Cloudinary upload response is invalid.")
+    throw new Error(details || "Tải media lên thất bại.")
   }
 
-  return {
-    cloudName: upload.cloudName,
-    contentType: file.type,
-    publicId: result.public_id,
-    resourceType: upload.resourceType,
-    secureUrl: result.secure_url,
-    version: result.version,
-  } satisfies AdminExerciseMediaUploadedAsset
+  return { contentType: file.type, path: upload.path } satisfies AdminExerciseMediaUploadedAsset
 }
 
 /** Uploads the picked files, then points the variation at them. */
