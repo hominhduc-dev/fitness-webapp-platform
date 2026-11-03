@@ -130,6 +130,7 @@ async function removeStorageObjects(bucket: string, paths: string[]) {
       "content-type": "application/json",
     },
     method: "DELETE",
+    signal: AbortSignal.timeout(10_000),
   })
   if (!response.ok) throw new ExternalServiceError("Không xoá được media cũ.")
 }

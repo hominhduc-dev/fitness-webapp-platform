@@ -2,6 +2,7 @@ import { ExerciseShareStatus, Prisma, UserRole } from "@prisma/client"
 
 import { serializeMuscleProfile } from "../../domain/muscle-profile"
 import { serializeExerciseMedia } from "../../lib/exercise-media"
+import { cleanupUnreferencedExerciseMedia, serializeExerciseMediaMutation, snapshotExerciseMedia } from "../../lib/exercise-media-cleanup"
 import { invalidateExerciseLibrary } from "../../lib/library-cache"
 import type { SerializedProfile } from "../auth.service"
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../errors"
@@ -87,7 +88,7 @@ export function mapMergedVariations(
   }))
 }
 
-export async function reviewAdminExerciseShare(profile: SerializedProfile, exerciseId: string, input: ShareReviewInput) {
+async function reviewAdminExerciseShareInternal(profile: SerializedProfile, exerciseId: string, input: ShareReviewInput) {
   assertAdmin(profile)
   const db = ensurePrisma()
   const note = input.note?.trim() || null
@@ -122,6 +123,7 @@ export async function reviewAdminExerciseShare(profile: SerializedProfile, exerc
       chosenVariationId: chosen.id,
       variations: chosen.exercise.variations,
     })
+    const media = await snapshotExerciseMedia(db, exercise.variations.map((variation) => variation.id))
     await db.$transaction(async (tx) => {
       for (const { from, to } of moves) {
         await tx.workoutExercise.updateMany({ data: { variationId: to }, where: { variationId: from } })
@@ -133,6 +135,7 @@ export async function reviewAdminExerciseShare(profile: SerializedProfile, exerc
       // transaction if something was missed rather than orphan a workout.
       await tx.exercise.delete({ where: { id: exercise.id } })
     })
+    await cleanupUnreferencedExerciseMedia(db, media)
     decision = "merged"
     targetName = chosen.exercise.name
     targetExerciseId = chosen.exerciseId
@@ -172,3 +175,5 @@ export async function reviewAdminExerciseShare(profile: SerializedProfile, exerc
 }
 
 export { LIBRARY_EXERCISE_WHERE }
+
+export const reviewAdminExerciseShare = serializeExerciseMediaMutation(reviewAdminExerciseShareInternal)
