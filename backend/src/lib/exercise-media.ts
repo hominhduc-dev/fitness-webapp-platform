@@ -15,10 +15,13 @@ const THUMBNAIL_SIZE_TRANSFORM = "c_limit,f_auto,h_144,q_auto,w_144"
 const POSTER_SIZE_TRANSFORM = "c_limit,f_auto,h_360,q_auto,w_360"
 const ANIMATION_SIZE_TRANSFORM = "c_limit,h_360,w_360"
 
+/** The public bucket every exercise media object lives in. */
+const EXERCISE_MEDIA_BUCKET = "exercise-media"
+
 type JsonRecord = Record<string, unknown>
 type ExerciseMediaType = "gif" | "video"
 type ExerciseMediaKind = "thumbnail" | "animation"
-type ExerciseMediaSource = "custom" | "cdn"
+type ExerciseMediaSource = "custom" | "storage" | "cdn"
 
 type SerializedExerciseMedia = {
   animationUrl: string
@@ -31,8 +34,11 @@ type SerializedExerciseMedia = {
 }
 
 type UploadedExerciseMediaFile = {
+  bucket?: string
   cloudName?: string
   contentType: string
+  /** Object path inside the storage bucket, for files uploaded to Supabase. */
+  path?: string
   publicId?: string
   resourceType?: string
   secureUrl?: string
@@ -70,6 +76,12 @@ const CUSTOM_EXERCISE_MEDIA_METADATA_KEY = "media"
 const EXTERNAL_SOURCE_METADATA_KEY = "externalSource"
 const CDN_EXERCISE_MEDIA_METADATA_KEY = "cdn"
 
+/**
+ * Media served from the project's own Supabase Storage bucket. It holds object
+ * paths rather than URLs so the host can move without a data migration.
+ */
+const STORAGE_EXERCISE_MEDIA_METADATA_KEY = "storage"
+
 function asRecord(value: unknown): JsonRecord | undefined {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as JsonRecord)
@@ -105,6 +117,10 @@ function readCdnExerciseMedia(metadata: unknown) {
   return asRecord(asRecord(metadata)?.[CDN_EXERCISE_MEDIA_METADATA_KEY])
 }
 
+function readStorageExerciseMedia(metadata: unknown) {
+  return asRecord(asRecord(metadata)?.[STORAGE_EXERCISE_MEDIA_METADATA_KEY])
+}
+
 function animationTypeForContentType(contentType: string): ExerciseMediaType {
   return contentType === "video/mp4" ? "video" : "gif"
 }
@@ -124,6 +140,48 @@ function serializeUrlMedia(media: JsonRecord | undefined): SerializedExerciseMed
     height: EXERCISE_MEDIA_DIMENSION,
     thumbnailUrl,
     type: explicitType ?? (animationUrl.toLowerCase().endsWith(".mp4") ? "video" : "gif"),
+    width: EXERCISE_MEDIA_DIMENSION,
+  }
+}
+
+function asStorageObjectPath(value: unknown) {
+  if (typeof value !== "string" || value.length === 0) return undefined
+  if (value.startsWith("/") || value.includes("..") || !/\.[a-z0-9]{2,4}$/i.test(value)) return undefined
+  return value
+}
+
+function storagePublicUrl(bucket: string, path: string, supabaseUrl: string) {
+  return `${supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/public/${encodedPath(bucket)}/${encodedPath(path)}`
+}
+
+/**
+ * Media kept in the project's own Supabase Storage. Self-hosted Storage has no
+ * image or video transformation, so the stored objects are already the size they
+ * are shown at and the thumbnail doubles as the player poster.
+ */
+function serializeStorageMedia(
+  media: JsonRecord | undefined,
+  supabaseUrl = env.supabaseUrl,
+): SerializedExerciseMedia | undefined {
+  if (!media || !supabaseUrl) return undefined
+
+  const animationPath = asStorageObjectPath(media.animationPath)
+  const thumbnailPath = asStorageObjectPath(media.thumbnailPath)
+  if (!animationPath || !thumbnailPath) return undefined
+
+  const bucket = typeof media.bucket === "string" && /^[a-z0-9._-]+$/i.test(media.bucket)
+    ? media.bucket
+    : EXERCISE_MEDIA_BUCKET
+  const thumbnailUrl = storagePublicUrl(bucket, thumbnailPath, supabaseUrl)
+
+  return {
+    animationUrl: storagePublicUrl(bucket, animationPath, supabaseUrl),
+    height: EXERCISE_MEDIA_DIMENSION,
+    posterUrl: thumbnailUrl,
+    thumbnailUrl,
+    type: media.animationType === "video" || media.animationType === "gif"
+      ? media.animationType
+      : (animationPath.toLowerCase().endsWith(".mp4") ? "video" : "gif"),
     width: EXERCISE_MEDIA_DIMENSION,
   }
 }
@@ -170,13 +228,20 @@ function cloudinaryAssetUrl(input: {
 }
 
 /**
- * Admin uploads record the Cloudinary identity of each file, so the delivery URL is
- * built at read time — that is what applies `f_auto,q_auto`, and turns an animated
- * image (GIF/WebP) into MP4 through `f_mp4`. Records written before the upload flow
- * stored an identity keep working through their saved URL.
+ * Admin uploads go to Supabase Storage and record the object path of each file, so
+ * the URL is built at read time and the storage host can change without a data
+ * migration. Uploads from the Cloudinary era keep working through the identity, or
+ * the plain URL, they stored.
  */
-function serializeCustomMedia(media: JsonRecord | undefined, cloudName = env.cloudinaryCloudName): SerializedExerciseMedia | undefined {
+function serializeCustomMedia(
+  media: JsonRecord | undefined,
+  cloudName = env.cloudinaryCloudName,
+  supabaseUrl = env.supabaseUrl,
+): SerializedExerciseMedia | undefined {
   if (!media) return undefined
+
+  const storageMedia = serializeStorageMedia(media, supabaseUrl)
+  if (storageMedia) return storageMedia
 
   const resolvedCloudName = asCloudinaryToken(media.animationCloudName)
     ?? asCloudinaryToken(media.thumbnailCloudName)
@@ -256,12 +321,20 @@ function serializeCdnMedia(media: JsonRecord | undefined, cloudName = env.cloudi
   }
 }
 
+/**
+ * Media is served from Supabase Storage. The Cloudinary `cdn` block is still read
+ * last so a variation the migration has not reached keeps rendering.
+ */
 function resolveExerciseMedia(
   metadata: unknown,
   cloudinaryCloudName = env.cloudinaryCloudName,
+  supabaseUrl = env.supabaseUrl,
 ): { media: SerializedExerciseMedia; source: ExerciseMediaSource } | undefined {
-  const customMedia = serializeCustomMedia(readCustomExerciseMedia(metadata), cloudinaryCloudName)
+  const customMedia = serializeCustomMedia(readCustomExerciseMedia(metadata), cloudinaryCloudName, supabaseUrl)
   if (customMedia) return { media: customMedia, source: "custom" }
+
+  const storageMedia = serializeStorageMedia(readStorageExerciseMedia(metadata), supabaseUrl)
+  if (storageMedia) return { media: storageMedia, source: "storage" }
 
   const cdnMedia = serializeCdnMedia(readCdnExerciseMedia(metadata), cloudinaryCloudName)
   if (cdnMedia) return { media: cdnMedia, source: "cdn" }
@@ -289,6 +362,17 @@ function exerciseMediaFileError(kind: ExerciseMediaKind, contentType: string, si
     return `${label} tối đa ${rule.maxBytes / (1024 * 1024)}MB.`
   }
   return undefined
+}
+
+/** The bucket and object paths an earlier admin upload left behind, for cleanup. */
+function customExerciseMediaStoragePaths(customMedia: JsonRecord | undefined) {
+  const bucket = typeof customMedia?.bucket === "string" ? customMedia.bucket : EXERCISE_MEDIA_BUCKET
+  const paths: string[] = []
+  for (const key of ["thumbnailPath", "animationPath"] as const) {
+    const path = asStorageObjectPath(customMedia?.[key])
+    if (path) paths.push(path)
+  }
+  return { bucket, paths }
 }
 
 function customExerciseMediaCloudinaryPublicIds(customMedia: JsonRecord | undefined) {
@@ -332,6 +416,15 @@ function buildCustomExerciseMedia(input: {
     updatedById: input.updatedById,
   }
 
+  // Supabase uploads are addressed by object path; a side that was not uploaded
+  // keeps whatever addressing it already had.
+  const thumbnailPath = input.thumbnail?.path ?? input.previousCustom?.thumbnailPath
+  const animationPath = input.animation?.path ?? input.previousCustom?.animationPath
+  if (typeof thumbnailPath === "string") record.thumbnailPath = thumbnailPath
+  if (typeof animationPath === "string") record.animationPath = animationPath
+  const bucket = input.thumbnail?.bucket ?? input.animation?.bucket ?? input.previousCustom?.bucket
+  if (typeof bucket === "string") record.bucket = bucket
+
   const thumbnailPublicId = input.thumbnail?.publicId ?? input.previousCustom?.thumbnailPublicId
   const animationPublicId = input.animation?.publicId ?? input.previousCustom?.animationPublicId
   if (typeof thumbnailPublicId === "string") record.thumbnailPublicId = thumbnailPublicId
@@ -362,16 +455,21 @@ export {
   CDN_EXERCISE_MEDIA_METADATA_KEY,
   CUSTOM_EXERCISE_MEDIA_METADATA_KEY,
   EXERCISE_MEDIA_ALLOWED_MIME_TYPES,
+  EXERCISE_MEDIA_BUCKET,
   EXERCISE_MEDIA_DIMENSION,
   EXERCISE_MEDIA_FILE_RULES,
   EXTERNAL_SOURCE_METADATA_KEY,
+  STORAGE_EXERCISE_MEDIA_METADATA_KEY,
   buildCustomExerciseMedia,
   customExerciseMediaCloudinaryPublicIds,
+  customExerciseMediaStoragePaths,
   exerciseMediaFileError,
   readCustomExerciseMedia,
   readCdnExerciseMedia,
   readExternalSourceMetadata,
+  readStorageExerciseMedia,
   resolveExerciseMedia,
   serializeExerciseMedia,
+  storagePublicUrl,
 }
 export type { ExerciseMediaKind, ExerciseMediaSource, SerializedExerciseMedia, UploadedExerciseMediaFile }

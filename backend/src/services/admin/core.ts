@@ -29,20 +29,25 @@ import type { MovementPatternValue } from "../../domain/movement-pattern"
 import { env } from "../../config/env"
 import {
   CUSTOM_EXERCISE_MEDIA_METADATA_KEY,
+  EXERCISE_MEDIA_BUCKET,
   buildCustomExerciseMedia,
   customExerciseMediaCloudinaryPublicIds,
+  customExerciseMediaStoragePaths,
   exerciseMediaFileError,
   readCustomExerciseMedia,
   resolveExerciseMedia,
   serializeExerciseMedia,
+  storagePublicUrl,
   type ExerciseMediaKind,
   type UploadedExerciseMediaFile,
 } from "../../lib/exercise-media"
 import {
-  cloudinaryResourceTypeFor,
   cloudinarySignature,
-  createCloudinaryExerciseMediaPublicId,
-  createCloudinaryUploadGrant,
+  createExerciseMediaObjectPath,
+  createStorageUploadGrant,
+  isAdminExerciseMediaObjectPath,
+  readStorageObjectInfo,
+  removeStorageObjects,
 } from "../../lib/exercise-media-upload"
 import { logger } from "../../lib/logger"
 import { sendCoachSignupDecisionEmail, type CoachSignupEmailStatus } from "../../lib/coach-signup-email"
@@ -2498,63 +2503,45 @@ async function createAdminExerciseMediaUpload(
   if (fileError) throw new ValidationError(fileError)
 
   await findAdminExerciseVariation(db, variationId)
-  const publicId = createCloudinaryExerciseMediaPublicId(variationId, input.kind)
 
-  return createCloudinaryUploadGrant({
+  return createStorageUploadGrant({
     contentType: input.contentType,
     kind: input.kind,
-    publicId,
+    path: createExerciseMediaObjectPath(variationId, input.kind, input.contentType),
   })
 }
 
-type CloudinaryUploadedExerciseMedia = {
-  cloudName: string
+type StorageUploadedExerciseMedia = {
   contentType: string
-  publicId: string
-  resourceType: "image" | "video"
-  secureUrl: string
-  version: number
+  path: string
 }
 
-function isAdminCloudinaryMediaPublicId(variationId: string, kind: ExerciseMediaKind, publicId: string) {
-  const prefix = `exercise-media/admin/${variationId}/${kind}-`
-  const rest = publicId.slice(prefix.length)
-  return publicId.startsWith(prefix) && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(rest)
-}
-
-function verifyCloudinaryUploadedExerciseMedia(
+/**
+ * The client only names the object it uploaded to; everything else is read back
+ * from storage, so a tampered payload cannot point a variation at another file or
+ * claim a type the object does not have.
+ */
+async function verifyStorageUploadedExerciseMedia(
   variationId: string,
   kind: ExerciseMediaKind,
-  upload: CloudinaryUploadedExerciseMedia | undefined,
-): UploadedExerciseMediaFile | undefined {
+  upload: StorageUploadedExerciseMedia | undefined,
+): Promise<UploadedExerciseMediaFile | undefined> {
   if (!upload) return undefined
-  const expectedResourceType = cloudinaryResourceTypeFor(upload.contentType)
-  if (upload.cloudName !== env.cloudinaryCloudName || upload.resourceType !== expectedResourceType) {
-    throw new ValidationError("Thông tin media Cloudinary không hợp lệ.")
+  if (!isAdminExerciseMediaObjectPath(variationId, kind, upload.path)) {
+    throw new ValidationError("Đường dẫn media không hợp lệ.")
   }
-  if (!isAdminCloudinaryMediaPublicId(variationId, kind, upload.publicId)) {
-    throw new ValidationError("Đường dẫn media Cloudinary không hợp lệ.")
-  }
-  const fileError = exerciseMediaFileError(kind, upload.contentType, 1)
+
+  const info = await readStorageObjectInfo(EXERCISE_MEDIA_BUCKET, upload.path)
+  if (!info) throw new ValidationError("Không tìm thấy file đã tải lên.")
+
+  const fileError = exerciseMediaFileError(kind, info.contentType, info.size)
   if (fileError) throw new ValidationError(fileError)
 
-  let url: URL
-  try {
-    url = new URL(upload.secureUrl)
-  } catch {
-    throw new ValidationError("URL media Cloudinary không hợp lệ.")
-  }
-  if (url.protocol !== "https:" || url.hostname !== "res.cloudinary.com") {
-    throw new ValidationError("URL media Cloudinary không hợp lệ.")
-  }
-
   return {
-    cloudName: upload.cloudName,
-    contentType: upload.contentType,
-    publicId: upload.publicId,
-    resourceType: upload.resourceType,
-    secureUrl: upload.secureUrl,
-    version: upload.version,
+    bucket: EXERCISE_MEDIA_BUCKET,
+    contentType: info.contentType,
+    path: upload.path,
+    secureUrl: storagePublicUrl(EXERCISE_MEDIA_BUCKET, upload.path, env.supabaseUrl ?? ""),
   }
 }
 
@@ -2562,8 +2549,8 @@ async function saveAdminExerciseMedia(
   profile: SerializedProfile,
   variationId: string,
   input: {
-    animationUpload?: CloudinaryUploadedExerciseMedia
-    thumbnailUpload?: CloudinaryUploadedExerciseMedia
+    animationUpload?: StorageUploadedExerciseMedia
+    thumbnailUpload?: StorageUploadedExerciseMedia
   },
 ) {
   assertAdmin(profile)
@@ -2573,8 +2560,8 @@ async function saveAdminExerciseMedia(
   }
 
   const existing = await findAdminExerciseVariation(db, variationId)
-  const thumbnail = verifyCloudinaryUploadedExerciseMedia(variationId, "thumbnail", input.thumbnailUpload)
-  const animation = verifyCloudinaryUploadedExerciseMedia(variationId, "animation", input.animationUpload)
+  const thumbnail = await verifyStorageUploadedExerciseMedia(variationId, "thumbnail", input.thumbnailUpload)
+  const animation = await verifyStorageUploadedExerciseMedia(variationId, "animation", input.animationUpload)
   const previousCustom = readCustomExerciseMedia(existing.metadata)
 
   const nextMedia = buildCustomExerciseMedia({
@@ -2598,9 +2585,18 @@ async function saveAdminExerciseMedia(
   })
   invalidateExerciseLibrary()
 
-  await removeCloudinaryExerciseMedia(
-    customExerciseMediaCloudinaryPublicIds(previousCustom).filter((publicId) => publicId !== nextMedia.thumbnailPublicId && publicId !== nextMedia.animationPublicId),
+  // The replaced objects are only dropped once the variation points elsewhere, so
+  // a failure here leaves orphans rather than a variation without media.
+  const previousStorage = customExerciseMediaStoragePaths(previousCustom)
+  const orphaned = previousStorage.paths.filter(
+    (path) => path !== nextMedia.thumbnailPath && path !== nextMedia.animationPath,
   )
+  try {
+    await removeStorageObjects(previousStorage.bucket, orphaned)
+  } catch (error) {
+    logger.warn("unable to remove replaced exercise media", { error, paths: orphaned })
+  }
+  await removeCloudinaryExerciseMedia(customExerciseMediaCloudinaryPublicIds(previousCustom))
 
   await logAdminAudit(db, profile.id, {
     action: "exercise.media_updated",
@@ -2608,8 +2604,8 @@ async function saveAdminExerciseMedia(
     entityLabel: exercise.exercise.name,
     entityType: "exercise",
     metadata: {
-      animationPublicId: animation?.publicId ?? null,
-      thumbnailPublicId: thumbnail?.publicId ?? null,
+      animationPath: animation?.path ?? null,
+      thumbnailPath: thumbnail?.path ?? null,
       variationName: exercise.name,
     },
   })

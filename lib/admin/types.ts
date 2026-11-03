@@ -67,26 +67,18 @@ type AdminExerciseMediaKind = "thumbnail" | "animation"
 /** Files an admin picked for a variation; a missing side keeps the current media. */
 type AdminExerciseMediaFiles = Partial<Record<AdminExerciseMediaKind, File>>
 
-/** A one-time grant to upload one media file straight to Cloudinary. */
+/** A one-time grant to upload one media file straight to Supabase Storage. */
 type AdminExerciseMediaUpload = {
-  apiKey: string
-  cloudName: string
+  bucket: string
   contentType: string
   kind: AdminExerciseMediaKind
-  publicId: string
-  resourceType: "image" | "video"
-  signature: string
-  timestamp: number
+  path: string
   uploadUrl: string
 }
 
 type AdminExerciseMediaUploadedAsset = {
-  cloudName: string
   contentType: string
-  publicId: string
-  resourceType: "image" | "video"
-  secureUrl: string
-  version: number
+  path: string
 }
 
 type AdminExerciseItem = ExerciseMuscleProfile & {

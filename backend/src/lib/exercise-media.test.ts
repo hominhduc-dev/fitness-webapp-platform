@@ -62,6 +62,44 @@ describe("serializeExerciseMedia", () => {
     })
   })
 
+  it("serves Supabase Storage media ahead of the Cloudinary block", () => {
+    const resolved = resolveExerciseMedia({
+      cdn: {
+        animationPublicId: "excercise-gif/3119/animation",
+        thumbnailPublicId: "excercise-thumbnail/3119/thumbnail",
+      },
+      storage: {
+        animationPath: "7455efae/videos/0001-2gPfomN.mp4",
+        provider: "supabase",
+        thumbnailPath: "7455efae/images/0001-2gPfomN.jpg",
+      },
+    }, "demo", "https://supabase.example.com")
+
+    expect(resolved).toEqual({
+      media: {
+        animationUrl: "https://supabase.example.com/storage/v1/object/public/exercise-media/7455efae/videos/0001-2gPfomN.mp4",
+        height: 180,
+        posterUrl: "https://supabase.example.com/storage/v1/object/public/exercise-media/7455efae/images/0001-2gPfomN.jpg",
+        thumbnailUrl: "https://supabase.example.com/storage/v1/object/public/exercise-media/7455efae/images/0001-2gPfomN.jpg",
+        type: "video",
+        width: 180,
+      },
+      source: "storage",
+    })
+  })
+
+  it("rejects storage metadata that is incomplete or escapes the bucket", () => {
+    const paths = [
+      { animationPath: "a/b.mp4" },
+      { animationPath: "../secret.mp4", thumbnailPath: "a/b.jpg" },
+      { animationPath: "/a/b.mp4", thumbnailPath: "a/b.jpg" },
+      { animationPath: "a/b", thumbnailPath: "a/b.jpg" },
+    ]
+    for (const storage of paths) {
+      expect(resolveExerciseMedia({ storage }, undefined, "https://supabase.example.com")).toBeUndefined()
+    }
+  })
+
   it("rejects incomplete or unsafe metadata paths", () => {
     expect(serializeExerciseMedia({})).toBeUndefined()
     expect(serializeExerciseMedia({
@@ -91,6 +129,68 @@ describe("custom exercise media", () => {
 
     expect(resolved?.source).toBe("custom")
     expect(resolved?.media.type).toBe("video")
+  })
+
+  it("stores an upload as object paths and serves it from storage", () => {
+    const record = buildCustomExerciseMedia({
+      animation: {
+        bucket: "exercise-media",
+        contentType: "video/mp4",
+        path: "admin/variation/animation-id.mp4",
+        secureUrl: "https://supabase.example.com/storage/v1/object/public/exercise-media/admin/variation/animation-id.mp4",
+      },
+      thumbnail: {
+        bucket: "exercise-media",
+        contentType: "image/png",
+        path: "admin/variation/thumbnail-id.png",
+        secureUrl: "https://supabase.example.com/storage/v1/object/public/exercise-media/admin/variation/thumbnail-id.png",
+      },
+      updatedAt,
+      updatedById: "admin",
+    })
+
+    expect(record).toMatchObject({
+      animationPath: "admin/variation/animation-id.mp4",
+      bucket: "exercise-media",
+      thumbnailPath: "admin/variation/thumbnail-id.png",
+    })
+    // The admin slot still outranks the migrated `storage` block.
+    const resolved = resolveExerciseMedia({
+      media: record,
+      storage: { animationPath: "dataset/a.mp4", thumbnailPath: "dataset/a.jpg" },
+    }, undefined, "https://supabase.example.com")
+    expect(resolved?.source).toBe("custom")
+    expect(resolved?.media.animationUrl).toBe(
+      "https://supabase.example.com/storage/v1/object/public/exercise-media/admin/variation/animation-id.mp4",
+    )
+  })
+
+  it("keeps serving the side that was not re-uploaded", () => {
+    const record = buildCustomExerciseMedia({
+      animation: {
+        bucket: "exercise-media",
+        contentType: "video/mp4",
+        path: "admin/variation/animation-id.mp4",
+        secureUrl: "https://supabase.example.com/storage/v1/object/public/exercise-media/admin/variation/animation-id.mp4",
+      },
+      current: {
+        animationUrl: "https://supabase.example.com/storage/v1/object/public/exercise-media/dataset/a.mp4",
+        height: 180,
+        thumbnailUrl: "https://supabase.example.com/storage/v1/object/public/exercise-media/dataset/a.jpg",
+        type: "video",
+        width: 180,
+      },
+      updatedAt,
+      updatedById: "admin",
+    })
+
+    const resolved = resolveExerciseMedia({ media: record }, undefined, "https://supabase.example.com")
+    expect(resolved?.media.animationUrl).toBe(
+      "https://supabase.example.com/storage/v1/object/public/exercise-media/admin/variation/animation-id.mp4",
+    )
+    expect(resolved?.media.thumbnailUrl).toBe(
+      "https://supabase.example.com/storage/v1/object/public/exercise-media/dataset/a.jpg",
+    )
   })
 
   it("builds upload URLs from the stored Cloudinary identity", () => {
