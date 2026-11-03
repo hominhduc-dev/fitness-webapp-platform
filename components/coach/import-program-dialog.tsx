@@ -1,7 +1,7 @@
 "use client"
 
 import { AlertCircle, AlertTriangle, ArrowLeft, Check, CheckCircle2, FileDown, FileSpreadsheet, ImagePlus, Loader2, Plus, Sparkles, Trash2, UserPlus, X } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
 import { queryKeys } from "@/lib/queries/keys"
@@ -40,6 +40,7 @@ import { cn } from "@/lib/utils"
 import { GoogleProgramSource } from "./google-program-source"
 import { fetchGoogleConnection, importProgramFromImages, overwriteGoogleProgram, type GoogleImportResult, type ProgramImageDraft } from "@/lib/fitness/api"
 import { downscaleImage, type DownscaledImage } from "@/lib/images/downscale"
+import { clearImportDraft, readImportDraft, writeImportDraft } from "@/lib/coach/program-import-draft"
 import { useLocale } from "@/components/providers/locale-provider"
 import { googleImportMessages } from "@/lib/i18n/messages/google-import"
 import { programImportMessages } from "@/lib/i18n/messages/program-import"
@@ -64,6 +65,24 @@ type ImportSource = "excel" | "image" | "google"
 const MAX_PROGRAM_IMAGES = 3
 
 type SelectedImage = DownscaledImage & { id: string; name: string }
+
+/** What an unfinished Review keeps across a close or reload; the images themselves are not kept. */
+type PersistedImport = {
+  addedExerciseIds: string[]
+  description: string
+  difficulty: CreateCoachProgramInput["difficulty"]
+  draft: ImportedProgramDraft
+  duration: number
+  editableWorkouts: EditableWorkout[]
+  fileName: string
+  googleSource: GoogleImportResult | null
+  programGoal: string
+  programName: string
+  selectedTraineeId: string | null
+  source: ImportSource
+  startDate: string
+  unmatchedCount: number
+}
 
 const STEP_ORDER: Step[] = ["upload", "review", "done"]
 
@@ -205,6 +224,9 @@ export function ImportProgramDialog({
   const readImages = useCoachMutation(importProgramFromImages, [])
   const [images, setImages] = useState<SelectedImage[]>([])
   const [unmatchedCount, setUnmatchedCount] = useState(0)
+  const [restoreChecked, setRestoreChecked] = useState(false)
+  /** When the Review on screen was brought back from a saved draft. */
+  const [restoredAt, setRestoredAt] = useState<number | null>(null)
   const overwriteGoogle = useCoachMutation(overwriteGoogleProgram)
   const [step, setStep] = useState<Step>("upload")
   const [fileName, setFileName] = useState("")
@@ -302,6 +324,7 @@ export function ImportProgramDialog({
     setDidOverwrite(false)
     setImages([])
     setUnmatchedCount(0)
+    setRestoredAt(null)
     readImages.reset()
   }
 
@@ -345,6 +368,67 @@ export function ImportProgramDialog({
     setStep("review")
   } else if (!open && seededDraftId !== null) {
     setSeededDraftId(null)
+  }
+
+  // An unfinished Review comes back when the dialog reopens, until the program
+  // is created or the coach discards it. An AI draft from the assistant keeps
+  // its own record, so it is left out.
+  const coachId = profile?.id ?? null
+  if (open && !aiDraft && coachId && !restoreChecked) {
+    setRestoreChecked(true)
+    const saved = readImportDraft<PersistedImport>(coachId)
+    if (saved) {
+      const state = saved.state
+      setAddedExerciseIds(state.addedExerciseIds ?? [])
+      setDescription(state.description)
+      setDifficulty(state.difficulty)
+      setDraft(state.draft)
+      setDuration(state.duration)
+      setEditableWorkouts(state.editableWorkouts)
+      setFileName(state.fileName)
+      setGoogleSource(state.googleSource)
+      setProgramGoal(state.programGoal)
+      setProgramName(state.programName)
+      setSelectedTraineeId(state.selectedTraineeId)
+      setSource(state.source)
+      setStartDate(state.startDate)
+      setUnmatchedCount(state.unmatchedCount)
+      setRestoredAt(saved.savedAt)
+      setStep("review")
+    }
+  } else if (!open && restoreChecked) {
+    setRestoreChecked(false)
+    setRestoredAt(null)
+  }
+
+  useEffect(() => {
+    if (!coachId || aiDraft) return
+    if (step === "done") {
+      clearImportDraft(coachId)
+      return
+    }
+    if (step !== "review" || !draft) return
+    writeImportDraft<PersistedImport>(coachId, {
+      addedExerciseIds,
+      description,
+      difficulty,
+      draft,
+      duration,
+      editableWorkouts,
+      fileName,
+      googleSource,
+      programGoal,
+      programName,
+      selectedTraineeId,
+      source,
+      startDate,
+      unmatchedCount,
+    })
+  }, [addedExerciseIds, aiDraft, coachId, description, difficulty, draft, duration, editableWorkouts, fileName, googleSource, programGoal, programName, selectedTraineeId, source, startDate, step, unmatchedCount])
+
+  const discardSavedDraft = () => {
+    if (coachId) clearImportDraft(coachId)
+    reset()
   }
 
   const handleFile = async (file?: File | null) => {
@@ -536,6 +620,10 @@ export function ImportProgramDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
+        // A stray click beside the dialog must not throw away a Review in progress.
+        onInteractOutside={(event) => {
+          if (step === "review") event.preventDefault()
+        }}
         className="left-0 top-0 flex h-[100svh] max-h-[100svh] min-h-0 max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-border p-0 shadow-2xl sm:left-1/2 sm:top-1/2 sm:h-auto sm:max-h-[92svh] sm:max-w-[920px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl"
       >
         <DialogHeader className="shrink-0 gap-0 border-b border-border px-5 pb-4 pt-5 text-left sm:px-8 sm:pb-5 sm:pt-7">
@@ -674,6 +762,15 @@ export function ImportProgramDialog({
           {/* ── Review step ── */}
           {step === "review" ? (
             <div className="space-y-4">
+              {restoredAt !== null ? (
+                <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-foreground">{t.draft.restored(new Date(restoredAt).toLocaleString(locale === "vi" ? "vi-VN" : "en-US", { dateStyle: "short", timeStyle: "short" }))}</span>
+                  <Button type="button" size="sm" variant="outline" disabled={isSaving} onClick={discardSavedDraft}>
+                    <Trash2 className="size-4" />
+                    {t.draft.discard}
+                  </Button>
+                </div>
+              ) : null}
               {googleSource?.existingProgram ? <div className="space-y-2 rounded-md border border-border p-3">
                 <p className="text-sm">{googleText.duplicate} {googleSource.existingProgram.name}</p>
                 <Button variant="outline" disabled={isSaving || !payload || !payload.workouts.length || invalidVariationCount > 0 || !authenticated || !!googleSource.existingProgram.archivedAt} onClick={() => {
@@ -942,7 +1039,7 @@ export function ImportProgramDialog({
             {step === "review" ? (
               <>
                 {aiDraft ? null : (
-                  <Button type="button" variant="ghost" onClick={() => setStep("upload")} disabled={isSaving}>
+                  <Button type="button" variant="ghost" onClick={() => { setRestoredAt(null); setStep("upload") }} disabled={isSaving}>
                     <ArrowLeft className="h-4 w-4" />
                     {t.actions.back}
                   </Button>

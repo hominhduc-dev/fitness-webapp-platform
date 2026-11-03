@@ -22,6 +22,10 @@ const en = {
       title: "Create a program from an image",
     },
   },
+  draft: {
+    discard: "Discard draft",
+    restored: (time: string) => `Picked up where you left off (saved ${time}). Your edits are kept until you create the program.`,
+  },
   image: {
     add: "Add another image",
     analyze: "Read with AI",
@@ -101,6 +105,10 @@ const vi: typeof en = {
       label: "Từ ảnh",
       title: "Tạo program từ ảnh",
     },
+  },
+  draft: {
+    discard: "Huỷ bản nháp",
+    restored: (time: string) => `Đã khôi phục bản nháp đang làm dở (lưu lúc ${time}). Thay đổi được giữ cho tới khi bạn tạo program.`,
   },
   image: {
     add: "Thêm ảnh",
