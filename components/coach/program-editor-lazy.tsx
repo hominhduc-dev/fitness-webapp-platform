@@ -7,13 +7,15 @@ import { createPortal } from "react-dom"
 import type { CoachProgram, CoachTrainee } from "@/lib/fitness/types"
 import type { ExerciseVariationOption } from "@/lib/types"
 
+import type { ProgramImportSource } from "./import-program-menu"
+
 type ProgramEditorLazyProps = {
   closeHref?: string
   initialExerciseOptions?: ExerciseVariationOption[]
   initialTraineeOptions?: CoachTrainee[]
   onClose?: () => void
   onGenerateWithAI?: (traineeId: string | null) => void
-  onImportProgram?: () => void
+  onImportProgram?: (source: ProgramImportSource) => void
   onSaved?: (program: CoachProgram) => void
   programId?: string
 }

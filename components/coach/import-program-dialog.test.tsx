@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ImportProgramDialog } from "./import-program-dialog"
@@ -76,6 +76,26 @@ beforeEach(() => {
   save.mockResolvedValue({ id: "program", name: "Imported program" })
 })
 afterEach(cleanup)
+
+describe("import source selection", () => {
+  const DRAFT_KEY = "yeahbuddy:program-import-draft:coach"
+  it("opens directly on the selected source", () => {
+    render(<ImportProgramDialog open initialSource="image" exerciseOptions={options} trainees={trainees} onClose={vi.fn()} onImported={vi.fn()} />)
+    expect(screen.getByRole("tab", { name: "From image" })).toHaveAttribute("aria-selected", "true")
+    expect(screen.getByRole("heading", { name: "Create a program from an image" })).toBeInTheDocument()
+  })
+
+  it("keeps a saved review when selecting another source without restoring the wrong flow", async () => {
+    await openReview()
+    await waitFor(() => expect(window.localStorage.getItem(DRAFT_KEY)).not.toBeNull())
+    const saved = window.localStorage.getItem(DRAFT_KEY)
+    cleanup()
+    render(<ImportProgramDialog open initialSource="image" exerciseOptions={options} trainees={trainees} onClose={vi.fn()} onImported={vi.fn()} />)
+    expect(screen.getByRole("tab", { name: "From image" })).toHaveAttribute("aria-selected", "true")
+    expect(screen.queryByText(/Picked up where you left off/)).not.toBeInTheDocument()
+    expect(window.localStorage.getItem(DRAFT_KEY)).toBe(saved)
+  })
+})
 
 describe("import review exercise cards", () => {
   it("round-trips imported prescriptions and saves card edits with the source mapping", async () => {
@@ -252,8 +272,8 @@ describe("creating a program from an image", () => {
       name: "Session 1",
       scheduledDay: 1,
       exercises: [
-        { sourceName: "Barbell Bench Press", variationId: "bench", sets: 2, reps: "6-8", rir: 2, weight: null, notes: "Topset-Backoffset" },
-        { sourceName: "Hack Squat", variationId: null, sets: 2, reps: "5-10", rir: 2, weight: null, notes: "" },
+        { sourceName: "Barbell Bench Press", variationId: "bench", sets: 2, reps: "6-8", rir: 2, restTime: 120, weight: 61.23, notes: "Topset-Backoffset" },
+        { sourceName: "Hack Squat", variationId: null, sets: 2, reps: "5-10", rir: 2, restTime: 0, weight: null, notes: "" },
       ],
     }],
   }
@@ -297,8 +317,8 @@ describe("creating a program from an image", () => {
         scheduledDay: 1,
         weekIndex: undefined,
         exercises: [
-          { variationId: "bench", sets: 2, repsMin: 6, reps: 8, rir: 2, notes: "Topset-Backoffset" },
-          { variationId: "squat", sets: 2, repsMin: 5, reps: 10, rir: 2 },
+          { variationId: "bench", sets: 2, repsMin: 6, reps: 8, rir: 2, restTime: 120, weight: 61.23, notes: "Topset-Backoffset" },
+          { variationId: "squat", sets: 2, repsMin: 5, reps: 10, rir: 2, restTime: 0 },
         ],
       }],
     })
@@ -311,6 +331,58 @@ describe("creating a program from an image", () => {
     fireEvent.change(input, { target: { files: [new File(["x"], "notes.txt", { type: "text/plain" })] } })
     expect(await screen.findByText("Could not read this image. Choose a JPG, PNG or WebP file.")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Read with AI" })).toBeDisabled()
+  })
+
+  async function startPendingRead() {
+    let resolveRead!: (value: typeof imageDraft) => void
+    save.mockImplementation(() => new Promise((resolve) => { resolveRead = resolve }))
+    const props = { exerciseOptions: options, trainees, onClose: vi.fn(), onImported: vi.fn() }
+    const view = render(<ImportProgramDialog {...props} initialSource="image" open />)
+    const input = document.querySelector<HTMLInputElement>('input[type="file"][accept^="image/"]')!
+    fireEvent.change(input, { target: { files: [new File(["x"], "pending.png", { type: "image/png" })] } })
+    await screen.findByRole("img", { name: "pending.png" })
+    fireEvent.click(screen.getByRole("button", { name: "Read with AI" }))
+    return { ...view, props, resolveRead }
+  }
+
+  it("ignores a late AI result after closing, without writing a stale draft", async () => {
+    const view = await startPendingRead()
+    fireEvent.click(screen.getByRole("button", { name: /^Close$/ }))
+    view.rerender(<ImportProgramDialog {...view.props} initialSource="image" open={false} />)
+    await act(async () => view.resolveRead(imageDraft))
+    expect(window.localStorage.getItem("yeahbuddy:program-import-draft:coach")).toBeNull()
+    view.rerender(<ImportProgramDialog {...view.props} initialSource="image" open />)
+    expect(screen.queryByDisplayValue("Minicut")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Read with AI" })).toBeDisabled()
+  })
+
+  it("does not overwrite another import source when the image result arrives late", async () => {
+    const view = await startPendingRead()
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Google Sheets" }), { button: 0, ctrlKey: false })
+    save.mockResolvedValue({ id: "program", name: "Imported program" })
+    fireEvent.click(await screen.findByText("Load sheet fixture"))
+    await screen.findByDisplayValue("Imported program")
+    await act(async () => view.resolveRead(imageDraft))
+    expect(screen.getByDisplayValue("Imported program")).toBeInTheDocument()
+    expect(screen.queryByDisplayValue("Minicut")).not.toBeInTheDocument()
+  })
+
+  it("blocks saving until the library loads and every image row is matched", async () => {
+    const props = { trainees, onClose: vi.fn(), onImported: vi.fn() }
+    const view = render(<ImportProgramDialog {...props} initialSource="image" open exerciseOptions={[]} />)
+    const input = document.querySelector<HTMLInputElement>('input[type="file"][accept^="image/"]')!
+    fireEvent.change(input, { target: { files: [new File(["x"], "image.png", { type: "image/png" })] } })
+    await screen.findByRole("img", { name: "image.png" })
+    fireEvent.click(screen.getByRole("button", { name: "Read with AI" }))
+    await screen.findByDisplayValue("Minicut")
+    expect(screen.getByText(/The exercise library is not available yet/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Create program" })).toBeDisabled()
+    fireEvent.click(screen.getByRole("button", { name: "Create program" }))
+    expect(save).toHaveBeenCalledTimes(1)
+    view.rerender(<ImportProgramDialog {...props} initialSource="image" open exerciseOptions={options} />)
+    expect(screen.getByText(/1 exercise is not in your library yet/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Create program" })).toBeDisabled()
+    expect(screen.getByText("In the image: Hack Squat")).toBeInTheDocument()
   })
 })
 

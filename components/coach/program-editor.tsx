@@ -19,7 +19,6 @@ import {
   Sparkles,
   Target,
   Trash2,
-  Upload,
   UserPlus,
   X,
 } from "lucide-react"
@@ -51,6 +50,7 @@ import { queryKeys } from "@/lib/queries/keys"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { ImportProgramMenu, type ProgramImportSource } from "./import-program-menu"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -96,7 +96,7 @@ type ProgramEditorProps = {
   onClose?: () => void
   /** Offered on a new program: hands off to the AI draft, for the trainee picked so far. */
   onGenerateWithAI?: (traineeId: string | null) => void
-  onImportProgram?: () => void
+  onImportProgram?: (source: ProgramImportSource) => void
   onSaved?: (program: CoachProgram) => void
   programId?: string
 }
@@ -1248,15 +1248,7 @@ export function ProgramEditor({
             </div>
             <div className="hidden shrink-0 flex-wrap items-center gap-2 md:flex">
               {!programId && onImportProgram ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-xl bg-transparent"
-                  onClick={onImportProgram}
-                >
-                  <Upload className="h-4 w-4" />
-                  {messages.coach.importProgram}
-                </Button>
+                <ImportProgramMenu onSelect={onImportProgram} />
               ) : null}
               {!programId && onGenerateWithAI ? (
                 <Button
@@ -1455,10 +1447,7 @@ export function ProgramEditor({
           <div className={cn("mt-3 flex flex-wrap items-center gap-2 md:hidden", !isDetailsExpanded && "hidden")}>
             <div className="flex flex-wrap items-center gap-2">
               {!programId && onImportProgram ? (
-                <Button type="button" variant="outline" className="bg-transparent" onClick={onImportProgram}>
-                  <Upload className="h-4 w-4" />
-                  {messages.coach.importProgram}
-                </Button>
+                <ImportProgramMenu onSelect={onImportProgram} />
               ) : null}
               {!programId && onGenerateWithAI ? (
                 <Button type="button" variant="outline" className="bg-transparent" onClick={() => onGenerateWithAI(selectedTraineeIds[0] ?? null)}>

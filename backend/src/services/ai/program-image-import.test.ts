@@ -158,4 +158,46 @@ describe("importProgramFromImages", () => {
     expect(requests).toHaveLength(1)
     expect(result.unmatchedCount).toBe(0)
   })
+
+  async function importExercise(fields: Record<string, unknown>, locale: "en" | "vi" = "en") {
+    const { provider: fake } = provider([
+      { programName: null, workouts: [{ name: "Legs", exercises: [{ name: "Leg Press", reps: "10", sets: 3, ...fields }] }] },
+    ])
+    const result = await importProgramFromImages(fake, { images: [{ data: "abc", mediaType: "image/png" }], library, locale })
+    return result.workouts[0]!.exercises[0]!
+  }
+
+  it("preserves rest seconds and explicit kg loads", async () => {
+    expect(await importExercise({ restTime: "120", weight: "62.5", weightUnit: "kg" })).toMatchObject({
+      notes: "", restTime: 120, weight: 62.5,
+    })
+  })
+
+  it.each(["lb", "lbs", "LB", "pounds"])("converts an explicit %s load to kg", async (weightUnit) => {
+    expect(await importExercise({ weight: 135, weightUnit })).toMatchObject({ notes: "", weight: 61.23 })
+  })
+
+  it("preserves zero rest and zero load instead of treating them as missing", async () => {
+    expect(await importExercise({ restTime: 0, weight: 0, weightUnit: "lb" })).toMatchObject({ restTime: 0, weight: 0 })
+  })
+
+  it("does not invent rest or load when the cells are blank", async () => {
+    expect(await importExercise({})).toMatchObject({ notes: "", restTime: null, weight: null })
+    expect(await importExercise({ restTime: -1, weight: -1, weightUnit: "kg" })).toMatchObject({ restTime: null, weight: null })
+  })
+
+  it.each([undefined, null, "", "oz", "plate"])("keeps load unset for ambiguous unit %s and preserves the source value for review", async (weightUnit) => {
+    const exercise = await importExercise({ weight: 135, weightUnit, note: "Source note" })
+    expect(exercise.weight).toBeNull()
+    expect(exercise.notes).toContain("Source note")
+    expect(exercise.notes).toContain(`Weight in image: 135${weightUnit ? ` ${weightUnit}` : ""}`)
+    expect(exercise.notes).toContain("Confirm the unit")
+  })
+
+  it("shows an ambiguous load warning in the coach's language", async () => {
+    const exercise = await importExercise({ weight: 100 }, "vi")
+    expect(exercise.weight).toBeNull()
+    expect(exercise.notes).toContain("Tạ trong ảnh: 100")
+    expect(exercise.notes).toContain("Cần xác nhận đơn vị")
+  })
 })
