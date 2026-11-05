@@ -27,7 +27,13 @@ function normalizeTrainingGoal(value: string | null | undefined, fallbackGoals: 
   if (["build_muscle", "hypertrophy", "muscle_gain", "tang_co", "tăng_cơ"].includes(normalized)) return "hypertrophy"
   if (["strength", "increase_strength", "tang_suc_manh", "tăng_sức_mạnh"].includes(normalized)) return "strength"
   if (["powerbuilding", "power_building", "strength_hypertrophy"].includes(normalized)) return "powerbuilding"
-  if (["lose_weight", "fat_loss", "weight_loss", "recomposition", "body_recomposition", "giam_mo", "giảm_mỡ"].includes(normalized)) return "fat_loss"
+  // "Cutting" is what a trainee calls a fat-loss block, so a program named or
+  // tagged that way gets fat loss's gentler RIR targets rather than falling
+  // through to no goal at all.
+  if ([
+    "lose_weight", "fat_loss", "weight_loss", "recomposition", "body_recomposition", "giam_mo", "giảm_mỡ",
+    "cut", "cutting", "mini_cut", "minicut", "cat_mo", "cắt_mỡ",
+  ].includes(normalized)) return "fat_loss"
   if (["endurance", "improve_endurance", "suc_ben", "sức_bền"].includes(normalized)) return "endurance"
   if (["general", "general_fitness", "fitness", "tong_hop", "tổng_hợp"].includes(normalized)) return "general_fitness"
   if (["athletic", "athletic_performance", "sport", "sports_performance"].includes(normalized)) return "athletic_performance"

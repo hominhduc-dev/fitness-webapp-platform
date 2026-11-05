@@ -2,7 +2,8 @@ export const TRAINING_GOAL_OPTIONS = [
   { en: "Hypertrophy", value: "hypertrophy", vi: "Tăng cơ" },
   { en: "Strength", value: "strength", vi: "Sức mạnh" },
   { en: "Powerbuilding", value: "powerbuilding", vi: "Tăng cơ + sức mạnh" },
-  { en: "Fat loss", value: "fat_loss", vi: "Giảm mỡ" },
+  // Named for both, so a trainee looking for "cutting" finds the goal they mean.
+  { en: "Fat loss (cutting)", value: "fat_loss", vi: "Giảm mỡ (cutting)" },
   { en: "Endurance", value: "endurance", vi: "Sức bền" },
   { en: "General", value: "general_fitness", vi: "Tổng hợp" },
   { en: "Athletic", value: "athletic_performance", vi: "Hiệu suất thể thao" },
@@ -24,7 +25,12 @@ export function normalizeTrainingGoal(value: string | null | undefined): Trainin
   if (["powerbuilding", "power_building", "strength_hypertrophy"].includes(normalized)) {
     return "powerbuilding"
   }
-  if (["lose_weight", "fat_loss", "weight_loss", "recomposition", "body_recomposition", "giam_mo", "giảm_mỡ"].includes(normalized)) {
+  // "Cutting" is what a trainee calls a fat-loss block; it has to resolve here
+  // too, since an unrecognised goal is dropped rather than stored.
+  if ([
+    "lose_weight", "fat_loss", "weight_loss", "recomposition", "body_recomposition", "giam_mo", "giảm_mỡ",
+    "cut", "cutting", "mini_cut", "minicut", "cat_mo", "cắt_mỡ",
+  ].includes(normalized)) {
     return "fat_loss"
   }
   if (["endurance", "improve_endurance", "suc_ben", "sức_bền"].includes(normalized)) {
