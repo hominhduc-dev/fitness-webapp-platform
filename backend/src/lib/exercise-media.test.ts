@@ -338,7 +338,7 @@ describe("custom exercise media", () => {
 
 /**
  * Mirrors the generated `Variation.displayMetadata` column (migration
- * 20261001_variation_display_metadata): `media`, `cdn` and the external
+ * 20261104030000_variation_display_storage_media): `media`, `storage`, `cdn` and the external
  * display name, nulls stripped. Queries read that column instead of the raw
  * `metadata`, so the two must resolve to the same media.
  */
@@ -351,6 +351,7 @@ function toDisplayMetadata(metadata: Record<string, unknown>) {
         Object.entries({ displayName: externalSource?.displayName }).filter(([, value]) => value != null),
       ),
       media: metadata.media,
+      storage: metadata.storage,
     }).filter(([, value]) => value != null),
   )
   return JSON.parse(JSON.stringify(stripped)) as Record<string, unknown>
@@ -396,5 +397,20 @@ describe("displayMetadata", () => {
     const lean = toDisplayMetadata(withCustom as Record<string, unknown>)
     expect(resolveExerciseMedia(lean, "demo-cloud")).toEqual(resolveExerciseMedia(withCustom, "demo-cloud"))
     expect(resolveExerciseMedia(lean, "demo-cloud")?.source).toBe("custom")
+  })
+
+  it("keeps Storage media ahead of legacy CDN fallbacks while excluding raw import data", () => {
+    const withStorage = {
+      ...full,
+      storage: { bucket: "exercise-media", animationPath: "dataset/0001.mp4", thumbnailPath: "dataset/0001.jpg", animationType: "video" },
+    }
+    const lean = toDisplayMetadata(withStorage)
+    expect(resolveExerciseMedia(lean, "demo-cloud", "https://storage.example.com"))
+      .toEqual(resolveExerciseMedia(withStorage, "demo-cloud", "https://storage.example.com"))
+    expect(resolveExerciseMedia(lean, "demo-cloud", "https://storage.example.com")?.source).toBe("storage")
+    expect(lean).toHaveProperty("externalSource.displayName", "Barbell Bench Press")
+    expect(lean).toHaveProperty("cdn", cdn)
+    expect(lean).not.toHaveProperty("exerciseDataset")
+    expect(lean).not.toHaveProperty("externalSource.rawRow")
   })
 })

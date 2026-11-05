@@ -289,6 +289,8 @@ export type ProgramImageDraft = {
       sets: number
       reps: string
       rir: number | null
+      /** Seconds; optional for older stored import drafts. */
+      restTime?: number | null
       weight: number | null
       notes: string
     }>

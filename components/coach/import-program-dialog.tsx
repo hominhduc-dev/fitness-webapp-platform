@@ -1,7 +1,7 @@
 "use client"
 
 import { AlertCircle, AlertTriangle, ArrowLeft, Check, CheckCircle2, FileDown, FileSpreadsheet, ImagePlus, Loader2, Plus, Sparkles, Trash2, UserPlus, X } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
 import { queryKeys } from "@/lib/queries/keys"
@@ -47,6 +47,7 @@ import { programImportMessages } from "@/lib/i18n/messages/program-import"
 import { normalizeTrainingGoal, TRAINING_GOAL_OPTIONS } from "@/lib/training-goals"
 
 type ImportProgramDialogProps = {
+  initialSource?: ImportSource
   /** Opens straight on Review with this AI draft; saving marks the draft used. */
   aiDraft?: AIProgramDraft | null
   exerciseOptions: ExerciseVariationOption[]
@@ -156,7 +157,7 @@ function imageDraftToEditable(draft: ProgramImageDraft): EditableWorkout[] {
       id: crypto.randomUUID(),
       notes: exercise.notes,
       reps: exercise.reps,
-      restTime: "",
+      restTime: exercise.restTime != null ? String(exercise.restTime) : "",
       rir: exercise.rir != null ? String(exercise.rir) : "",
       sets: String(exercise.sets),
       sourceName: exercise.sourceName,
@@ -176,7 +177,6 @@ function editableToPayloadWorkout(
     weekIndex: editable.weekIndex,
     scheduledDay: editable.scheduledDay,
     exercises: editable.exercises
-      .filter((ex) => ex.variationId)
       .map((ex) => {
         const repTarget = parseRepTargetText(ex.reps) ?? { reps: Math.max(1, Number(ex.reps) || 1) }
         const parsedWeight = Number(ex.weight)
@@ -205,6 +205,7 @@ function editableToPayloadWorkout(
 
 export function ImportProgramDialog({
   aiDraft,
+  initialSource,
   exerciseOptions,
   onClose,
   onImported,
@@ -222,6 +223,9 @@ export function ImportProgramDialog({
   const [googleSource, setGoogleSource] = useState<GoogleImportResult | null>(null)
   const createProgram = useCoachMutation(createCoachProgram)
   const readImages = useCoachMutation(importProgramFromImages, [])
+  const imageRequestVersion = useRef(0)
+  // Closing externally or unmounting also invalidates work still in flight.
+  useEffect(() => () => { imageRequestVersion.current += 1 }, [open])
   const [images, setImages] = useState<SelectedImage[]>([])
   const [unmatchedCount, setUnmatchedCount] = useState(0)
   const [restoreChecked, setRestoreChecked] = useState(false)
@@ -294,7 +298,6 @@ export function ImportProgramDialog({
   )
 
   const invalidVariationCount = useMemo(() => {
-    if (variationById.size === 0) return 0
     return editableWorkouts.reduce(
       (sum, w) => sum + w.exercises.filter((ex) => !variationById.has(ex.variationId)).length,
       0,
@@ -302,6 +305,7 @@ export function ImportProgramDialog({
   }, [editableWorkouts, variationById])
 
   const reset = () => {
+    imageRequestVersion.current += 1
     setGoogleSource(null)
     setStep("upload")
     setFileName("")
@@ -376,8 +380,9 @@ export function ImportProgramDialog({
   const coachId = profile?.id ?? null
   if (open && !aiDraft && coachId && !restoreChecked) {
     setRestoreChecked(true)
+    setSource(initialSource ?? "excel")
     const saved = readImportDraft<PersistedImport>(coachId)
-    if (saved) {
+    if (saved && (!initialSource || saved.state.source === initialSource)) {
       const state = saved.state
       setAddedExerciseIds(state.addedExerciseIds ?? [])
       setDescription(state.description)
@@ -433,6 +438,8 @@ export function ImportProgramDialog({
 
   const handleFile = async (file?: File | null) => {
     if (!file) return
+    imageRequestVersion.current += 1
+    readImages.reset()
     setGoogleSource(null)
     setUnmatchedCount(0)
     setIsParsing(true)
@@ -470,10 +477,13 @@ export function ImportProgramDialog({
       return
     }
     setError(null)
+    const version = imageRequestVersion.current
     try {
       const image = await downscaleImage(file)
+      if (version !== imageRequestVersion.current) return
       setImages((current) => [...current, { ...image, id: crypto.randomUUID(), name: file.name }].slice(0, MAX_PROGRAM_IMAGES))
     } catch {
+      if (version !== imageRequestVersion.current) return
       setError(t.image.unreadable)
     }
   }
@@ -482,10 +492,12 @@ export function ImportProgramDialog({
     if (images.length === 0 || readImages.isPending) return
     setError(null)
     setGoogleSource(null)
+    const version = ++imageRequestVersion.current
     try {
       const imageDraft = await readImages.mutateAsync([
         { images: images.map(({ data, mediaType }) => ({ data, mediaType })), locale: locale === "en" ? "en" : "vi" },
       ])
+      if (version !== imageRequestVersion.current) return
       const workouts = imageDraftToEditable(imageDraft)
       setDraft({ workouts: workouts.map(editableToPayloadWorkout) })
       setEditableWorkouts(workouts)
@@ -494,11 +506,14 @@ export function ImportProgramDialog({
       setProgramName(imageDraft.programName?.trim() || "")
       setStep("review")
     } catch (readError) {
+      if (version !== imageRequestVersion.current) return
       setError(readError instanceof Error && readError.message ? readError.message : t.errors.imageRead)
     }
   }
 
   const handleGoogleImport = (result: GoogleImportResult, name: string, weeks: number) => {
+    imageRequestVersion.current += 1
+    readImages.reset()
     const built = buildWorkoutsFromRows(result.rows, exerciseOptions, { duration: weeks })
     if (built.issues.length) {
       setError(built.issues.map((issue) => issue.message).join("\n"))
@@ -528,7 +543,7 @@ export function ImportProgramDialog({
   }
 
   const handleCreate = async () => {
-    if (!authenticated || !payload) return
+    if (!authenticated || !payload || !payload.workouts.length || invalidVariationCount > 0 || isSaving) return
     setIsSaving(true)
     setError(null)
     try {
@@ -624,7 +639,7 @@ export function ImportProgramDialog({
         onInteractOutside={(event) => {
           if (step === "review") event.preventDefault()
         }}
-        className="left-0 top-0 flex h-[100svh] max-h-[100svh] min-h-0 max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-border p-0 shadow-2xl sm:left-1/2 sm:top-1/2 sm:h-auto sm:max-h-[92svh] sm:max-w-[920px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl"
+        className="left-0 top-0 flex h-[100svh] max-h-[100svh] min-h-0 max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-border p-0 shadow-2xl sm:left-1/2 sm:top-1/2 sm:h-[92svh] sm:max-h-[92svh] sm:max-w-[920px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl"
       >
         <DialogHeader className="shrink-0 gap-0 border-b border-border px-5 pb-4 pt-5 text-left sm:px-8 sm:pb-5 sm:pt-7">
           <div className="flex items-start justify-between gap-4">
@@ -650,6 +665,8 @@ export function ImportProgramDialog({
             <Tabs
               value={source}
               onValueChange={(value) => {
+                imageRequestVersion.current += 1
+                readImages.reset()
                 setSource(value as ImportSource)
                 setError(null)
               }}
@@ -924,7 +941,12 @@ export function ImportProgramDialog({
                   </DisclosureCard>
 
                   {/* Validation badge */}
-                  {unmatchedCount > 0 && invalidVariationCount > 0 ? (
+                  {exerciseCount > 0 && variationById.size === 0 ? (
+                    <div role="status" className="flex items-start gap-2 rounded-lg bg-warn-soft px-4 py-3 text-sm text-warning-text">
+                      <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                      <span>{t.review.libraryUnavailable}</span>
+                    </div>
+                  ) : unmatchedCount > 0 && invalidVariationCount > 0 ? (
                     <div className="flex items-start gap-2 rounded-lg bg-warn-soft px-4 py-3 text-sm text-warning-text">
                       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                       <span>{t.image.unmatched(invalidVariationCount)}</span>

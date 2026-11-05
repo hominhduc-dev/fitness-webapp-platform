@@ -53,6 +53,7 @@ const en = {
   difficulty: { advanced: "Advanced", beginner: "Beginner", intermediate: "Intermediate" },
   days: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
   review: {
+    libraryUnavailable: "The exercise library is not available yet. Wait for it to load or reopen import before creating the program.",
     allValid: "Every variation_id is valid — ready to create.",
     columns: { exercise: "Exercise", id: "ID", kg: "Kg", reps: "Reps", rir: "RIR", sets: "Sets" },
     day: "Day",
@@ -137,6 +138,7 @@ const vi: typeof en = {
   difficulty: { advanced: "Advanced", beginner: "Beginner", intermediate: "Intermediate" },
   days: ["CN", "T2", "T3", "T4", "T5", "T6", "T7"],
   review: {
+    libraryUnavailable: "Thư viện bài tập chưa sẵn sàng. Hãy chờ tải xong hoặc mở lại import trước khi tạo program.",
     allValid: "Tất cả variation_id hợp lệ - sẵn sàng tạo.",
     columns: { exercise: "Bài tập", id: "ID", kg: "Kg", reps: "Reps", rir: "RIR", sets: "Sets" },
     day: "Ngày",

@@ -17,7 +17,7 @@ import type { AIImageInput, AIProvider } from "../../lib/ai/types"
 import { generateValidatedJSON } from "../../lib/ai/validated-generation"
 import { sanitizeUserText } from "./prompts/shared"
 
-const PROGRAM_IMAGE_PROMPT_VERSION = "2026-11-02.1"
+const PROGRAM_IMAGE_PROMPT_VERSION = "2026-11-04.1"
 
 const MAX_WORKOUTS = 14
 const MAX_EXERCISES_PER_WORKOUT = 30
@@ -57,7 +57,9 @@ const transcriptionSchema = z.object({
               sets: looseNumber,
               reps: looseText,
               rir: looseNumber,
+              restTime: looseNumber,
               weight: looseNumber,
+              weightUnit: looseText,
               note: looseText,
             }),
           )
@@ -77,6 +79,8 @@ const TRANSCRIBE_SYSTEM_PROMPT = `Bạn đọc ảnh chụp hoặc ảnh màn h�
 - Chia buổi tập: theo tên buổi/ngày nếu có (ví dụ "Upper", "Day 1", "Push"); nếu không có, mỗi khối bài liền nhau ngăn cách bởi dòng trống là một buổi. Đổi màu nền trong cùng một khối không tạo buổi mới. Giữ đúng thứ tự từ trên xuống.
 - Buổi không có tên: để name là null.
 - sets, rir, weight: số như trong ảnh; ô trống thì null. Không đoán.
+- weightUnit: "kg" hoặc "lb" chỉ khi ảnh ghi rõ đơn vị (kể cả tiêu đề cột, ghi chú toàn bảng hoặc buổi tập); sao chép đơn vị được kế thừa đó vào từng dòng. Không tự đoán đơn vị khi ảnh không ghi: để null. Nếu ảnh ghi đơn vị khác, giữ nguyên trong weightUnit để coach kiểm tra; không đổi số weight.
+- restTime: thời gian nghỉ tính bằng giây; đọc cột Rest/Rest time/Nghỉ, đổi phút hoặc mm:ss rõ ràng sang giây (ví dụ 2 phút hoặc 2:00 thành 120). Giữ 0 nếu ghi rõ 0; không có hoặc không xác định được thì null. Không dùng tempo làm thời gian nghỉ.
 - reps: chép nguyên văn khoảng rep (ví dụ "8-12", "6-8/5-10"); trống thì null.
 - note: cột ghi chú hoặc kiểu set (ví dụ "Topset-Backoffset"); trống thì null.
 - Nếu ảnh có tiêu đề tuần (ví dụ "WEEK 2") chỉ chép một tuần đó, không nhân bản.
@@ -84,7 +88,7 @@ const TRANSCRIBE_SYSTEM_PROMPT = `Bạn đọc ảnh chụp hoặc ảnh màn h�
 
 ## Trả về
 Chỉ một JSON object, không markdown:
-{"programName": string|null, "workouts": [{"name": string|null, "exercises": [{"name": string, "sets": number|null, "reps": string|null, "rir": number|null, "weight": number|null, "note": string|null}]}]}`
+{"programName": string|null, "workouts": [{"name": string|null, "exercises": [{"name": string, "sets": number|null, "reps": string|null, "rir": number|null, "restTime": number|null, "weight": number|null, "weightUnit": string|null, "note": string|null}]}]}`
 
 async function transcribeProgramImages(provider: AIProvider, images: AIImageInput[]) {
   return generateValidatedJSON(
@@ -279,6 +283,9 @@ type ImportedExercise = {
   /** "8-12" or "10", ready for the shared rep parser. */
   reps: string
   rir: number | null
+  /** Seconds; null when the source did not specify a rest period. */
+  restTime: number | null
+  /** Kilograms, only when the source's unit was unambiguous. */
   weight: number | null
   notes: string
 }
@@ -299,6 +306,23 @@ function splitReps(raw: string | null) {
   const reps = /^\d+(-\d+)?$/.test(first ?? "") ? (first as string) : "10"
   const note = cleaned !== reps ? `Reps: ${raw.trim()}` : null
   return { note, reps }
+}
+
+/** Never turn a unitless or unsupported source load into an implicit kg prescription. */
+function normalizedImageWeight(weight: number | null, rawUnit: string | null, locale: ImportLocale) {
+  if (weight == null || weight < 0) return { note: null, weight: null }
+  const unit = rawUnit?.trim().toLowerCase().replace(/\./g, "")
+  if (unit && ["kg", "kgs", "kilogram", "kilograms"].includes(unit)) return { note: null, weight }
+  if (unit && ["lb", "lbs", "pound", "pounds"].includes(unit)) {
+    return { note: null, weight: Math.round(weight * 0.45359237 * 100) / 100 }
+  }
+  const sourceWeight = `${weight}${rawUnit ? ` ${rawUnit}` : ""}`
+  return {
+    note: locale === "vi"
+      ? `Tạ trong ảnh: ${sourceWeight}. Cần xác nhận đơn vị trước khi nhập tạ (kg).`
+      : `Weight in image: ${sourceWeight}. Confirm the unit before entering weight (kg).`,
+    weight: null,
+  }
 }
 
 function mostCommon(values: number[]) {
@@ -364,15 +388,17 @@ async function importProgramFromImages(
         const variationId = matched.get(`r${workoutIdx + 1}_${exerciseIdx + 1}`) ?? null
         if (!variationId) unmatchedCount += 1
         const { note: repsNote, reps } = splitReps(exercise.reps)
+        const normalizedWeight = normalizedImageWeight(exercise.weight, exercise.weightUnit, input.locale)
         const setsMissing = !(exercise.sets && exercise.sets > 0)
         return {
-          notes: [exercise.note, repsNote].filter(Boolean).join(" · "),
+          notes: [exercise.note, repsNote, normalizedWeight.note].filter(Boolean).join(" · "),
           reps,
           rir: exercise.rir != null && exercise.rir >= 0 && exercise.rir <= 10 ? exercise.rir : null,
+          restTime: exercise.restTime != null && exercise.restTime >= 0 ? Math.round(exercise.restTime) : null,
           sets: setsMissing ? fallbackSets : Math.min(20, Math.max(1, Math.round(exercise.sets as number))),
           sourceName: exercise.name,
           variationId,
-          weight: exercise.weight != null && exercise.weight >= 0 ? exercise.weight : null,
+          weight: normalizedWeight.weight,
         }
       }),
       name: workout.name?.slice(0, 80) || workoutName(workoutIdx, input.locale),

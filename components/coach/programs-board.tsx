@@ -13,6 +13,7 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { AssignClientsDialog } from "@/components/coach/assign-clients-dialog"
 import { CoachAIProgramDialog, type AIProgramDraft } from "@/components/coach/coach-ai-program-assistant"
 import { ExportProgramLogsDialog } from "@/components/coach/export-program-logs-dialog"
+import type { ProgramImportSource } from "./import-program-menu"
 import { ImportProgramDialog } from "@/components/coach/import-program-dialog"
 import { ProgramCard } from "@/components/coach/program-card"
 import { ProgramViewerDialog } from "@/components/coach/program-viewer-dialog"
@@ -84,6 +85,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const [exportTarget, setExportTarget] = useState<CoachProgram | null>(null)
   const [editorTarget, setEditorTarget] = useState<"new" | string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [importSource, setImportSource] = useState<ProgramImportSource | undefined>()
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
@@ -96,6 +98,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const closeEditor = () => setEditorTarget(null)
   const closeImport = () => {
     setImportOpen(false)
+    setImportSource(undefined)
     setAiDraft(null)
   }
   const includePersonalized = viewMode === "clients"
@@ -308,7 +311,8 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
         }
         onImportProgram={
           editorTarget === "new"
-            ? () => {
+            ? (source) => {
+                setImportSource(source)
                 closeEditor()
                 setImportOpen(true)
               }
@@ -400,6 +404,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
         {aiDialog}
         <ImportProgramDialog
           aiDraft={aiDraft}
+          initialSource={importSource}
           exerciseOptions={exerciseOptions}
           onClose={closeImport}
           onImported={handleImported}
@@ -510,6 +515,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
 
       <ImportProgramDialog
         aiDraft={aiDraft}
+        initialSource={importSource}
         exerciseOptions={exerciseOptions}
         onClose={closeImport}
         onImported={handleImported}
