@@ -163,7 +163,7 @@ export interface ExerciseProgression {
   action: ExerciseProgressionAction
   /** What the exercise's own history called for before day and muscle. */
   engineAction: ExerciseProgressionAction
-  heldBy: "day" | "muscle" | null
+  heldBy: "day" | "muscle" | "phase" | null
   muscleAction: "decrease" | "deload" | "increase" | "maintain" | null
   muscleSlug: string | null
   reasons: string[]

@@ -230,6 +230,7 @@ export const workoutMessages = {
               : `Repeat last session before progressing: ${target}.`,
       progressionReadinessLow: "Kept smaller because today's readiness is low.",
       progressionHeldByDay: "Holding last session's numbers: today's readiness calls for an easier day.",
+      progressionHeldByPhase: "Holding last session's numbers: the program plans this week as a deload.",
       progressionHeldByMuscle: (muscle: string, action: "decrease" | "deload") =>
         action === "deload" ? `${muscle} is due a deload this week.` : `${muscle}'s weekly volume should come down.`,
       progressionSetDelta: (delta: number) =>
@@ -528,6 +529,7 @@ export const workoutMessages = {
               : `Lặp lại buổi trước rồi mới tăng: ${target}.`,
       progressionReadinessLow: "Mức tăng được giữ nhỏ vì readiness hôm nay thấp.",
       progressionHeldByDay: "Giữ như buổi trước: readiness hôm nay cần một buổi nhẹ hơn.",
+      progressionHeldByPhase: "Giữ như buổi trước: chương trình xếp tuần này là tuần deload.",
       progressionHeldByMuscle: (muscle: string, action: "decrease" | "deload") =>
         action === "deload" ? `${muscle} cần deload tuần này.` : `Volume tuần của ${muscle} nên giảm.`,
       progressionSetDelta: (delta: number) => (delta > 0 ? `Thêm ${delta} set.` : `Bớt ${-delta} set.`),
