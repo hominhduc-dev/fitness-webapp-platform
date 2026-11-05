@@ -10,6 +10,24 @@ describe("training goal policy", () => {
     expect(normalizeTrainingGoal("phục hồi")).toBe("rehab_corrective")
   })
 
+  it("reads a cutting block as fat loss, in either language", () => {
+    for (const goal of ["cutting", "Cutting", "cut", "mini cut", "Mini-Cut", "cắt mỡ", "cat mo"]) {
+      expect(normalizeTrainingGoal(goal)).toBe("fat_loss")
+    }
+  })
+
+  it("gives a cutting block fat loss's gentler effort targets", () => {
+    // A trainee in a deficit recovers worse, so the same week asks less of them
+    // than it would on a hypertrophy block — the point of naming the goal.
+    const cutting = policyForTrainingGoal(normalizeTrainingGoal("cutting"), 2, 8)
+    const bulking = policyForTrainingGoal("hypertrophy", 2, 8)
+
+    expect(cutting?.goal).toBe("fat_loss")
+    expect(cutting?.phase).toBe(bulking?.phase)
+    expect(cutting?.targetRir).toBeGreaterThan(bulking!.targetRir!)
+    expect(cutting?.analysisFocus).toContain("strength_retention")
+  })
+
   it("uses week one as baseline and deloads the last week of a long hypertrophy cycle", () => {
     expect(policyForTrainingGoal("hypertrophy", 0, 5)).toMatchObject({
       baselineWeek: true,

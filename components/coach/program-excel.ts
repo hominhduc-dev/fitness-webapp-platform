@@ -312,7 +312,7 @@ function parseProgramSheet(
     const goal = normalizeTrainingGoal(rawValues.goal)
 
     if (!goal) {
-      throw new Error("Giá trị goal trong sheet Program phải là hypertrophy, strength, powerbuilding, fat_loss, endurance, general_fitness, athletic_performance hoặc rehab_corrective.")
+      throw new Error("Giá trị goal trong sheet Program phải là hypertrophy, strength, powerbuilding, fat_loss (hoặc cutting), endurance, general_fitness, athletic_performance hoặc rehab_corrective.")
     }
 
     draft.goal = goal
