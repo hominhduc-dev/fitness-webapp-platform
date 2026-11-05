@@ -15,6 +15,7 @@ vi.mock("@/components/providers/locale-provider", () => ({
         noteForSet: "Note",
         progressionSetHint: (target: string) => `Suggested ${target}`,
         removeSet: "Remove set",
+        seededWeightHint: "Starting weight from earlier training",
         reps: "Reps",
         setOptions: "Set options",
         weightInUnit: (unit: string) => `Weight in ${unit}`,
@@ -88,6 +89,25 @@ describe("SessionSetRow", () => {
     expect(screen.getByTitle("Suggested 82.5×8")).toBeInTheDocument()
     expect(screen.getByLabelText("Weight in kg")).toHaveAttribute("placeholder", "82.5")
     expect(screen.getByLabelText("Weight in kg")).toHaveValue("")
+  })
+
+  it("marks a weight carried over from earlier training", () => {
+    render(
+      <SessionSetRow
+        active
+        canRemove={false}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+        programTarget={{ reps: 10, repsMin: 8 }}
+        set={{ ...baseSet, previousPerformance: { completedAt: new Date(), reps: 10, source: "other_program", weight: 80 } }}
+        setIndex={0}
+        weightUnit="kg"
+      />,
+    )
+
+    // The weight still shows — a first week is not blank — but it is labelled,
+    // and the engine suggests nothing to follow, so no target tints the cell.
+    expect(screen.getByTitle("Starting weight from earlier training")).toHaveTextContent("80×8-10")
   })
 
   it.each(["12,5", "12.5"])("accepts decimal weight %s", (value) => {

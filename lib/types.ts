@@ -127,7 +127,8 @@ export interface ExerciseLibraryExercise extends ExerciseBase {
   variations: ExerciseVariation[]
 }
 
-export type PreviousExerciseSetPerformanceSource = "most_recent" | "same_weekday_last_week"
+/** `other_program` is a starting weight carried in from earlier training, not this program's own history. */
+export type PreviousExerciseSetPerformanceSource = "most_recent" | "same_weekday_last_week" | "other_program"
 
 export interface PreviousExerciseSetPerformance {
   completedAt: Date

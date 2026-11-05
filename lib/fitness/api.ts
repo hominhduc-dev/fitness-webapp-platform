@@ -129,7 +129,7 @@ type SerializedExerciseSet = {
     completedAt: string
     reps?: number
     rir?: number
-    source: "most_recent" | "same_weekday_last_week"
+    source: "most_recent" | "same_weekday_last_week" | "other_program"
     weight?: number
   }
   rir?: number

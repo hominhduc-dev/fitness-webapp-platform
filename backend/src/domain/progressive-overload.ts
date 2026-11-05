@@ -40,6 +40,12 @@ type OverloadSetInput = {
   /** Warm-ups are not progressed. */
   isWarmup?: boolean
   previous?: {
+    /**
+     * A starting weight carried in from training outside this program, shown so
+     * a first week is not blank. It was earned under another prescription and
+     * another fatigue state, so it is a starting point, never a set to beat.
+     */
+    carriedOver?: boolean
     /** What that session asked for. Absent on older history, which is then taken as comparable. */
     prescription?: Prescription | null
     reps?: number | null
@@ -91,8 +97,10 @@ function buildOverloadRecommendation(input: {
   sets: readonly OverloadSetInput[]
 }): OverloadRecommendation {
   const working = input.sets.filter((set) => !set.isWarmup)
+  // A carried-over weight is not this program's history: an exercise with
+  // nothing but those still has no baseline to progress from.
   const anyHistory = working.filter(
-    (set) => typeof set.previous?.reps === "number" && set.previous.reps > 0,
+    (set) => set.previous?.carriedOver !== true && typeof set.previous?.reps === "number" && set.previous.reps > 0,
   )
   // Last session only counts when it asked for the same thing: 10 reps in an
   // 8–10 block is not "below range" once the coach moves the set to 15–20.
