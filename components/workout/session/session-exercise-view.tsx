@@ -288,6 +288,7 @@ export function SessionExerciseView({
               progressionTargetText(progression, weightUnit),
             )}
             {progression.reasons.includes("readiness_low") ? ` ${messages.workoutPage.progressionReadinessLow}` : null}
+            {progression.heldBy === "phase" ? ` ${messages.workoutPage.progressionHeldByPhase}` : null}
             {progression.heldBy === "day" ? ` ${messages.workoutPage.progressionHeldByDay}` : null}
             {(progression.muscleAction === "decrease" || progression.muscleAction === "deload") && progression.muscleSlug
               ? ` ${messages.workoutPage.progressionHeldByMuscle(

@@ -327,7 +327,12 @@ type ExerciseImportRowInput = {
 }
 
 
-type PreviousSetPerformanceSource = "most_recent" | "same_weekday_last_week"
+/**
+ * Where a set's "last time" numbers came from. The first two are this program's
+ * own history and drive progression; `other_program` is only a starting weight
+ * carried over so week one is not blank, and the overload engine ignores it.
+ */
+type PreviousSetPerformanceSource = "most_recent" | "same_weekday_last_week" | "other_program"
 
 type PreviousExerciseSetPerformance = {
   completedAt: Date
@@ -706,6 +711,12 @@ function serializeExerciseSet(set: ExerciseSet, previousPerformanceBySetNumber?:
 /**
  * Today's progression for one exercise slot, from what the coach programmed and
  * what the trainee did last time. Absent when there is no history to read.
+ *
+ * A weight carried over from earlier training is marked as such, so the engine
+ * offers it as a starting point and still reports no baseline to progress from.
+ *
+ * `goalTargetRir` is the effort the program's goal asks for this week; it stands
+ * in wherever the coach left a set without an RIR of its own.
  */
 function buildExerciseProgression(
   templateSets: ExerciseSet[],
@@ -713,10 +724,12 @@ function buildExerciseProgression(
   primaryMuscles: readonly string[],
   readinessScore: number | null | undefined,
   loadIncrementKg: number | null,
+  goalTargetRir?: number | null,
 ) {
   if (!previousPerformanceBySetNumber || previousPerformanceBySetNumber.size === 0) return undefined
 
   return buildOverloadRecommendation({
+    defaultTargetRir: goalTargetRir,
     loadIncrementKg,
     lowerBody: isLowerBodyExercise(primaryMuscles),
     readinessScore,
@@ -728,7 +741,13 @@ function buildExerciseProgression(
         return {
           isWarmup: set.intensityTag === "warmup",
           previous: previous
-            ? { prescription: previous.prescription, reps: previous.reps, rir: previous.rir, weight: previous.weight }
+            ? {
+                carriedOver: previous.source === "other_program",
+                prescription: previous.prescription,
+                reps: previous.reps,
+                rir: previous.rir,
+                weight: previous.weight,
+              }
             : null,
           setNumber: set.setNumber,
           targetReps: set.targetReps,
@@ -769,6 +788,10 @@ function serializeWorkout(
         muscleSlug: string
         recommendation: { action: MuscleAction; currentSets: number; recommendedSets: number; status?: string }
       }>
+      /** The week's phase from the program's goal policy; a deload holds every push. */
+      phase?: string | null
+      /** The effort that goal asks for, for sets the coach left without an RIR. */
+      targetRir?: number | null
     }
   },
 ) {
@@ -788,6 +811,7 @@ function serializeWorkout(
           variation.primaryMuscles,
           options?.readinessScore,
           loadIncrementKg,
+          options?.trainingContext?.targetRir,
         ),
         variation,
         workingSets: workoutExercise.sets.filter((set) => set.intensityTag !== "warmup").length,
@@ -804,6 +828,7 @@ function serializeWorkout(
       workingSets: entry.workingSets,
     })),
     muscles: options?.trainingContext?.muscles ?? [],
+    phase: options?.trainingContext?.phase,
   })
 
   return {
@@ -2928,6 +2953,91 @@ function buildPreviousSetPerformanceMap(
   return previousPerformanceBySetNumber
 }
 
+/**
+ * How far back a carried-over starting weight may come from. The same window the
+ * AI assistant reads history over, so the two never disagree about what counts
+ * as recent — and old enough numbers simply stop being offered.
+ */
+const SEED_PERFORMANCE_LOOKBACK_DAYS = 60
+
+/**
+ * The trainee's last load for these exercises from anywhere in their recent
+ * training, for the first week of a program, when it has no history of its own
+ * yet. Only ever a starting point: it is marked `carriedOver`, and the overload
+ * engine will not progress from it.
+ */
+async function seedPreviousSetPerformanceFromOtherPrograms(
+  profileId: string,
+  workoutExercises: WorkoutExerciseRecord[],
+  referenceDate: Date,
+) {
+  const db = ensurePrisma()
+  const seededByWorkoutExerciseId = new Map<string, Map<number, PreviousExerciseSetPerformance>>()
+  const since = addUtcDays(referenceDate, -SEED_PERFORMANCE_LOOKBACK_DAYS)
+  let skip = 0
+
+  while (true) {
+    const logs = await db.workoutLog.findMany({
+      orderBy: [{ startedAt: "desc" }, { createdAt: "desc" }],
+      select: {
+        completedAt: true,
+        exerciseSnapshot: true,
+        startedAt: true,
+      },
+      skip,
+      take: 50,
+      where: {
+        // Deliberately unscoped. Excluding the current program would need a NOT
+        // on a nullable column, which also drops the trainee's program-less
+        // personal sessions — the very history this is here to find. Re-reading
+        // those rows is harmless: only exercises the scoped pass found nothing
+        // for get here, so nothing in that program can match them anyway.
+        startedAt: {
+          gte: since,
+          lt: referenceDate,
+        },
+        userId: profileId,
+      },
+    })
+
+    if (logs.length === 0) {
+      break
+    }
+
+    for (const log of logs) {
+      const snapshotExercises = parseWorkoutLogSnapshotExercises(log.exerciseSnapshot)
+
+      for (const workoutExercise of workoutExercises) {
+        if (seededByWorkoutExerciseId.has(workoutExercise.id)) {
+          continue
+        }
+
+        const matchingSnapshotExercise = snapshotExercises.find((snapshotExercise) =>
+          matchesWorkoutHistoryExercise(snapshotExercise, workoutExercise),
+        )
+
+        if (!matchingSnapshotExercise) {
+          continue
+        }
+
+        const seededPerformance = buildPreviousSetPerformanceMap(matchingSnapshotExercise, log, "other_program")
+
+        if (seededPerformance.size > 0) {
+          seededByWorkoutExerciseId.set(workoutExercise.id, seededPerformance)
+        }
+      }
+    }
+
+    if (workoutExercises.every((workoutExercise) => seededByWorkoutExerciseId.has(workoutExercise.id))) {
+      break
+    }
+
+    skip += logs.length
+  }
+
+  return seededByWorkoutExerciseId
+}
+
 async function buildPreviousSetPerformanceByWorkoutExercise(
   profileId: string,
   workoutExercises: WorkoutExerciseRecord[],
@@ -3032,12 +3142,28 @@ async function buildPreviousSetPerformanceByWorkoutExercise(
     skip += logs.length
   }
 
+  // Only the exercises this program has said nothing about get a starting weight
+  // carried over; anything it has answered for itself is left alone.
+  const unresolvedWorkoutExercises = workoutExercises.filter(
+    (workoutExercise) =>
+      !preferredByWorkoutExerciseId.has(workoutExercise.id) && !fallbackByWorkoutExerciseId.has(workoutExercise.id),
+  )
+  const seededByWorkoutExerciseId = unresolvedWorkoutExercises.length > 0
+    ? await seedPreviousSetPerformanceFromOtherPrograms(profileId, unresolvedWorkoutExercises, referenceDate)
+    : new Map<string, Map<number, PreviousExerciseSetPerformance>>()
+
   return workoutExercises.reduce<Map<string, Map<number, PreviousExerciseSetPerformance>>>((accumulator, workoutExercise) => {
     const preferredPerformance = preferredByWorkoutExerciseId.get(workoutExercise.id)
     const fallbackPerformance = fallbackByWorkoutExerciseId.get(workoutExercise.id)
+    const seededPerformance = seededByWorkoutExerciseId.get(workoutExercise.id)
 
-    if (preferredPerformance || fallbackPerformance) {
+    if (preferredPerformance || fallbackPerformance || seededPerformance) {
       const mergedPerformance = new Map<number, PreviousExerciseSetPerformance>()
+
+      // Weakest first: anything this program knows outranks a carried-over weight.
+      seededPerformance?.forEach((performance, setNumber) => {
+        mergedPerformance.set(setNumber, performance)
+      })
 
       fallbackPerformance?.forEach((performance, setNumber) => {
         mergedPerformance.set(setNumber, performance)
@@ -4577,7 +4703,14 @@ async function getWorkoutDetailForTrainee(
     lockedUntil: resolveProgramLockDate(workout.program, profile.id),
     previousPerformanceByWorkoutExerciseId,
     readinessScore: todayCheckIn?.readinessScore ?? null,
-    trainingContext: recovery ? { dayAction: recovery.guidance.action, muscles: recovery.muscles } : undefined,
+    trainingContext: recovery
+      ? {
+          dayAction: recovery.guidance.action,
+          muscles: recovery.muscles,
+          phase: recovery.programContext?.phase ?? null,
+          targetRir: recovery.programContext?.targetRir ?? null,
+        }
+      : undefined,
   })
 }
 

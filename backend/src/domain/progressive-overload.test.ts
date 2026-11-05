@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest"
 
 import { buildOverloadRecommendation, isLowerBodyExercise, type OverloadSetInput } from "./progressive-overload"
 
-function sets(previous: Array<{ reps: number; rir?: number; weight?: number }>, range = { min: 8, max: 10 }, targetRir = 2): OverloadSetInput[] {
+/** `targetRir: null` is a set the coach left without one, which is what lets the goal's default apply. */
+function sets(
+  previous: Array<{ reps: number; rir?: number; weight?: number }>,
+  range = { min: 8, max: 10 },
+  targetRir: number | null = 2,
+): OverloadSetInput[] {
   return previous.map((entry, index) => ({
     previous: { reps: entry.reps, rir: entry.rir ?? null, weight: entry.weight ?? 80 },
     setNumber: index + 1,
@@ -16,6 +21,55 @@ describe("progressive overload", () => {
   it("asks for a baseline when the exercise has no history", () => {
     expect(buildOverloadRecommendation({ sets: [{ setNumber: 1, targetReps: 10 }] }))
       .toEqual({ action: "establish_baseline", reasons: ["no_history"], sets: [] })
+  })
+
+  it("lets the goal decide what counts as a grind, where the coach said nothing", () => {
+    // Top of the range, but every set taken to failure. A cut asks for RIR 3,
+    // so that was harder than planned and the load holds; a bulk asks for RIR 1
+    // and reads the same sets as the effort it wanted, so weight goes on.
+    const toFailure = sets([{ reps: 10, rir: 0 }, { reps: 10, rir: 0 }, { reps: 10, rir: 0 }], { min: 8, max: 10 }, null)
+
+    expect(buildOverloadRecommendation({ defaultTargetRir: 3, loadIncrementKg: 2.5, sets: toFailure }))
+      .toMatchObject({ action: "maintain", reasons: ["top_of_range_too_hard"] })
+    expect(buildOverloadRecommendation({ defaultTargetRir: 1, loadIncrementKg: 2.5, sets: toFailure }))
+      .toMatchObject({ action: "add_load", reasons: ["top_of_range_reached"] })
+  })
+
+  it("lets the coach's own RIR on a set outrank the goal's", () => {
+    const coached = sets([{ reps: 10, rir: 0 }, { reps: 10, rir: 0 }, { reps: 10, rir: 0 }], { min: 8, max: 10 }, 1)
+
+    expect(buildOverloadRecommendation({ defaultTargetRir: 3, loadIncrementKg: 2.5, sets: coached }).action)
+      .toBe("add_load")
+  })
+
+  it("falls back to the hypertrophy-typical effort when nothing names one", () => {
+    // Pinned against RIR 2 rather than an action, so the fallback cannot drift
+    // to another value while still happening to produce the same decision.
+    const toFailure = sets([{ reps: 10, rir: 0 }, { reps: 10, rir: 0 }, { reps: 10, rir: 0 }], { min: 8, max: 10 }, null)
+
+    expect(buildOverloadRecommendation({ loadIncrementKg: 2.5, sets: toFailure }))
+      .toEqual(buildOverloadRecommendation({ defaultTargetRir: 2, loadIncrementKg: 2.5, sets: toFailure }))
+  })
+
+  it("does not progress off a weight carried over from other training", () => {
+    // A trainee who benched 80kg elsewhere starts a new program: the weight is
+    // worth showing, but nothing here was earned under this prescription, so it
+    // must read as no baseline rather than as three sets at the top of the range.
+    const carriedOver = sets([{ reps: 10 }, { reps: 10 }, { reps: 10 }])
+      .map((set) => ({ ...set, previous: { ...set.previous, carriedOver: true } }))
+
+    expect(buildOverloadRecommendation({ sets: carriedOver }))
+      .toEqual({ action: "establish_baseline", reasons: ["no_history"], sets: [] })
+  })
+
+  it("progresses on this program's own sets even when another is carried over", () => {
+    const mixed = sets([{ reps: 10 }, { reps: 10 }])
+    mixed[1] = { ...mixed[1], previous: { ...mixed[1].previous, carriedOver: true } }
+
+    const result = buildOverloadRecommendation({ loadIncrementKg: 2.5, sets: mixed })
+
+    expect(result.action).toBe("add_load")
+    expect(result.sets.map((set) => set.setNumber)).toEqual([1])
   })
 
   it("adds reps at the same load while inside the range", () => {

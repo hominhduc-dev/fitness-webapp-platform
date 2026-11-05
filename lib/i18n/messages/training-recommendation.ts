@@ -29,6 +29,7 @@ export const trainingRecommendationMessages = {
       } satisfies Record<ExerciseAction, string>,
       setDelta: (delta: number) => `${delta > 0 ? "+" : ""}${delta} set${Math.abs(delta) === 1 ? "" : "s"}`,
       heldByDay: "held for readiness",
+      heldByPhase: "deload week",
       heldByMuscle: (muscle: string) => `${muscle} volume`,
       /** Weekly volume change a muscle row carries on the dashboard. */
       muscle: {
@@ -65,6 +66,7 @@ export const trainingRecommendationMessages = {
       } satisfies Record<ExerciseAction, string>,
       setDelta: (delta: number) => `${delta > 0 ? "+" : ""}${delta} set`,
       heldByDay: "giữ vì readiness",
+      heldByPhase: "tuần deload",
       heldByMuscle: (muscle: string) => `theo volume ${muscle}`,
       /** Weekly volume change a muscle row carries on the dashboard. */
       muscle: {

@@ -238,7 +238,9 @@ function formatPreviousPerformance(
   const sourceLabel =
     set.previousPerformance.source === "same_weekday_last_week"
       ? "same weekday last week"
-      : "most recent"
+      : set.previousPerformance.source === "other_program"
+        ? "carried over from earlier training"
+        : "most recent"
 
   const repsLabel = formatMetricValue(set.previousPerformance.reps, { zeroAsValid: true })
   const weightLabel = formatMetricValue(set.previousPerformance.weight, { suffix: " kg", zeroAsValid: true })

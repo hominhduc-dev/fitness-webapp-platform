@@ -127,7 +127,8 @@ export interface ExerciseLibraryExercise extends ExerciseBase {
   variations: ExerciseVariation[]
 }
 
-export type PreviousExerciseSetPerformanceSource = "most_recent" | "same_weekday_last_week"
+/** `other_program` is a starting weight carried in from earlier training, not this program's own history. */
+export type PreviousExerciseSetPerformanceSource = "most_recent" | "same_weekday_last_week" | "other_program"
 
 export interface PreviousExerciseSetPerformance {
   completedAt: Date
@@ -162,7 +163,7 @@ export interface ExerciseProgression {
   action: ExerciseProgressionAction
   /** What the exercise's own history called for before day and muscle. */
   engineAction: ExerciseProgressionAction
-  heldBy: "day" | "muscle" | null
+  heldBy: "day" | "muscle" | "phase" | null
   muscleAction: "decrease" | "deload" | "increase" | "maintain" | null
   muscleSlug: string | null
   reasons: string[]

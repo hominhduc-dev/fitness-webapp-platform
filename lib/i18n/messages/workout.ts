@@ -215,6 +215,7 @@ export const workoutMessages = {
       playExerciseAnimation: "Play animation",
       previous: "Prev",
       progressionSetHint: (target: string) => `Suggested today: ${target}`,
+      seededWeightHint: "Starting weight from your earlier training, not from this program yet",
       progressionNote: (action: "add_load" | "add_reps" | "deload" | "hold" | "maintain" | "reduce_load", target: string) =>
         action === "deload"
           ? `Deload: lighter load, same reps: ${target}.`
@@ -229,6 +230,7 @@ export const workoutMessages = {
               : `Repeat last session before progressing: ${target}.`,
       progressionReadinessLow: "Kept smaller because today's readiness is low.",
       progressionHeldByDay: "Holding last session's numbers: today's readiness calls for an easier day.",
+      progressionHeldByPhase: "Holding last session's numbers: the program plans this week as a deload.",
       progressionHeldByMuscle: (muscle: string, action: "decrease" | "deload") =>
         action === "deload" ? `${muscle} is due a deload this week.` : `${muscle}'s weekly volume should come down.`,
       progressionSetDelta: (delta: number) =>
@@ -512,6 +514,7 @@ export const workoutMessages = {
       playExerciseAnimation: "Phát animation",
       previous: "Trước",
       progressionSetHint: (target: string) => `Gợi ý hôm nay: ${target}`,
+      seededWeightHint: "Mức tạ lấy từ các buổi tập trước đây của bạn, chưa phải của chương trình này",
       progressionNote: (action: "add_load" | "add_reps" | "deload" | "hold" | "maintain" | "reduce_load", target: string) =>
         action === "deload"
           ? `Deload: giảm tạ, giữ số rep: ${target}.`
@@ -526,6 +529,7 @@ export const workoutMessages = {
               : `Lặp lại buổi trước rồi mới tăng: ${target}.`,
       progressionReadinessLow: "Mức tăng được giữ nhỏ vì readiness hôm nay thấp.",
       progressionHeldByDay: "Giữ như buổi trước: readiness hôm nay cần một buổi nhẹ hơn.",
+      progressionHeldByPhase: "Giữ như buổi trước: chương trình xếp tuần này là tuần deload.",
       progressionHeldByMuscle: (muscle: string, action: "decrease" | "deload") =>
         action === "deload" ? `${muscle} cần deload tuần này.` : `Volume tuần của ${muscle} nên giảm.`,
       progressionSetDelta: (delta: number) => (delta > 0 ? `Thêm ${delta} set.` : `Bớt ${-delta} set.`),

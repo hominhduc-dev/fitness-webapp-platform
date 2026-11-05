@@ -165,11 +165,14 @@ export function TodayWorkout({ activeSessions, workout: scheduledWorkout, comple
           const muscleLabel = adjustment?.muscleSlug
             ? muscleLabels[adjustment.muscleSlug as keyof typeof muscleLabels] ?? adjustment.muscleSlug
             : null
-          const why = adjustment?.heldBy === "day"
-            ? planCopy.heldByDay
-            : adjustment && (adjustment.heldBy === "muscle" || adjustment.setDelta !== 0) && muscleLabel
-              ? planCopy.heldByMuscle(muscleLabel.toLowerCase())
-              : null
+          // Broadest reason first, matching the order the engine reconciles in.
+          const why = adjustment?.heldBy === "phase"
+            ? planCopy.heldByPhase
+            : adjustment?.heldBy === "day"
+              ? planCopy.heldByDay
+              : adjustment && (adjustment.heldBy === "muscle" || adjustment.setDelta !== 0) && muscleLabel
+                ? planCopy.heldByMuscle(muscleLabel.toLowerCase())
+                : null
 
           return (
             <li key={exercise.id} className="flex min-w-0 items-center justify-between gap-3">

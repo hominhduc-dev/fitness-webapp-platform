@@ -40,6 +40,12 @@ type OverloadSetInput = {
   /** Warm-ups are not progressed. */
   isWarmup?: boolean
   previous?: {
+    /**
+     * A starting weight carried in from training outside this program, shown so
+     * a first week is not blank. It was earned under another prescription and
+     * another fatigue state, so it is a starting point, never a set to beat.
+     */
+    carriedOver?: boolean
     /** What that session asked for. Absent on older history, which is then taken as comparable. */
     prescription?: Prescription | null
     reps?: number | null
@@ -68,7 +74,12 @@ const LOW_READINESS = 50
 /** Share of working sets below the range that takes weight off. */
 const REDUCE_SHARE = 0.5
 const REDUCE_FACTOR = 0.9
-/** Assumed when the coach programmed none: a hypertrophy-typical working effort. */
+/**
+ * Last resort when neither the coach nor the program's goal says how hard a set
+ * should be: a hypertrophy-typical working effort. A goal that does say — fat
+ * loss wants more left in the tank than hypertrophy — comes in as
+ * `defaultTargetRir` and is used ahead of this.
+ */
 const DEFAULT_TARGET_RIR = 2
 
 /** Upper body aims for ~2.5% jumps, lower body ~5%; the equipment grid has the last word. */
@@ -84,6 +95,12 @@ function repRange(set: OverloadSetInput) {
 }
 
 function buildOverloadRecommendation(input: {
+  /**
+   * The effort the program's goal asks for this week, used for any set the
+   * coach left without an RIR. It decides when a set counts as "top of the
+   * range without grinding", so a cut progresses off easier sets than a bulk.
+   */
+  defaultTargetRir?: number | null
   /** The equipment's smallest load jump; null when the load does not progress. */
   loadIncrementKg?: number | null
   lowerBody?: boolean
@@ -91,8 +108,10 @@ function buildOverloadRecommendation(input: {
   sets: readonly OverloadSetInput[]
 }): OverloadRecommendation {
   const working = input.sets.filter((set) => !set.isWarmup)
+  // A carried-over weight is not this program's history: an exercise with
+  // nothing but those still has no baseline to progress from.
   const anyHistory = working.filter(
-    (set) => typeof set.previous?.reps === "number" && set.previous.reps > 0,
+    (set) => set.previous?.carriedOver !== true && typeof set.previous?.reps === "number" && set.previous.reps > 0,
   )
   // Last session only counts when it asked for the same thing: 10 reps in an
   // 8–10 block is not "below range" once the coach moves the set to 15–20.
@@ -113,7 +132,7 @@ function buildOverloadRecommendation(input: {
     const range = repRange(set)
     const reps = set.previous!.reps!
     const rir = set.previous?.rir
-    const targetRir = set.targetRir ?? DEFAULT_TARGET_RIR
+    const targetRir = set.targetRir ?? input.defaultTargetRir ?? DEFAULT_TARGET_RIR
     return {
       atTop: reps >= range.max,
       belowMin: reps < range.min,

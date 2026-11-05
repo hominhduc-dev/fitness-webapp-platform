@@ -18,12 +18,17 @@ const benchAddLoad: OverloadRecommendation = {
   ],
 }
 
-function reconcile(muscle: MuscleAction | null, dayAction: "light_session" | "proceed" | "rest" = "proceed") {
+function reconcile(
+  muscle: MuscleAction | null,
+  dayAction: "light_session" | "proceed" | "rest" = "proceed",
+  phase?: string | null,
+) {
   return reconcileExerciseProgression({
     dayAction,
     loadIncrementKg: 2.5,
     muscleActions: new Map(muscle ? [["chest", muscle]] : []),
     ownsMuscleIncrease: true,
+    phase,
     primaryMuscles: ["chest"],
     progression: benchAddLoad,
     workingSets: 3,
@@ -33,6 +38,26 @@ function reconcile(muscle: MuscleAction | null, dayAction: "light_session" | "pr
 describe("reconciling day, muscle and exercise", () => {
   it("keeps the exercise's own progression when nothing above it objects", () => {
     expect(reconcile(null)).toMatchObject({ action: "add_load", engineAction: "add_load", heldBy: null, setDelta: 0, sets: benchAddLoad.sets })
+  })
+
+  it("pushes nothing in a week the program planned as a deload", () => {
+    const result = reconcile(null, "proceed", "deload")
+
+    expect(result).toMatchObject({ action: "maintain", engineAction: "add_load", heldBy: "phase" })
+    expect(result.reasons).toContain("program_deload")
+    expect(result.sets.every((set) => set.weight === 80 && set.reps === 10)).toBe(true)
+  })
+
+  it("names the program's deload as the reason even on a day that would also hold", () => {
+    // Both apply; the broader one is what the trainee is told, so the week's
+    // purpose is not reported as a one-off readiness dip.
+    expect(reconcile(null, "light_session", "deload")).toMatchObject({ action: "maintain", heldBy: "phase" })
+  })
+
+  it("leaves the other phases to the exercise's own history", () => {
+    for (const phase of ["baseline", "accumulation", "intensification", "overreaching", null]) {
+      expect(reconcile(null, "proceed", phase)).toMatchObject({ action: "add_load", heldBy: null })
+    }
   })
 
   it("holds the load and drops a set when the muscle's volume should come down", () => {
