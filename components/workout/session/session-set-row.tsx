@@ -121,8 +121,12 @@ export function SessionSetRow({
   // range for this program. Weight shows progression; the range shows today's
   // target. Added-in-session sets have no original program target row, so they
   // fall back to their own target range instead of showing an empty Prev cell.
+  // In a program's first week the weight may instead be carried in from earlier
+  // training, which is a starting point rather than a number to beat — it is
+  // called out so the trainee does not read it as this program's progress.
   const suggestedRir = programTarget?.rir ?? programTarget?.suggestedRir
   const prevWeight = set.previousPerformance?.weight ?? programTarget?.weight
+  const isSeededWeight = set.previousPerformance?.source === "other_program"
   const repsPart = programTarget
     ? formatRepTarget({ reps: programTarget.reps, repsMin: programTarget.repsMin })
     : set.previousPerformance?.reps != null
@@ -140,6 +144,12 @@ export function SessionSetRow({
     ? `${suggestion.weight != null ? String(suggestion.weight) : "—"}×${suggestion.reps}`
     : null
   const TrendIcon = trend === "down" ? TrendingDown : TrendingUp
+  // Today's target when the engine has one; otherwise, where a seeded weight came from.
+  const prevCellHint = suggestionLabel
+    ? messages.workoutPage.progressionSetHint(suggestionLabel)
+    : isSeededWeight
+      ? messages.workoutPage.seededWeightHint
+      : undefined
 
   return (
     <div
@@ -191,8 +201,8 @@ export function SessionSetRow({
               ? cn("inline-flex items-center justify-center gap-1", trend === "up" ? "text-success-text" : "text-warning-text")
               : "block truncate text-center text-muted-foreground",
           )}
-          title={suggestionLabel ? messages.workoutPage.progressionSetHint(suggestionLabel) : undefined}
-          aria-label={suggestionLabel ? `${prevLabel}. ${messages.workoutPage.progressionSetHint(suggestionLabel)}` : undefined}
+          title={prevCellHint}
+          aria-label={prevCellHint ? `${prevLabel}. ${prevCellHint}` : undefined}
         >
           {trend ? (
             <>

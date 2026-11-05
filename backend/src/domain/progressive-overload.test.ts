@@ -18,6 +18,27 @@ describe("progressive overload", () => {
       .toEqual({ action: "establish_baseline", reasons: ["no_history"], sets: [] })
   })
 
+  it("does not progress off a weight carried over from other training", () => {
+    // A trainee who benched 80kg elsewhere starts a new program: the weight is
+    // worth showing, but nothing here was earned under this prescription, so it
+    // must read as no baseline rather than as three sets at the top of the range.
+    const carriedOver = sets([{ reps: 10 }, { reps: 10 }, { reps: 10 }])
+      .map((set) => ({ ...set, previous: { ...set.previous, carriedOver: true } }))
+
+    expect(buildOverloadRecommendation({ sets: carriedOver }))
+      .toEqual({ action: "establish_baseline", reasons: ["no_history"], sets: [] })
+  })
+
+  it("progresses on this program's own sets even when another is carried over", () => {
+    const mixed = sets([{ reps: 10 }, { reps: 10 }])
+    mixed[1] = { ...mixed[1], previous: { ...mixed[1].previous, carriedOver: true } }
+
+    const result = buildOverloadRecommendation({ loadIncrementKg: 2.5, sets: mixed })
+
+    expect(result.action).toBe("add_load")
+    expect(result.sets.map((set) => set.setNumber)).toEqual([1])
+  })
+
   it("adds reps at the same load while inside the range", () => {
     const result = buildOverloadRecommendation({ sets: sets([{ reps: 9 }, { reps: 8 }, { reps: 8 }]) })
 
