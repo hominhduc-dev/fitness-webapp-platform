@@ -714,6 +714,9 @@ function serializeExerciseSet(set: ExerciseSet, previousPerformanceBySetNumber?:
  *
  * A weight carried over from earlier training is marked as such, so the engine
  * offers it as a starting point and still reports no baseline to progress from.
+ *
+ * `goalTargetRir` is the effort the program's goal asks for this week; it stands
+ * in wherever the coach left a set without an RIR of its own.
  */
 function buildExerciseProgression(
   templateSets: ExerciseSet[],
@@ -721,10 +724,12 @@ function buildExerciseProgression(
   primaryMuscles: readonly string[],
   readinessScore: number | null | undefined,
   loadIncrementKg: number | null,
+  goalTargetRir?: number | null,
 ) {
   if (!previousPerformanceBySetNumber || previousPerformanceBySetNumber.size === 0) return undefined
 
   return buildOverloadRecommendation({
+    defaultTargetRir: goalTargetRir,
     loadIncrementKg,
     lowerBody: isLowerBodyExercise(primaryMuscles),
     readinessScore,
@@ -783,6 +788,10 @@ function serializeWorkout(
         muscleSlug: string
         recommendation: { action: MuscleAction; currentSets: number; recommendedSets: number; status?: string }
       }>
+      /** The week's phase from the program's goal policy; a deload holds every push. */
+      phase?: string | null
+      /** The effort that goal asks for, for sets the coach left without an RIR. */
+      targetRir?: number | null
     }
   },
 ) {
@@ -802,6 +811,7 @@ function serializeWorkout(
           variation.primaryMuscles,
           options?.readinessScore,
           loadIncrementKg,
+          options?.trainingContext?.targetRir,
         ),
         variation,
         workingSets: workoutExercise.sets.filter((set) => set.intensityTag !== "warmup").length,
@@ -818,6 +828,7 @@ function serializeWorkout(
       workingSets: entry.workingSets,
     })),
     muscles: options?.trainingContext?.muscles ?? [],
+    phase: options?.trainingContext?.phase,
   })
 
   return {
@@ -4692,7 +4703,14 @@ async function getWorkoutDetailForTrainee(
     lockedUntil: resolveProgramLockDate(workout.program, profile.id),
     previousPerformanceByWorkoutExerciseId,
     readinessScore: todayCheckIn?.readinessScore ?? null,
-    trainingContext: recovery ? { dayAction: recovery.guidance.action, muscles: recovery.muscles } : undefined,
+    trainingContext: recovery
+      ? {
+          dayAction: recovery.guidance.action,
+          muscles: recovery.muscles,
+          phase: recovery.programContext?.phase ?? null,
+          targetRir: recovery.programContext?.targetRir ?? null,
+        }
+      : undefined,
   })
 }
 

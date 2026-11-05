@@ -6,9 +6,12 @@ import type { OverloadAction, OverloadRecommendation, OverloadSetSuggestion } fr
  * of it: the day's readiness guidance, the per-muscle weekly volume, and the
  * per-exercise progression from last session.
  *
- * They are reconciled in that order — day, then muscle, then exercise — so the
- * narrower engine never contradicts the broader one:
+ * They are reconciled from the broadest in — the program's planned phase, then
+ * the day, then the muscle, then the exercise — so the narrower engine never
+ * contradicts the broader one:
  *
+ * - A week the program planned as a deload pushes no exercise, whatever the
+ *   day and the muscles say: the point of the week is to shed fatigue.
  * - A light or rest day pushes no exercise.
  * - A muscle the volume engine wants to deload takes weight off and sheds sets
  *   on every exercise that trains it as a primary mover.
@@ -23,7 +26,7 @@ import type { OverloadAction, OverloadRecommendation, OverloadSetSuggestion } fr
 
 type DayAction = "light_session" | "proceed" | "reduce_volume" | "rest"
 type MuscleAction = "decrease" | "deload" | "increase" | "maintain"
-type HeldBy = "day" | "muscle"
+type HeldBy = "day" | "muscle" | "phase"
 
 type ReconciledProgression = {
   action: OverloadAction
@@ -42,6 +45,8 @@ type ReconciledProgression = {
 
 type ReconcileExerciseInput = {
   dayAction: DayAction
+  /** The program's phase for this week, from the goal policy. */
+  phase?: string | null
   /** True for the first exercise in the session that trains an increased muscle. */
   ownsMuscleIncrease: boolean
   loadIncrementKg: number | null
@@ -92,15 +97,23 @@ function reconcileExerciseProgression(input: ReconcileExerciseInput): Reconciled
     sets: progression.sets,
   }
 
-  // 1. The day.
+  // 1. The program's phase, the broadest instruction there is.
+  if (input.phase === "deload" && isPush(result.action)) {
+    result.action = "maintain"
+    result.heldBy = "phase"
+    result.reasons.push("program_deload")
+    result.sets = repeatLastSession(progression.sets)
+  }
+
+  // 2. The day.
   if (dayHeld && isPush(result.action)) {
     result.action = "maintain"
-    result.heldBy = "day"
+    result.heldBy ??= "day"
     result.reasons.push("day_guidance")
     result.sets = repeatLastSession(progression.sets)
   }
 
-  // 2. The muscle.
+  // 3. The muscle.
   if (muscle?.action === "deload") {
     if (result.action !== "reduce_load" && result.action !== "establish_baseline") {
       result.action = "reduce_load"
@@ -160,6 +173,7 @@ function reconcileWorkoutProgressions(input: {
   dayAction: DayAction
   exercises: readonly WorkoutExerciseInput[]
   muscles: readonly MuscleRecommendationInput[]
+  phase?: string | null
 }) {
   const muscleActions = activeMuscleActions(input.muscles)
   const increaseClaimed = new Set<string>()
@@ -175,6 +189,7 @@ function reconcileWorkoutProgressions(input: {
       loadIncrementKg: exercise.loadIncrementKg,
       muscleActions,
       ownsMuscleIncrease,
+      phase: input.phase,
       primaryMuscles: exercise.primaryMuscles,
       progression: exercise.progression,
       workingSets: exercise.workingSets,
