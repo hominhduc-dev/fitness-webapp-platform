@@ -31,6 +31,28 @@ function formatPercent(value: number) {
   return `${Math.max(0, Math.round(value))}%`
 }
 
+/** How many trainees the roster shows before deferring to the "view all" link. */
+const ROSTER_LIMIT = 5
+
+/**
+ * Which trainees the dashboard roster shows: the ones furthest behind first.
+ * The full list lives behind the "view all" link, so this only decides what is
+ * worth a coach's first glance.
+ *
+ * A trainee with no completion rate yet sorts to the front rather than the
+ * back — newly assigned or not logging at all is the case a coach most needs
+ * to see, not one to hide. Ties break on name so the order stays put between
+ * the page's 30-second revalidations instead of cards swapping for no reason.
+ */
+function selectRosterTrainees(trainees: readonly Trainee[]): Trainee[] {
+  return [...trainees]
+    .sort((left, right) => {
+      const byCompletion = (left.completionRate ?? 0) - (right.completionRate ?? 0)
+      return byCompletion !== 0 ? byCompletion : left.name.localeCompare(right.name)
+    })
+    .slice(0, ROSTER_LIMIT)
+}
+
 function getAdjustHref(trainee: Trainee) {
   const programId = trainee.assignedProgramIds?.[0]
   return programId ? `/coach/programs/${programId}?adjustTrainee=${trainee.id}` : `/coach/trainees/${trainee.id}`
@@ -84,7 +106,9 @@ async function CoachDashboardContent() {
       <section aria-labelledby="coach-week-title">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h2 id="coach-week-title" className="text-xl font-semibold tracking-tight">{copy.week}</h2>
+            {/* The page's only h1. Removing the hero took the old one with it,
+                which left five h2s under no top-level heading at all. */}
+            <h1 id="coach-week-title" className="text-xl font-semibold tracking-tight">{copy.week}</h1>
             {weekStart && weekEnd ? <p className="mt-0.5 font-mono text-xs text-muted-foreground tnum">{weekStart} – {weekEnd}</p> : null}
           </div>
           <Button asChild variant="outline" size="icon" className="size-11 shrink-0 rounded-xl border-primary/20 bg-card text-primary">
@@ -149,15 +173,11 @@ async function CoachDashboardContent() {
           </section>
 
         <section className="order-2 rounded-2xl border border-border bg-card p-5 md:p-6 xl:col-start-1 xl:row-start-1">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold tracking-tight">{copy.activity}</h2>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{copy.activityCopy}</p>
-              </div>
-
-
-
-              <span className="shrink-0 rounded-full bg-primary-soft px-3 py-1.5 font-mono text-xs font-medium text-primary tnum">{dashboard.summary.workoutsThisWeek} {coach.workouts}</span>
+            {/* The week's workout count is already the second stat card above,
+                so the chart carries its title alone rather than repeating it. */}
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">{copy.activity}</h2>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{copy.activityCopy}</p>
             </div>
             <div className="mt-6 grid h-40 grid-cols-7 gap-3 sm:gap-5">
               {dashboard.activityByDay.map((point) => {
@@ -183,7 +203,7 @@ async function CoachDashboardContent() {
             </div>
             {dashboard.trainees.length === 0 ? <p className="px-5 pb-6 text-sm text-muted-foreground">{coach.noTraineesAssignedToCoach}</p> : (
               <div className="divide-y divide-border">
-                {dashboard.trainees.map((trainee) => (
+                {selectRosterTrainees(dashboard.trainees).map((trainee) => (
                   <div key={trainee.id} className="space-y-3 px-5 py-4 md:px-6">
                     <div className="flex items-center gap-3">
                       <Avatar className="size-10 shrink-0 border border-border">
