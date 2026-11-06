@@ -27,13 +27,36 @@
 .shell [data-motion-state="visible"][data-motion-order="1"] { animation-delay: 100ms; }
 .shell [data-motion-state="visible"][data-motion-order="2"] { animation-delay: 200ms; }
 @keyframes scrollIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
-.capabilityStrip { overflow: hidden; border-block: 1px solid var(--border); background: var(--surface-subtle); }
-.capabilityTrack { display: flex; width: max-content; animation: capabilityDrift 42s linear infinite; }
-.capabilityStrip:hover .capabilityTrack { animation-play-state: paused; }
-.capabilityGroup { display: flex; flex-shrink: 0; gap: 40px; margin: 0; padding: 24px 20px; list-style: none; }
-.capabilityGroup li { display: flex; align-items: center; gap: 10px; color: var(--muted-foreground); font-size: 13px; white-space: nowrap; }
-.capabilityGroup svg { color: var(--primary); }
-@keyframes capabilityDrift { to { transform: translateX(-50%); } }
+.shell [data-motion="device"][data-motion-state="visible"] {
+  animation-name: deviceIn;
+}
+@keyframes deviceIn {
+  from { opacity: 0; transform: translateY(24px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+.scrollProgress {
+  display: none;
+}
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .scrollProgress {
+      position: fixed;
+      z-index: 40;
+      inset: 0 0 auto;
+      display: block;
+      height: 2px;
+      background: var(--primary);
+      pointer-events: none;
+      transform-origin: left;
+      animation: readingProgress linear both;
+      animation-timeline: scroll(root block);
+    }
+  }
+}
+@keyframes readingProgress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
 .header {
   position: sticky;
   top: 0;
@@ -78,23 +101,23 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  padding-top: 64px;
+  display: grid;
+  align-items: center;
+  gap: clamp(24px, 4vw, 48px);
+  padding: clamp(28px, 6vw, 72px) clamp(18px, 4vw, 44px);
 }
 .hero::before {
   content: "";
   position: absolute;
-  top: -160px;
-  left: 50%;
+  inset: 0;
   z-index: -1;
-  width: min(900px, 130vw);
-  height: 480px;
-  background: radial-gradient(circle, var(--primary-soft), transparent 68%);
-  opacity: 0.9;
-  transform: translateX(-50%);
+  background:
+    linear-gradient(123deg, transparent 57%, var(--primary-soft) 57%, transparent 83%),
+    repeating-linear-gradient(123deg, transparent 0 72px, var(--border) 73px, transparent 74px 144px);
   pointer-events: none;
 }
 .heroIntro {
-  padding: 0 40px 52px;
+  min-width: 0;
 }
 .eyebrow {
   display: flex;
@@ -119,8 +142,8 @@
 }
 .heroTitle {
   margin-top: 27px;
-  font-size: clamp(42px, 6.4vw, 86px);
-  line-height: 1.02;
+  font-size: clamp(40px, 6.4vw, 76px);
+  line-height: 1.04;
   font-weight: 700;
   letter-spacing: -0.055em;
 }
@@ -138,13 +161,75 @@
 }
 .heroDetails {
   display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  align-items: start;
-  gap: 40px;
-  margin-top: 32px;
+  gap: 22px;
+  margin-top: 24px;
 }
 .heroDetails .heroActions {
   margin-top: 0;
+}
+.heroMockups {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  align-items: center;
+}
+.coachDevice,
+.phoneDevice {
+  min-width: 0;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 16px 32px color-mix(in oklab, var(--background) 55%, transparent);
+}
+.coachDevice {
+  overflow: hidden;
+  border-radius: 16px;
+}
+.deviceBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.windowDots {
+  display: inline-flex;
+  gap: 4px;
+}
+.windowDots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+}
+.phoneDevice {
+  width: min(100%, 18rem);
+  justify-self: center;
+  padding: 10px;
+  border-radius: 24px;
+  border-color: color-mix(in oklab, var(--primary) 34%, var(--border));
+}
+.phoneCaption {
+  padding: 6px 8px 10px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+@media (width >= 48rem) and (width < 64rem) {
+  .heroMockups {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 18rem);
+  }
+}
+@media (width >= 64rem) {
+  .hero {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  }
+  .coachDevice {
+    margin-inline-end: clamp(0px, 3vw, 42px);
+  }
+  .phoneDevice {
+    justify-self: end;
+  }
 }
 @keyframes heroIn {
   from {
@@ -381,39 +466,75 @@
   border-radius: inherit;
   background: var(--primary);
 }
-.specs {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  border-block: 1px solid var(--border);
-}
-.specs > div {
-  padding: 28px;
-  transition: background 160ms ease;
-}
-.specs > div:hover {
-  background: var(--card);
-}
-.specs > div + div {
-  border-left: 1px solid var(--border);
-}
-.specs .eyebrow {
-  color: var(--muted-foreground);
-  font-size: 9px;
-}
-.specIconWrap {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  margin-bottom: 14px;
-  border-radius: 9px;
-  background: var(--primary-soft);
-  color: var(--primary);
-}
 .section {
   padding-top: 90px;
   scroll-margin-top: 90px;
+}
+.highlights,
+.comparison {
+  padding: clamp(24px, 5vw, 56px) clamp(18px, 4vw, 40px);
+  scroll-margin-top: 90px;
+  border-block-start: 1px solid var(--border);
+}
+.highlights {
+  background: var(--surface-subtle);
+}
+.highlightsGrid {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+.highlight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 16px 16px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.detailLink {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.detailLink:hover {
+  text-decoration: underline;
+}
+.highlight .detailLink {
+  margin-top: auto;
+}
+.comparisonList {
+  margin-top: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.comparisonRow {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+.comparisonRow:first-child {
+  background: var(--primary-soft);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.comparisonRow + .comparisonRow {
+  border-top: 1px solid var(--border);
+}
+@media (width >= 48rem) {
+  .highlightsGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .comparisonRow {
+    grid-template-columns: minmax(8rem, 1fr) minmax(0, 4fr);
+    gap: 24px;
+    padding: 20px 24px;
+  }
 }
 .sectionIntro {
   padding: 0 40px 40px;
@@ -613,12 +734,6 @@
   .frame {
     margin-inline: 16px;
   }
-  .hero {
-    padding-top: 28px;
-  }
-  .heroIntro {
-    padding: 0 22px 24px;
-  }
   .heroTitle {
     margin-top: 16px;
     font-size: clamp(34px, 8.4vw, 60px);
@@ -682,18 +797,6 @@
   .sessionStats p:last-child {
     font-size: 15px;
   }
-  .specs {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .specs > div {
-    padding: 24px 20px;
-  }
-  .specs > div:nth-child(3) {
-    border-left: 0;
-  }
-  .specs > div:nth-child(n + 3) {
-    border-top: 1px solid var(--border);
-  }
   .section {
     padding-top: 56px;
   }
@@ -744,19 +847,13 @@
   .featureGrid {
     grid-template-columns: 1fr;
   }
-  .heroIntro {
-    padding-inline: 18px;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .shell a,
   .feature {
     transition: none;
   }
-  .shell [data-motion-state], .capabilityTrack { opacity: 1; transform: none; animation: none; }
-  .capabilityTrack { width: auto; }
-  .capabilityGroup { flex-wrap: wrap; justify-content: center; gap: 14px 24px; }
-  .capabilityGroup[aria-hidden="true"] { display: none; }
+  .shell [data-motion-state] { opacity: 1; transform: none; animation: none; }
   .heroStep1,
   .heroStep2,
   .heroStep3,
@@ -771,19 +868,10 @@
   .shell [data-motion-state="visible"] { animation-duration: 420ms; animation-delay: 0ms; }
   .heroStep1, .heroStep2, .heroStep3, .heroStep4, .heroStep5, .heroStep6 { animation-duration: 420ms; animation-delay: 0ms; }
   .heroStep2 { animation-name: heroIn; }
-  .capabilityTrack { animation: none; width: auto; }
-  .capabilityGroup { flex-wrap: wrap; justify-content: center; gap: 14px 20px; padding: 20px; }
-  .capabilityGroup li { font-size: 11px; white-space: normal; }
-  .capabilityGroup[aria-hidden="true"] { display: none; }
 }
 
-.capabilityTrack[data-paused="true"] { animation-play-state: paused; }
-.motionToggle { display: block; margin: 8px 16px 0 auto; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: 11px; }
-.motionToggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
-@media (max-width: 767px) { .motionToggle { display: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .shell [data-motion-state], .heroStep1, .heroStep2, .heroStep3, .heroStep4, .heroStep5, .heroStep6, .capabilityTrack { opacity: 1; transform: none; filter: none; animation: none; }
-  .motionToggle { display: none; }
+  .shell [data-motion-state], .heroStep1, .heroStep2, .heroStep3, .heroStep4, .heroStep5, .heroStep6 { opacity: 1; transform: none; filter: none; animation: none; }
 }
 
 .shell [data-motion-state="pending"]:focus-within { opacity: 1; transform: none; }

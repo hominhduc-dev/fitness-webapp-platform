@@ -1,6 +1,7 @@
 "use client"
 
 import { Suspense, useEffect, useRef, useState } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import {
   ArrowDown,
@@ -82,13 +83,15 @@ export function LandingPage() {
         {c.skipContent}
       </a>
       <TopBar />
+      <div className={styles.scrollProgress} aria-hidden="true" />
       <main id="main-content" className={styles.frame}>
         <Hero />
-        <CapabilityStrip />
-        <Specs />
+        <Highlights />
         <FeaturesSection />
+        <ProductPreview />
         <TrainerSection />
         <AISection />
+        <ComparisonSection />
         <section
           data-motion="reveal" className={styles.finalCta}
         >
@@ -163,8 +166,8 @@ function TopBar() {
           <Link href="#trainers" className="hover:text-foreground">
             {c.navTrainers}
           </Link>
-          <Link href="#ai" className="hover:text-foreground">
-            {c.navAI}
+          <Link href="#compare" className="hover:text-foreground">
+            {c.navCompare}
           </Link>
         </nav>
         <div className="flex items-center gap-2">
@@ -212,7 +215,7 @@ function TopBar() {
             { href: "#features", label: c.navFeatures },
             { href: "#demo", label: c.productPreview },
             { href: "#trainers", label: c.navTrainers },
-            { href: "#ai", label: c.navAI },
+            { href: "#compare", label: c.navCompare },
             { href: `/?lang=${locale}&auth=login`, label: c.signIn },
           ].map((item) => (
             <Link
@@ -252,7 +255,7 @@ function Hero() {
               <Button
                 asChild
                 size="lg"
-                className="rounded-full px-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
+                className="min-h-11 rounded-full px-5"
               >
                 <Link href={`/?lang=${locale}&auth=register`} scroll={false}>
                   {c.primaryCta}
@@ -263,12 +266,12 @@ function Hero() {
                 asChild
                 size="lg"
                 variant="outline"
-                className="rounded-full bg-transparent px-6 transition-all hover:-translate-y-0.5"
+                className="min-h-11 rounded-full bg-transparent px-5"
               >
-                <Link href="#demo">
-                  {c.watchDemo}
+                <a href="#demo">
+                  {c.livePreviewCta}
                   <ArrowDown size={17} />
-                </Link>
+                </a>
               </Button>
             </div>
             <p
@@ -282,8 +285,43 @@ function Hero() {
           </div>
         </div>
       </div>
-      <ProductPreview />
+      <HeroMockups />
     </section>
+  )
+}
+
+function HeroMockups() {
+  const { messages } = useLocale()
+  const copy = messages.landing.heroMockup
+
+  return (
+    <div className={styles.heroMockups}>
+      <figure className={styles.coachDevice} data-motion="device">
+        <figcaption className={styles.deviceBar}>
+          <span className={styles.windowDots} aria-hidden="true"><i /><i /><i /></span>
+          {copy.trainee}
+        </figcaption>
+        <Image
+          src="/landing/trainee-program.webp"
+          alt={copy.traineeAlt}
+          width={990}
+          height={410}
+          sizes="(min-width: 1024px) 500px, (min-width: 768px) 50vw, 90vw"
+          className="h-auto w-full"
+        />
+      </figure>
+      <figure className={styles.phoneDevice} data-motion="device" data-motion-order="1">
+        <figcaption className={styles.phoneCaption}>{copy.coach}</figcaption>
+        <Image
+          src="/landing/coach-program-mobile.webp"
+          alt={copy.coachAlt}
+          width={356}
+          height={602}
+          sizes="288px"
+          className="h-auto w-full rounded-xl"
+        />
+      </figure>
+    </div>
   )
 }
 
@@ -683,73 +721,72 @@ function MockChart() {
   )
 }
 
-function CapabilityStrip() {
-  const [paused, setPaused] = useState(false)
+function Highlights() {
   const { messages } = useLocale()
   const c = messages.landing
-  const labels = [c.specTrainingDetail, c.specNutritionDetail, c.specProgressDetail, c.specCoachingDetail, c.navAI]
+  const highlights = [
+    { Icon: LayoutDashboard, href: "#features", ...c.differences.tracking },
+    { Icon: Users, href: "#trainers", ...c.differences.coaching },
+    { Icon: ShieldCheck, href: "#ai", ...c.differences.approval },
+  ]
   return (
-    <div className={styles.capabilityStrip}>
-      <button type="button" className={styles.motionToggle} aria-pressed={paused} onClick={() => setPaused(!paused)}>{paused ? c.motionResume : c.motionPause}</button>
-      <div className={styles.capabilityTrack} data-paused={paused}>
-        {[0, 1].map((copy) => (
-          <ul key={copy} className={styles.capabilityGroup} aria-hidden={copy === 1 ? true : undefined}>
-            {labels.map((label) => <li key={label}><Sparkles size={15} aria-hidden="true" />{label}</li>)}
-          </ul>
+    <section id="why" aria-labelledby="why-title" className={styles.highlights}>
+      <h2 id="why-title" className={styles.eyebrow}>{c.differences.title}</h2>
+      <div className={styles.highlightsGrid}>
+        {highlights.map(({ Icon, href, title, body }, index) => (
+          <article className={styles.highlight} key={href} data-motion="reveal" data-motion-order={index}>
+            <Icon className="size-5 text-primary" aria-hidden="true" />
+            <h3 className="mt-3 text-lg font-semibold tracking-tight">{title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
+            <a className={styles.detailLink} href={href}>
+              {c.differences.details}<span className="sr-only"> {title}</span>
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </a>
+          </article>
         ))}
       </div>
-    </div>
+    </section>
   )
 }
 
-function Specs() {
+const comparisonSources = {
+  hevy: { name: "Hevy", href: "https://www.hevyapp.com/features/" },
+  fitbod: { name: "Fitbod", href: "https://fitbod.me/faqs/" },
+  trainerize: { name: "ABC Trainerize", href: "https://help.trainerize.com/hc/en-us/articles/208688876-What-is-ABC-Trainerize-A-Getting-Started-Overview" },
+} as const
+
+function ComparisonSection() {
   const { messages } = useLocale()
-  const c = messages.landing
-  const specs = [
-    {
-      Icon: Dumbbell,
-      label: c.specTraining,
-      value: c.specTrainingValue,
-      detail: c.specTrainingDetail,
-    },
-    {
-      Icon: Flame,
-      label: c.specNutrition,
-      value: c.specNutritionValue,
-      detail: c.specNutritionDetail,
-    },
-    {
-      Icon: BarChart3,
-      label: c.specProgress,
-      value: c.specProgressValue,
-      detail: c.specProgressDetail,
-    },
-    {
-      Icon: Users,
-      label: c.specCoaching,
-      value: c.specCoachingValue,
-      detail: c.specCoachingDetail,
-    },
+  const copy = messages.landing.comparison
+  const products = [
+    { name: "YeahBuddy", body: copy.yeahbuddy },
+    ...Object.entries(comparisonSources).map(([key, source]) => ({
+      ...source, body: copy[key as keyof typeof comparisonSources],
+    })),
   ]
   return (
-    <dl
-      className={styles.specs}
-    >
-      {specs.map((spec) => (
-        <div key={spec.label} data-motion="reveal">
-          <span className={styles.specIconWrap} aria-hidden="true">
-            <spec.Icon size={16} strokeWidth={1.75} />
-          </span>
-          <dt className={styles.eyebrow}>{spec.label}</dt>
-          <dd className="mt-3 text-xl font-medium tracking-tight">
-            {spec.value}
-            <span className="mt-1.5 block text-xs font-normal tracking-normal text-muted-foreground">
-              {spec.detail}
-            </span>
-          </dd>
-        </div>
-      ))}
-    </dl>
+    <section id="compare" className={styles.comparison} aria-labelledby="compare-title" data-motion="heading">
+      <p className={styles.eyebrow}>{copy.label}</p>
+      <h2 id="compare-title" className={cn(styles.sectionTitle, "mt-3")}>{copy.title}</h2>
+      <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">{copy.intro}</p>
+      <dl className={styles.comparisonList}>
+        {products.map(({ name, body, ...source }) => (
+          <div key={name} className={styles.comparisonRow}>
+            <dt className={cn("font-semibold", name === "YeahBuddy" && "text-primary")}>{name}</dt>
+            <dd className="min-w-0 text-sm leading-relaxed text-muted-foreground">
+              {body}
+              {"href" in source && (
+                <div><a className={styles.detailLink} href={source.href}>
+                  {copy.source}<span className="sr-only"> {name}</span>
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </a></div>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-4 text-xs leading-relaxed text-muted-foreground">{copy.note}</p>
+    </section>
   )
 }
 
