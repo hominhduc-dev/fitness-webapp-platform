@@ -106,9 +106,9 @@ async function CoachDashboardContent() {
       <section aria-labelledby="coach-week-title">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            {/* The page's only h1. Removing the hero took the old one with it,
-                which left five h2s under no top-level heading at all. */}
-            <h1 id="coach-week-title" className="text-xl font-semibold tracking-tight">{copy.week}</h1>
+            {/* ShellPageTitle owns the page's h1, so this stays an h2: the
+                first section's label, not a second top-level heading. */}
+            <h2 id="coach-week-title" className="text-xl font-semibold tracking-tight">{copy.week}</h2>
             {weekStart && weekEnd ? <p className="mt-0.5 font-mono text-xs text-muted-foreground tnum">{weekStart} – {weekEnd}</p> : null}
           </div>
           <Button asChild variant="outline" size="icon" className="size-11 shrink-0 rounded-xl border-primary/20 bg-card text-primary">
