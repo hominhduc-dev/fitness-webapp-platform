@@ -140,7 +140,7 @@ describe("import review exercise cards", () => {
     await openReview()
     await expandImportedCard()
     fireEvent.keyDown(screen.getByRole("button", { name: "Set 1: Normal set" }), { key: "ArrowDown" })
-    fireEvent.click(await screen.findByRole("menuitem", { name: /Warm-up/ }))
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Warm-up" }))
     fireEvent.change(screen.getByLabelText("REST"), { target: { value: "" } })
     fireEvent.click(screen.getByRole("button", { name: "Create program" }))
     await waitFor(() => expect(save).toHaveBeenCalledOnce())

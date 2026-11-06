@@ -64,6 +64,10 @@ export const workoutMessages = {
       intensityTagMrm: "Myo-rep match",
       intensityTagRestPause: "Rest-pause",
       intensityTagWarmup: "Warm-up",
+      intensityTagTopSet: "Top set",
+      intensityTagBackoff: "Back-off set",
+      intensityBackoffDerivedHint: "Controlled by Top set + back-off on set 1.",
+      topBackoffPreset: "Top set + back-off",
       completed: "completed",
       export: "Export",
       exportDownloadExcel: "Download Excel",
@@ -218,6 +222,8 @@ export const workoutMessages = {
       tempoHint: (tempo: string, seconds: number) =>
         `Tempo ${tempo}: down · pause · up · pause, about ${seconds}s a rep`,
       seededWeightHint: "Starting weight from your earlier training, not from this program yet",
+      backoffWeightHint: (weight: string, reduction: number, rounded: boolean) => `Suggested ${weight} (Top set −${reduction}%${rounded ? ", rounded to a 5 kg step" : ""})`,
+      useBackoffWeight: "Use suggestion",
       progressionNote: (action: "add_load" | "add_reps" | "deload" | "hold" | "maintain" | "reduce_load", target: string) =>
         action === "deload"
           ? `Deload: lighter load, same reps: ${target}.`
@@ -365,6 +371,10 @@ export const workoutMessages = {
       intensityTagMrm: "Myo-rep match",
       intensityTagRestPause: "Rest-pause",
       intensityTagWarmup: "Khởi động",
+      intensityTagTopSet: "Top set",
+      intensityTagBackoff: "Set giảm tải",
+      intensityBackoffDerivedHint: "Theo phương pháp Top set + giảm tải của set 1.",
+      topBackoffPreset: "Top set + giảm tải",
       completed: "hoàn tất",
       export: "Export",
       exportDownloadExcel: "Tải xuống Excel",
@@ -519,6 +529,8 @@ export const workoutMessages = {
       tempoHint: (tempo: string, seconds: number) =>
         `Tempo ${tempo}: xuống · giữ · lên · giữ, khoảng ${seconds} giây mỗi rep`,
       seededWeightHint: "Mức tạ lấy từ các buổi tập trước đây của bạn, chưa phải của chương trình này",
+      backoffWeightHint: (weight: string, reduction: number, rounded: boolean) => `Gợi ý ${weight} (Top set giảm ${reduction}%${rounded ? ", làm tròn theo nấc 5 kg" : ""})`,
+      useBackoffWeight: "Dùng gợi ý",
       progressionNote: (action: "add_load" | "add_reps" | "deload" | "hold" | "maintain" | "reduce_load", target: string) =>
         action === "deload"
           ? `Deload: giảm tạ, giữ số rep: ${target}.`

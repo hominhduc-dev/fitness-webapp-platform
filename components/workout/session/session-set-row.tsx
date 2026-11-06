@@ -16,6 +16,7 @@ import { SetTempoBadge } from "@/components/workout/set-tempo-badge"
 import type { ExerciseSet } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { formatRepTarget } from "@/lib/workout-reps"
+import { DEFAULT_BACKOFF_REDUCTION } from "@/lib/workout/set-targets"
 
 /** What the coach programmed for a set, before this session changed anything. */
 export type ProgramSetTarget = {
@@ -64,6 +65,7 @@ export type SetProgressionSuggestion = {
 interface SessionSetRowProps {
   programTarget?: ProgramSetTarget
   suggestion?: SetProgressionSuggestion
+  backoffWeight?: number
   set: ExerciseSet
   setIndex: number
   weightUnit: "kg" | "lbs"
@@ -77,6 +79,7 @@ interface SessionSetRowProps {
 export function SessionSetRow({
   programTarget,
   suggestion,
+  backoffWeight,
   set,
   setIndex,
   weightUnit,
@@ -236,7 +239,7 @@ export function SessionSetRow({
             const parsed = Number.parseFloat(value)
             onChange({ weight: Number.isFinite(parsed) ? parsed : undefined })
           }}
-          placeholder={suggestion?.weight != null ? String(suggestion.weight) : "—"}
+          placeholder={String(backoffWeight ?? suggestion?.weight ?? "—")}
           aria-label={messages.workoutPage.weightInUnit(weightUnit)}
           className={cn(FIELD_CLASS, fieldStateClass(completed, active))}
         />
@@ -312,6 +315,24 @@ export function SessionSetRow({
           </DropdownMenu>
         </div>
       </div>
+
+      {!completed && backoffWeight != null && (
+        <div className="flex flex-wrap items-center justify-between gap-x-2 px-3 pb-1 text-xs sm:px-4">
+          <span className="text-muted-foreground">
+            {messages.workoutPage.backoffWeightHint(`${backoffWeight} ${weightUnit}`, DEFAULT_BACKOFF_REDUCTION, weightUnit === "kg")}
+          </span>
+          <button
+            type="button"
+            className="min-h-9 rounded-md px-2 font-medium text-primary hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11"
+            onClick={() => {
+              setWeight(String(backoffWeight))
+              onChange({ weight: backoffWeight })
+            }}
+          >
+            {messages.workoutPage.useBackoffWeight}
+          </button>
+        </div>
+      )}
 
       {/* Set note (inline, collapsible) */}
       {noteOpen && (

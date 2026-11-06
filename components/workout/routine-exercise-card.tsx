@@ -1,13 +1,13 @@
 "use client"
 
-import { useId, useState, type ReactNode } from "react"
+import { useId, useRef, useState, type ReactNode } from "react"
 import { ArrowDown, ArrowLeftRight, ArrowUp, ChevronDown, NotebookPen, Pencil, Trash2 } from "lucide-react"
 
 import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
 import { IntensityTagBadge, SetIntensityTagPicker } from "@/components/workout/set-intensity-tag"
 import type { AppMessages } from "@/lib/i18n/messages"
 import { cn } from "@/lib/utils"
-import { normalizeSetIntensityAssignments, type SetIntensityAssignment } from "@/lib/workout/intensity-tag"
+import { hasTopBackoffScheme, normalizeSetIntensityAssignments, setIntensityMethodAssignments, type SetIntensityAssignment } from "@/lib/workout/intensity-tag"
 
 export type RoutineExerciseField = "sets" | "reps" | "weight" | "rir" | "restTime" | "notes"
 
@@ -139,6 +139,8 @@ export function RoutineExerciseCard({
   const expanded = controlledExpanded ?? uncontrolledExpanded
   const bodyId = useId()
   const setCount = Number(values.sets) || 0
+  const validSetCount = Number.isInteger(setCount) && setCount >= 1 && setCount <= 100
+  const lastValidSetCount = useRef(validSetCount ? setCount : 0)
   const methodBadges = onSetIntensityTagsChange
     ? [...new Set(normalizeSetIntensityAssignments(setIntensityTags, setCount).map(({ tag }) => tag))]
     : []
@@ -203,7 +205,17 @@ export function RoutineExerciseCard({
               label={t.set}
               value={values.sets}
               disabled={disabled}
-              onChange={(value) => onFieldChange("sets", value)}
+              onChange={(value) => {
+                const nextCount = Number(value)
+                const priorCount = validSetCount ? setCount : lastValidSetCount.current
+                if (validSetCount) lastValidSetCount.current = setCount
+                onFieldChange("sets", value)
+                if (!Number.isInteger(nextCount) || nextCount < 1 || nextCount > 100) return
+                lastValidSetCount.current = nextCount
+                if (nextCount !== priorCount && hasTopBackoffScheme(setIntensityTags, priorCount)) {
+                  onSetIntensityTagsChange?.(setIntensityMethodAssignments(setIntensityTags, nextCount, 1, "top_set"))
+                }
+              }}
             />
             <PrescriptionField
               label={t.reps}
@@ -246,6 +258,7 @@ export function RoutineExerciseCard({
                 setCount={setCount}
                 value={setIntensityTags}
                 onChange={onSetIntensityTagsChange}
+                disabled={disabled}
               />
             ) : null}
 

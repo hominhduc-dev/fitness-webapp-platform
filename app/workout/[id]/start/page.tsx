@@ -57,6 +57,7 @@ import { summarizeWorkoutSession } from "@/lib/workout/share-summary"
 import { restoreWorkoutSessionExercises } from "@/lib/workout/restore-session"
 import { isExerciseDone, nextIncompleteExercise } from "@/lib/workout/exercise-order"
 import { primaryNavAction } from "@/lib/workout/session-navigation"
+import { calculateBackoffWeight } from "@/lib/workout/set-targets"
 import { useDefaultRest } from "@/lib/workout/use-default-rest"
 
 // ─── Session storage helpers (see @/lib/workout/session-storage) ──────────────
@@ -343,6 +344,7 @@ function WorkoutSession() {
   // applies the swaps and tells the coach about both from the finished log.
   const swapsRef = useRef<Map<string, StoredWorkoutSessionSwap>>(new Map())
   const noteEditedIdsRef = useRef<Set<string>>(new Set())
+  const weightEditedSetIdsRef = useRef<Set<string>>(new Set())
   const prescribedExercisesRef = useRef<Workout["exercises"]>([])
   const programSetTargetsRef = useRef<Map<string, ProgramSetTarget>>(new Map())
   const previousPerformanceBackfillRef = useRef<string | null>(null)
@@ -495,6 +497,7 @@ function WorkoutSession() {
         : draftQuery.data ?? localMirror
     const nextWorkout = buildSessionSeed(workoutSeed, storedSession)
     addedSetTokensRef.current = buildStoredAddedSetTokenMap(storedSession)
+    weightEditedSetIdsRef.current = new Set()
     deletedSetIdsRef.current = new Set(storedSession?.deletedSetIds ?? [])
     swapsRef.current = new Map((storedSession?.exercises ?? []).flatMap((exercise) =>
       exercise.swap ? [[exercise.id, exercise.swap] as const] : []))
@@ -619,13 +622,18 @@ function WorkoutSession() {
   }
 
   const handleSetUpdate = (exerciseId: string, setId: string, patch: Partial<ExerciseSet>) => {
+    const hasWeightPatch = Object.prototype.hasOwnProperty.call(patch, "weight")
+    if (hasWeightPatch && !patch.completed) weightEditedSetIdsRef.current.add(setId)
+
     setExercises((prev) =>
       prev.map((ex) => {
         if (ex.id !== exerciseId) return ex
         const updatedSetIndex = ex.sets.findIndex((set) => set.id === setId)
-        const shouldSyncWeightToFollowingSets =
-          updatedSetIndex >= 0 &&
-          Object.prototype.hasOwnProperty.call(patch, "weight")
+        const updatedTag = ex.sets[updatedSetIndex]?.intensityTag
+        const nextTopIndex = updatedTag === "top_set"
+          ? ex.sets.findIndex((set, index) => index > updatedSetIndex && set.intensityTag === "top_set")
+          : -1
+        const backoffWeight = updatedTag === "top_set" ? calculateBackoffWeight(patch.weight, weightUnit) : undefined
         const shouldSyncRirFromFirstSet =
           updatedSetIndex === 0 &&
           Object.prototype.hasOwnProperty.call(patch, "rir")
@@ -639,11 +647,18 @@ function WorkoutSession() {
 
             let nextSet = set
             if (
-              shouldSyncWeightToFollowingSets &&
+              hasWeightPatch &&
+              updatedSetIndex >= 0 &&
               index > updatedSetIndex &&
               !set.completed
             ) {
-              nextSet = { ...nextSet, weight: patch.weight }
+              if (updatedTag === "top_set") {
+                if (set.intensityTag === "back_off" && (nextTopIndex === -1 || index < nextTopIndex) && !weightEditedSetIdsRef.current.has(set.id)) {
+                  nextSet = { ...nextSet, weight: backoffWeight }
+                }
+              } else if (updatedTag !== "back_off" && set.intensityTag !== "back_off") {
+                nextSet = { ...nextSet, weight: patch.weight }
+              }
             }
 
             if (shouldSyncRirFromFirstSet && index > 0 && !set.completed) {
