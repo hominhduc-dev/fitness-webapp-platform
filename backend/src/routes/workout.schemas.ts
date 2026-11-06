@@ -38,6 +38,16 @@ const setIntensityAssignment = z.object({
   tag: z.enum(SET_INTENSITY_TAGS),
 })
 
+/**
+ * The cadence itself is read by the service, which owns the grammar and drops
+ * what it cannot parse; this only bounds the string so a malformed body cannot
+ * carry an essay where a tempo belongs.
+ */
+const setTempoAssignment = z.object({
+  setNumber: z.number().int().min(1).max(100),
+  tempo: z.string().trim().min(1).max(20),
+})
+
 const personalWorkoutExercise = z.object({
   notes: z.string().max(500).optional(),
   reps: z.number().int().min(0).max(1000),
@@ -45,7 +55,10 @@ const personalWorkoutExercise = z.object({
   restTime: z.number().int().min(0).max(3600).optional(),
   rir: z.number().min(0).max(10).optional(),
   setIntensityTags: z.array(setIntensityAssignment).max(100).optional(),
+  setTempos: z.array(setTempoAssignment).max(100).optional(),
   sets: z.number().int().min(0).max(100),
+  /** One cadence for the whole exercise; `setTempos` overrides it per set. */
+  tempo: z.string().trim().min(1).max(20).optional(),
   variationId: z.string().max(64),
   weight: z.number().min(0).max(2000).optional(),
 })

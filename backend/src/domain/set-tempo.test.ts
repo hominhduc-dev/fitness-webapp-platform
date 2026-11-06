@@ -6,7 +6,26 @@ import {
   normalizeSetTempoAssignments,
   parseSetTempo,
   parseSetTempoCell,
+  repTutSeconds,
 } from "./set-tempo"
+
+describe("repTutSeconds", () => {
+  it("adds the four phases up", () => {
+    expect(repTutSeconds("2-0-1-0")).toBe(3)
+    expect(repTutSeconds("4-1-1-0")).toBe(6)
+    expect(repTutSeconds("10-0-1-0")).toBe(11)
+  })
+
+  it("counts an explosive concentric as a second rather than as free", () => {
+    expect(repTutSeconds("3-0-X-0")).toBe(4)
+    expect(repTutSeconds("3-0-X-0")).toBe(repTutSeconds("3-0-1-0"))
+  })
+
+  it("has no answer for a cadence it cannot read", () => {
+    expect(repTutSeconds("3-1-1")).toBeUndefined()
+    expect(repTutSeconds(null)).toBeUndefined()
+  })
+})
 
 describe("parseSetTempo", () => {
   it("reads the spellings coaches write and returns one canonical form", () => {

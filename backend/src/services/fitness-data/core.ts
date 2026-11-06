@@ -45,6 +45,7 @@ import { retryTransaction } from "../../lib/prisma"
 import { normalizeTrainingGoal, policyForTrainingGoal } from "../../domain/training-goal-policy"
 import { resolveLoadIncrement } from "../../domain/load-increment"
 import { buildOverloadRecommendation, isLowerBodyExercise } from "../../domain/progressive-overload"
+import type { Prescription } from "../../domain/exercise-exposure"
 import { reconcileWorkoutProgressions, type DayAction, type MuscleAction } from "../../domain/training-recommendation"
 import { getVolumeRecoveryForTrainee } from "../volume-recovery/volume-recovery.service"
 import {
@@ -86,6 +87,7 @@ import {
   type SetIntensityAssignment,
   type SetIntensityTag,
 } from "../../domain/set-intensity-tag"
+import { buildSetTempoMap, parseSetTempo, type SetTempoAssignment } from "../../domain/set-tempo"
 import {
   addLocalDays,
   addUtcDays,
@@ -337,7 +339,7 @@ type PreviousSetPerformanceSource = "most_recent" | "same_weekday_last_week" | "
 type PreviousExerciseSetPerformance = {
   completedAt: Date
   /** What that session asked of the set, so a changed prescription is not read as a regression. */
-  prescription?: { repMax: number | null; repMin: number | null; targetRir: number | null }
+  prescription?: Prescription
   reps?: number
   rir?: number
   source: PreviousSetPerformanceSource
@@ -367,6 +369,8 @@ type PersonalWorkoutInput = {
     repsMin?: number
     rir?: number
     setIntensityTags?: SetIntensityAssignment[]
+    setTempos?: SetTempoAssignment[]
+    tempo?: string | null
     variationId: string
     reps: number
     restTime?: number
@@ -397,6 +401,8 @@ type CoachProgramInput = {
       rir?: number
       restTime?: number
       setIntensityTags?: SetIntensityAssignment[]
+      setTempos?: SetTempoAssignment[]
+      tempo?: string | null
       variationId: string
       reps: number
       sets: number
@@ -416,6 +422,8 @@ type NormalizedPersonalWorkoutInput = {
     repsMin?: number
     rir?: number
     setIntensityTags?: SetIntensityAssignment[]
+    setTempos?: SetTempoAssignment[]
+    tempo?: string | null
     variationId: string
     reps: number
     restTime?: number
@@ -704,6 +712,7 @@ function serializeExerciseSet(set: ExerciseSet, previousPerformanceBySetNumber?:
     setNumber: set.setNumber,
     targetRepsMin: set.targetRepsMin ?? undefined,
     targetReps: set.targetReps,
+    tempo: set.tempo ?? undefined,
     weight: set.weight ?? undefined,
   }
 }
@@ -753,6 +762,7 @@ function buildExerciseProgression(
           targetReps: set.targetReps,
           targetRepsMin: set.targetRepsMin,
           targetRir: set.rir,
+          tempo: set.tempo,
         }
       }),
   })
@@ -2626,11 +2636,13 @@ function buildProgramTreeCreateManyData(
 
       const setCount = Math.max(1, Math.round(exercise.sets))
       const intensityTagBySetNumber = buildSetIntensityTagMap(exercise.setIntensityTags, setCount)
+      const tempoBySetNumber = buildSetTempoMap(exercise.setTempos, setCount)
 
       setRows.push(
         ...Array.from({ length: setCount }, (_value, setIndex) => ({
           id: randomUUID(),
           intensityTag: intensityTagBySetNumber.get(setIndex + 1),
+          tempo: tempoBySetNumber.get(setIndex + 1) ?? parseSetTempo(exercise.tempo),
           rir: typeof exercise.rir === "number" && Number.isFinite(exercise.rir)
             ? Math.max(0, Math.round(exercise.rir))
             : undefined,
@@ -2941,6 +2953,7 @@ function buildPreviousSetPerformanceMap(
             repMin: toFiniteNumber(snapshotSet.targetRepsMin) ?? null,
             // Logs saved before the target was recorded leave it unknown, not mismatched.
             targetRir: toFiniteNumber(snapshotSet.targetRir) ?? null,
+            tempo: typeof snapshotSet.tempo === "string" ? snapshotSet.tempo : null,
           }
         : undefined,
       reps,
@@ -5011,6 +5024,7 @@ async function normalizePersonalWorkoutInput(input: PersonalWorkoutInput): Promi
 function buildPersonalWorkoutExerciseCreateData(exercises: NormalizedPersonalWorkoutInput["exercises"]) {
   return exercises.map((exercise, exerciseIndex) => {
     const intensityTagBySetNumber = buildSetIntensityTagMap(exercise.setIntensityTags, exercise.sets)
+    const tempoBySetNumber = buildSetTempoMap(exercise.setTempos, exercise.sets)
 
     return {
       notes: exercise.notes,
@@ -5019,6 +5033,7 @@ function buildPersonalWorkoutExerciseCreateData(exercises: NormalizedPersonalWor
       sets: {
         create: Array.from({ length: exercise.sets }, (_value, setIndex) => ({
           intensityTag: intensityTagBySetNumber.get(setIndex + 1),
+          tempo: tempoBySetNumber.get(setIndex + 1) ?? parseSetTempo(exercise.tempo),
           setNumber: setIndex + 1,
           targetRepsMin: exercise.repsMin,
           targetReps: exercise.reps,
@@ -5148,6 +5163,7 @@ async function duplicateAssignedWorkoutAsPersonalRoutine(profile: SerializedProf
                     .map((set) => ({
                       intensityTag: set.intensityTag ?? undefined,
                       rir: set.rir ?? undefined,
+                      tempo: set.tempo ?? undefined,
                       setNumber: set.setNumber,
                       targetReps: set.targetReps,
                       targetRepsMin: set.targetRepsMin ?? undefined,
@@ -5495,6 +5511,7 @@ async function copyTraineeProgramWeek(profile: SerializedProfile, programId: str
                       intensityTag: set.intensityTag,
                       notes: set.notes,
                       rir: set.rir,
+                      tempo: set.tempo,
                       setNumber: set.setNumber,
                       targetReps: set.targetReps,
                       targetRepsMin: set.targetRepsMin,

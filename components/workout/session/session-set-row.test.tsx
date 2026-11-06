@@ -16,6 +16,7 @@ vi.mock("@/components/providers/locale-provider", () => ({
         progressionSetHint: (target: string) => `Suggested ${target}`,
         removeSet: "Remove set",
         seededWeightHint: "Starting weight from earlier training",
+        tempoHint: (tempo: string, seconds: number) => `Tempo ${tempo}, ${seconds}s a rep`,
         reps: "Reps",
         setOptions: "Set options",
         weightInUnit: (unit: string) => `Weight in ${unit}`,
@@ -108,6 +109,39 @@ describe("SessionSetRow", () => {
     // The weight still shows — a first week is not blank — but it is labelled,
     // and the engine suggests nothing to follow, so no target tints the cell.
     expect(screen.getByTitle("Starting weight from earlier training")).toHaveTextContent("80×8-10")
+  })
+
+  it("shows a prescribed cadence compactly, with the full one in the title", () => {
+    render(
+      <SessionSetRow
+        active
+        canRemove={false}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+        set={{ ...baseSet, tempo: "3-1-1-0" }}
+        setIndex={0}
+        weightUnit="kg"
+      />,
+    )
+
+    // Four glyphs, because the set-number column has no room for the hyphens.
+    expect(screen.getByTitle("Tempo 3-1-1-0, 5s a rep")).toHaveTextContent("3110")
+  })
+
+  it("leaves the set number alone when no cadence was prescribed", () => {
+    render(
+      <SessionSetRow
+        active
+        canRemove={false}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+        set={baseSet}
+        setIndex={0}
+        weightUnit="kg"
+      />,
+    )
+
+    expect(screen.queryByTitle(/^Tempo /)).toBeNull()
   })
 
   it.each(["12,5", "12.5"])("accepts decimal weight %s", (value) => {

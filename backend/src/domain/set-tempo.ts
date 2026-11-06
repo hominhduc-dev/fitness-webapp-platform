@@ -25,6 +25,13 @@ const TEMPO_PHASE_COUNT = 4
 const MAX_TEMPO_PHASE_SECONDS = 60
 /** The concentric is the one phase written as a letter: "as fast as you can". */
 const EXPLOSIVE_PHASE = "X"
+/**
+ * What "X" is worth when the cadence is added up. An explosive concentric still
+ * takes about a second under a working load; counting it as zero would say the
+ * lift happens in no time at all, and would make every cadence containing one
+ * look shorter than it is.
+ */
+const EXPLOSIVE_PHASE_SECONDS = 1
 
 /** Values that explicitly mean "no tempo here", as opposed to a typo. */
 const EMPTY_TEMPO_TOKENS = new Set(["", "-", "--", "—", "none", "no", "normal", "n/a", "na"])
@@ -72,6 +79,23 @@ function parseSetTempo(value: unknown): string | undefined {
 
 function isSetTempo(value: unknown): value is string {
   return parseSetTempo(value) !== undefined
+}
+
+/**
+ * Seconds one rep takes at this cadence — the four phases added up.
+ *
+ * This is what makes a tempo comparable rather than a label: the same load for
+ * the same reps at 4-1-1-0 keeps the muscle under tension twice as long as at
+ * 2-0-1-0, so the two sets did not ask for the same thing and cannot be read as
+ * progress on one another.
+ */
+function repTutSeconds(tempo: unknown): number | undefined {
+  const parsed = parseSetTempo(tempo)
+  if (!parsed) return undefined
+
+  return parsed
+    .split("-")
+    .reduce((total, phase) => total + (phase === EXPLOSIVE_PHASE ? EXPLOSIVE_PHASE_SECONDS : Number(phase)), 0)
 }
 
 /**
@@ -233,9 +257,11 @@ function parseSetTempoCell(raw: unknown, setCount: number): ParsedSetTempoCell {
 
 export {
   EXPLOSIVE_PHASE,
+  EXPLOSIVE_PHASE_SECONDS,
   MAX_TEMPO_PHASE_SECONDS,
   TEMPO_PHASE_COUNT,
   buildSetTempoMap,
+  repTutSeconds,
   formatSetTempoCell,
   isSetTempo,
   normalizeSetTempoAssignments,
