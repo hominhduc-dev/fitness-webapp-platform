@@ -155,6 +155,12 @@ function formatExerciseVariationLabel(input: ExerciseVariationLabelInput) {
   return buildExerciseDisplayName(input)
 }
 
+export function capitalizeExerciseName(name: string) {
+  return name.replace(/(^|[^\p{L}\p{M}\p{N}'’])(\p{L})/gu, (_, separator: string, initial: string) =>
+    separator + initial.toUpperCase(),
+  )
+}
+
 function formatExerciseVariationMeta(input: ExerciseVariationMetaInput) {
   const parts = [`Variation: ${getVariationDisplayName(input)}`]
   const equipment = getTrimmedValue(input.equipment)

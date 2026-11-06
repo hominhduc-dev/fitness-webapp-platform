@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { AdminExerciseItem } from "@/lib/admin/types"
+import { capitalizeExerciseName } from "@/lib/exercise-display"
 import type { LibraryGroup, LibraryGroupKey } from "@/lib/fitness/exercise-library-groups"
 import { movementPatternLabel } from "@/lib/fitness/movement-pattern"
 import type { ExerciseActivityType } from "@/lib/types"
@@ -59,7 +60,10 @@ function exerciseSubtitle(exercise: AdminExerciseItem, locale: Locale) {
 }
 
 function exerciseTitle(exercise: AdminExerciseItem) {
-  return exercise.variationName && exercise.variationName !== "Default" ? `${exercise.name} · ${exercise.variationName}` : exercise.name
+  const name = capitalizeExerciseName(exercise.name)
+  return exercise.variationName && exercise.variationName !== "Default"
+    ? `${name} · ${capitalizeExerciseName(exercise.variationName)}`
+    : name
 }
 
 /* ------------------------------------------------------------------ */
@@ -124,7 +128,7 @@ export function ExerciseGroupGrid({
               <span className="mt-3 border-t border-border pt-3">
                 {highlights.map((exercise) => (
                   <span key={exercise.id} className="block truncate py-0.5 text-sm text-muted-foreground">
-                    {exercise.name}
+                    {capitalizeExerciseName(exercise.name)}
                   </span>
                 ))}
               </span>
@@ -162,7 +166,7 @@ function ExerciseRowActions({ exercise, locale, handlers }: { exercise: AdminExe
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-sm" className="shrink-0 text-muted-foreground" aria-label={`${copy.actions}: ${exercise.name}`}>
+        <Button type="button" variant="ghost" size="icon-sm" className="shrink-0 text-muted-foreground" aria-label={`${copy.actions}: ${exerciseTitle(exercise)}`}>
           {busy ? <Loader2 className="size-4 animate-spin" /> : <EllipsisVertical className="size-4" />}
         </Button>
       </DropdownMenuTrigger>
@@ -239,7 +243,7 @@ export function ExerciseRowGrid({
                 <span className="size-4 shrink-0" />
               )
             ) : null}
-            <ExerciseThumbnail media={exercise.media} name={exercise.name} previewable size="lg" />
+            <ExerciseThumbnail media={exercise.media} name={exerciseTitle(exercise)} previewable size="lg" />
             <button
               type="button"
               disabled={!canManage}
