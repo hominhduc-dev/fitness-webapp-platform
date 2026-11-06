@@ -258,7 +258,6 @@ export const coachMessages = {
         `· ${count} workout${count === 1 ? "" : "s"} this week${lastSeen ? ` · last seen ${lastSeen}` : ""}`,
       traineesOverviewCopy:
         "Use this table to scan completion rate, workload, and jump into plan adjustments when needed.",
-      unreadNotifications: (count: number) => `${count} unread notification${count === 1 ? "" : "s"}`,
       unknown: "unknown",
       untitledProgram: "Untitled program",
       updateProgramDetails: "Updating workouts, rep targets, and assignments.",
@@ -633,7 +632,6 @@ export const coachMessages = {
         `· ${count} buổi tuần này${lastSeen ? ` · lần cuối ${lastSeen}` : ""}`,
       traineesOverviewCopy:
         "Dùng bảng này để quét nhanh completion rate, workload và vào điều chỉnh plan khi cần.",
-      unreadNotifications: (count: number) => `${count} thông báo chưa đọc`,
       unknown: "không rõ",
       untitledProgram: "Program chưa đặt tên",
       updateProgramDetails: "Đang cập nhật buổi tập, rep target và phân công.",

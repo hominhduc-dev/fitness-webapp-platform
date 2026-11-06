@@ -117,11 +117,12 @@ async function CoachDashboardContent() {
             </Link>
           </Button>
         </div>
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {/* No "Need attention" card here: its count is the section below, and
+            its unread-notification subtitle is the header bell's own badge. */}
+        <div className="grid grid-cols-3 gap-3">
           <CoachStatCard title={coach.totalTrainees} value={dashboard.summary.totalTrainees} subtitle={copy.plannedSessions(dashboard.summary.totalPlannedSessions)} icon={Users} />
           <CoachStatCard title={coach.workoutsLogged} value={dashboard.summary.workoutsThisWeek} icon={Dumbbell} />
           <CoachStatCard title={coach.averageCompletion} value={formatPercent(dashboard.summary.averageCompletionRate)} subtitle={copy.assignedWorkload} icon={TrendingUp} />
-          <CoachStatCard title={coach.needAttention} value={dashboard.summary.atRiskTraineeCount} subtitle={coach.unreadNotifications(dashboard.summary.unreadNotificationCount)} icon={AlertTriangle} href="#coach-attention" warning={dashboard.summary.atRiskTraineeCount > 0} />
         </div>
       </section>
 
@@ -140,7 +141,7 @@ async function CoachDashboardContent() {
       <PendingRequestsPanel initialRequests={dashboard.pendingRequests} />
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:gap-6">
-        <section id="coach-attention" tabIndex={-1} aria-labelledby="coach-attention-title" className="order-1 scroll-mt-20 rounded-2xl border border-border bg-card p-5 focus-visible:outline-ring xl:col-start-2 xl:row-start-1">
+        <section aria-labelledby="coach-attention-title" className="order-1 rounded-2xl border border-border bg-card p-5 xl:col-start-2 xl:row-start-1">
             <div className="flex items-center justify-between gap-3">
               <h2 id="coach-attention-title" className="text-lg font-semibold tracking-tight">{coach.needAttention}</h2>
               <span className={cn("flex size-8 items-center justify-center rounded-xl", dashboard.atRiskTrainees.length > 0 ? "bg-warning-soft text-warning-text" : "bg-success-soft text-success-text")}>
