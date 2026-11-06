@@ -1,0 +1,48 @@
+.card {
+  --exercise-group-surface: var(--card);
+  --exercise-group-figure-surface: var(--muted);
+  --exercise-group-highlight: var(--primary);
+  --exercise-group-silhouette: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 2);
+  padding: calc(var(--spacing) * 3);
+  border: 1px solid var(--border);
+  background: var(--exercise-group-surface);
+  color: var(--card-foreground);
+}
+
+.figure {
+  min-block-size: calc(var(--spacing) * 24);
+  background: var(--exercise-group-figure-surface);
+}
+
+@media (hover: hover) {
+  .card:hover {
+    background: var(--surface-hover);
+  }
+}
+
+.card:active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (width >= 64rem) {
+  .card {
+    flex-direction: row;
+    align-items: center;
+    gap: calc(var(--spacing) * 3);
+  }
+
+  .figure {
+    flex: none;
+    inline-size: calc(var(--spacing) * 20);
+  }
+}
