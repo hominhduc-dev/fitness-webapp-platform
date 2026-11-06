@@ -166,6 +166,7 @@ async function exportTraineeLogsToGoogleDrive(
                           setNumber: true,
                           targetReps: true,
                           targetRepsMin: true,
+                          tempo: true,
                           weight: true,
                         },
                       },

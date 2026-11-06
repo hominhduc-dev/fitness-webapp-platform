@@ -90,7 +90,8 @@ export function refreshWeekPlan(
   const requests: unknown[] = []
   const rirColumn = ensureHeaderColumn(next, requests, sheetId, headerIndex, "RIR", { fallbackIndex: DEFAULT_RIR_COLUMN })
   const methodColumn = ensureHeaderColumn(next, requests, sheetId, headerIndex, "Method", { after: "RIR", fallbackIndex: rirColumn + 1 })
-  const restColumn = ensureHeaderColumn(next, requests, sheetId, headerIndex, "Rest (s)", { after: "Method", fallbackIndex: methodColumn + 1 })
+  const tempoColumn = ensureHeaderColumn(next, requests, sheetId, headerIndex, "Tempo", { after: "Method", fallbackIndex: methodColumn + 1 })
+  const restColumn = ensureHeaderColumn(next, requests, sheetId, headerIndex, "Rest (s)", { after: "Tempo", fallbackIndex: tempoColumn + 1 })
   const noteColumn = ensureHeaderColumn(next, requests, sheetId, headerIndex, "Note", { after: "Rest (s)", fallbackIndex: restColumn + 1 })
   const lastColumn = Math.max(rirColumn, methodColumn, restColumn, noteColumn)
 

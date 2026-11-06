@@ -1,4 +1,5 @@
 import type { SetIntensityAssignment } from "@/lib/workout/intensity-tag"
+import type { SetTempoAssignment } from "@/lib/workout/set-tempo"
 import type {
   DailyNutrition,
   ExerciseBase,
@@ -491,6 +492,8 @@ type CreateCoachProgramInput = {
       rir?: number
       /** Per-set method tags; sets left out are normal straight sets. */
       setIntensityTags?: SetIntensityAssignment[]
+      /** Per-set rep cadences; sets left out carry none. */
+      setTempos?: SetTempoAssignment[]
       variationId: string
       reps: number
       restTime?: number
@@ -512,6 +515,8 @@ type CreateWorkoutInput = {
     rir?: number
     /** Per-set method tags; sets left out are normal straight sets. */
     setIntensityTags?: SetIntensityAssignment[]
+    /** Per-set rep cadences; sets left out carry none. */
+    setTempos?: SetTempoAssignment[]
     variationId: string
     reps: number
     restTime?: number

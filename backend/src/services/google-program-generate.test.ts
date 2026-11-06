@@ -36,6 +36,7 @@ const set = (overrides: Partial<SourceSet> = {}): SourceSet => ({
   setNumber: 1,
   targetReps: 10,
   targetRepsMin: null,
+  tempo: null,
   weight: null,
   ...overrides,
 })

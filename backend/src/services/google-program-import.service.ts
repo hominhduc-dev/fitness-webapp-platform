@@ -16,6 +16,8 @@ export function parseGoogleProgramRows(values: string[][]) {
   // Optional: sheets created before per-set methods existed have no Method
   // column, and must keep importing unchanged.
   const methodColumn = header.indexOf("Method")
+  // Absent on every sheet made before tempo existed, which must keep importing.
+  const tempoColumn = header.indexOf("Tempo")
   let day = ""
   const orders = new Map<number, number>()
   const number = (value?: string) => value?.trim() ? Number(value) : undefined
@@ -35,6 +37,7 @@ export function parseGoogleProgramRows(values: string[][]) {
       sets: number(cells[5]), reps: cells[6]?.trim() ?? "", weight: number(cells[7]),
       rir: number(cells[rirColumn]), restTime: number(cells[restColumn]),
       method: methodColumn >= 0 ? cells[methodColumn]?.trim() || undefined : undefined,
+      tempo: tempoColumn >= 0 ? cells[tempoColumn]?.trim() || undefined : undefined,
       notes: cells[header.indexOf("Note")]?.trim() || undefined,
     }]
   })

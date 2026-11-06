@@ -39,9 +39,10 @@ describe("refreshWeekPlan", () => {
     expect(rows.filter((row) => row.scheduledDay === 1).map((row) => [row.order, row.variationId])).toEqual([
       [1, "v-press"], [2, "v-dead"], [3, "v-curl"],
     ])
-    // The RIR, note and results land in this tab's own columns, wherever they moved to.
-    expect(values[4][15]).toBe("2")
-    expect(values[4][18]).toBe("Slow eccentric")
+    // The RIR, note and results land in this tab's own columns, wherever they
+    // moved to — resolved by header so adding a column cannot break the claim.
+    expect(values[4][values[1].indexOf("RIR")]).toBe("2")
+    expect(values[4][values[1].indexOf("Note")]).toBe("Slow eccentric")
     // Calf Raise is gone from the plan, so its row is gone from the sheet.
     expect(values[5].slice(1).some(Boolean)).toBe(false)
   })
@@ -82,14 +83,20 @@ describe("refreshWeekPlan", () => {
       exercises: [planned("v-press", "Leg Press", { method: "3:mrm", restTime: 90, rir: 2 })],
     }])
 
-    expect(result.values[1].slice(14, 18)).toEqual(["RIR", "Method", "Rest (s)", "Note"])
-    expect(result.values[2].slice(14, 17)).toEqual(["2", "3:mrm", "90"])
-    expect(result.requests).toContainEqual({
-      insertDimension: {
-        inheritFromBefore: true,
-        range: { dimension: "COLUMNS", endIndex: 16, sheetId: 7, startIndex: 15 },
-      },
-    })
+    // Method and Tempo are both missing here, so both are inserted, in order,
+    // and Rest and Note shift right to make room.
+    expect(result.values[1].slice(14, 19)).toEqual(["RIR", "Method", "Tempo", "Rest (s)", "Note"])
+    // This plan prescribes no cadence, so the writer never touches the Tempo
+    // cell and it stays an untouched slot, exactly as Method does when absent.
+    expect(result.values[2].slice(14, 18)).toEqual(["2", "3:mrm", undefined, "90"])
+    for (const startIndex of [15, 16]) {
+      expect(result.requests).toContainEqual({
+        insertDimension: {
+          inheritFromBefore: true,
+          range: { dimension: "COLUMNS", endIndex: startIndex + 1, sheetId: 7, startIndex },
+        },
+      })
+    }
   })
 })
 

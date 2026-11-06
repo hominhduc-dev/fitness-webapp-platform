@@ -1,4 +1,5 @@
 import { formatSetIntensityMethodCell, type SetIntensityAssignment } from "../domain/set-intensity-tag"
+import { formatSetTempoCell, type SetTempoAssignment } from "../domain/set-tempo"
 import type { PlanDay, PlanExercise } from "./google-program-plan.service"
 
 /**
@@ -16,6 +17,7 @@ export type SourceSet = {
   setNumber: number
   targetReps: number
   targetRepsMin: number | null
+  tempo: string | null
   weight: number | null
 }
 
@@ -88,6 +90,9 @@ function toPlanExercise(exercise: SourceExercise): PlanExercise {
   const assignments = exercise.sets.flatMap((set) =>
     set.intensityTag ? [{ setNumber: set.setNumber, tag: set.intensityTag } as SetIntensityAssignment] : [],
   )
+  const tempos = exercise.sets.flatMap((set) =>
+    set.tempo ? [{ setNumber: set.setNumber, tempo: set.tempo } as SetTempoAssignment] : [],
+  )
 
   return {
     displayName: variationDisplayName(exercise.variation),
@@ -98,6 +103,7 @@ function toPlanExercise(exercise: SourceExercise): PlanExercise {
     restTime: exercise.restTime ?? undefined,
     rir: first?.rir ?? undefined,
     sets: exercise.sets.length || undefined,
+    tempo: formatSetTempoCell(tempos, exercise.sets.length) || undefined,
     variationId: exercise.variation.id,
     variationName: exercise.variation.name,
     weight: first?.weight ?? undefined,

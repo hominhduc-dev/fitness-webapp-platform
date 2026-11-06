@@ -3,7 +3,9 @@ import { buildCoachProgramTemplate, importCoachProgramTemplate } from "./program
 import type { ExerciseVariationOption } from "@/lib/fitness/types"
 
 const exercises = [{ id: "bench-1", exerciseId: "bench", name: "Bench Press", exerciseName: "Bench Press", variationName: "Default", muscleGroup: "chest", isDefault: true, primaryMuscles: [], secondaryMuscles: [], activityType: "strength" }] as unknown as ExerciseVariationOption[]
-describe("program template round trip", () => {
+// These build and re-parse a real xlsx workbook, which runs close to the 5s
+// default when the suite is loaded and had been failing at random because of it.
+describe("program template round trip", { timeout: 20_000 }, () => {
   it("keeps the agreed columns, strict dropdown, hidden formula ID and merged days", async () => {
     const workbook = await buildCoachProgramTemplate(exercises, [])
     const sheet = workbook.getWorksheet("Week 1")!
@@ -15,7 +17,8 @@ describe("program template round trip", () => {
     // The Method picker must not reject typed per-set syntax the importer accepts.
     expect(sheet.getCell("P3").dataValidation).toMatchObject({ type: "list", allowBlank: true, showErrorMessage: false })
     expect((sheet.getCell("P3").dataValidation as { formulae: string[] }).formulae[0]).toContain("all:drop")
-    expect(sheet.getCell("Q2").value).toBe("Rest (s)")
+    expect(sheet.getCell("Q2").value).toBe("Tempo")
+    expect(sheet.getCell("R2").value).toBe("Rest (s)")
     expect(sheet.getCell("C3").dataValidation).toMatchObject({ type: "list", errorStyle: "stop", showErrorMessage: true })
     expect(sheet.getCell("I3").dataValidation).toBeUndefined()
     expect(sheet.getCell("A4").isMerged).toBe(true)
@@ -27,14 +30,32 @@ describe("program template round trip", () => {
     sheet.getCell("F3").value = 3
     sheet.getCell("G3").value = "8-12"
     sheet.getCell("P3").value = "3:mrm"
-    sheet.getCell("Q3").value = 90
+    sheet.getCell("Q3").value = "1:2-0-1-0,2:4-1-1-0"
+    sheet.getCell("R3").value = 90
     const buffer = await workbook.xlsx.writeBuffer()
     const file = { arrayBuffer: async () => buffer } as unknown as File
     const result = await importCoachProgramTemplate(file, exercises, [])
     expect(result.workouts).toHaveLength(8)
     // weekIndex counts from 0: the authored week is the program's first.
-    expect(result.workouts[0]).toMatchObject({ scheduledDay: 1, weekIndex: 0, exercises: [expect.objectContaining({ variationId: "bench-1", reps: 12, repsMin: 8, restTime: 90, setIntensityTags: [{ setNumber: 3, tag: "mrm" }] })] })
+    expect(result.workouts[0]).toMatchObject({ scheduledDay: 1, weekIndex: 0, exercises: [expect.objectContaining({ variationId: "bench-1", reps: 12, repsMin: 8, restTime: 90, setIntensityTags: [{ setNumber: 3, tag: "mrm" }], setTempos: [{ setNumber: 1, tempo: "2-0-1-0" }, { setNumber: 2, tempo: "4-1-1-0" }] })] })
     expect(result.workouts[7].weekIndex).toBe(7)
+  })
+
+  it("rejects a Tempo the coach mistyped instead of importing the row without it", async () => {
+    const workbook = await buildCoachProgramTemplate(exercises, [])
+    const sheet = workbook.getWorksheet("Week 1")!
+
+    for (let row = 3; row <= 50; row++) for (const column of [3, 5, 6, 7, 8]) sheet.getCell(row, column).value = ""
+    sheet.getCell("C3").value = "Bench Press"
+    sheet.getCell("E3").value = { formula: "1", result: "bench-1" }
+    sheet.getCell("F3").value = 3
+    sheet.getCell("G3").value = "10"
+    sheet.getCell("Q3").value = "3-1-1"
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    const file = { arrayBuffer: async () => buffer } as unknown as File
+
+    await expect(importCoachProgramTemplate(file, exercises, [])).rejects.toThrow(/Tempo /)
   })
 
   it("rejects a Method the coach mistyped instead of importing the row untagged", async () => {
