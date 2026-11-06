@@ -3,7 +3,8 @@
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -13,6 +14,8 @@ import { cn } from "@/lib/utils"
 import {
   INTENSITY_TAGS,
   INTENSITY_TAG_BADGES,
+  hasTopBackoffScheme,
+  setIntensityMethodAssignments,
   normalizeSetIntensityAssignments,
   type IntensityTag,
   type SetIntensityAssignment,
@@ -26,6 +29,8 @@ export function getIntensityTagLabel(tag: IntensityTag, messages: AppMessages) {
     mrm: messages.workoutPage.intensityTagMrm,
     rest_pause: messages.workoutPage.intensityTagRestPause,
     warmup: messages.workoutPage.intensityTagWarmup,
+    top_set: messages.workoutPage.intensityTagTopSet,
+    back_off: messages.workoutPage.intensityTagBackoff,
   }
 
   return labels[tag]
@@ -54,92 +59,49 @@ type SetIntensityTagPickerProps = {
   onChange: (assignments: SetIntensityAssignment[]) => void
   setCount: number
   value: SetIntensityAssignment[] | undefined
+  disabled?: boolean
 }
 
-/**
- * Coach-side control: one round chip per set, numbered, each opening the method
- * list. A tagged set turns primary and carries its badge.
- *
- * The chips are 28px so five sets still share a row with the note on a phone;
- * `tap-target` gives each an invisible 44px hit area on touch screens.
- *
- * The chips are rendered from `setCount`, so shrinking an exercise drops the
- * chips for the sets that no longer exist — and the assignments with them, via
- * the same normalisation the service applies when saving.
- */
-export function SetIntensityTagPicker({ className, messages, onChange, setCount, value }: SetIntensityTagPickerProps) {
-  const sets = Math.max(0, Math.min(20, Math.round(setCount) || 0))
+/** Compact numbered method chips; the tag badge doesn't widen the row. */
+export function SetIntensityTagPicker({ className, messages, onChange, setCount, value, disabled }: SetIntensityTagPickerProps) {
+  const t = messages.workoutPage
+  const sets = Math.max(0, Math.min(100, Math.floor(setCount) || 0))
   const assignments = normalizeSetIntensityAssignments(value, sets)
-  const tagBySetNumber = new Map(assignments.map(({ setNumber, tag }) => [setNumber, tag]))
+  const tagBySet = new Map(assignments.map(({ setNumber, tag }) => [setNumber, tag]))
 
-  if (sets === 0) return null
+  const combined = hasTopBackoffScheme(assignments, sets)
 
-  const select = (setNumber: number, tag: IntensityTag | null) => {
-    const next = assignments.filter((assignment) => assignment.setNumber !== setNumber)
-
-    onChange(normalizeSetIntensityAssignments(tag ? [...next, { setNumber, tag }] : next, sets))
-  }
-
-  return (
-    <div className={cn("flex min-w-0 flex-col gap-1", className)}>
-      <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-        {messages.workoutPage.intensityMethodLabel}
-      </span>
-      {/* pt-2 leaves room for the method badge that floats above a tagged chip. */}
-      <div className="flex flex-wrap items-center gap-1 pt-2">
-      {Array.from({ length: sets }, (_value, index) => {
+  if (!sets) return null
+  return <div className={cn("flex min-w-0 flex-col gap-1", className)} role="group" aria-label={t.intensityMethodLabel}>
+    <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">{t.intensityMethodLabel}</span>
+    <div className="flex flex-wrap items-center gap-x-1 gap-y-3 pt-2">
+      {Array.from({ length: sets }, (_, index) => {
         const setNumber = index + 1
-        const tag = tagBySetNumber.get(setNumber)
-
-        return (
-          <DropdownMenu key={setNumber}>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label={
-                  tag
-                    ? messages.workoutPage.intensitySetMethodLabel(setNumber, getIntensityTagLabel(tag, messages))
-                    : messages.workoutPage.intensitySetMethodLabel(setNumber, messages.workoutPage.intensityNormalSet)
-                }
-                className={cn(
-                  "tap-target relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border font-mono text-xs font-semibold tnum transition-colors",
-                  tag
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground",
-                )}
-              >
-                {setNumber}
-                {/* The badge floats above the chip instead of widening it, so a
-                    tagged set stays 28px and five sets still fit beside the note. */}
-                {tag ? (
-                  <span className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 rounded-full border border-primary bg-card px-1 font-mono text-[8px] font-semibold leading-3 tracking-[0.04em] text-primary">
-                    {INTENSITY_TAG_BADGES[tag]}
-                  </span>
-                ) : null}
-              </button>
-            </DropdownMenuTrigger>
-            {/* Above the routine builder dialog (z-[90]) that hosts this picker. */}
-            <DropdownMenuContent align="start" className="z-[100] w-48">
-              <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
-                {messages.workoutPage.intensitySetChip(setNumber)}
-              </DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => select(setNumber, null)}>
-                {messages.workoutPage.intensityNormalSet}
-              </DropdownMenuItem>
+        const tag = tagBySet.get(setNumber)
+        const derived = combined && setNumber > 1
+        const label = tag ? getIntensityTagLabel(tag, messages) : t.intensityNormalSet
+        const triggerLabel = t.intensitySetMethodLabel(setNumber, label)
+        return <DropdownMenu key={setNumber}>
+          <DropdownMenuTrigger asChild>
+            <button type="button" disabled={disabled || derived} aria-label={derived ? `${triggerLabel}. ${t.intensityBackoffDerivedHint}` : triggerLabel} title={derived ? t.intensityBackoffDerivedHint : undefined} className={cn("tap-target relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border font-mono text-xs font-semibold tnum transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50", derived && !disabled && "disabled:opacity-100", tag ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground")}>
+              {setNumber}
+              {tag ? <span aria-hidden className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 rounded-full border border-primary bg-card px-1 font-mono text-[8px] font-semibold leading-3 tracking-[0.04em] text-primary">{INTENSITY_TAG_BADGES[tag]}</span> : null}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="z-[100] w-48">
+            <DropdownMenuLabel className="text-xs text-muted-foreground">{t.intensitySetChip(setNumber)}</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={tag ?? "normal"} onValueChange={(method) => onChange(setIntensityMethodAssignments(assignments, sets, setNumber, method === "normal" ? null : method as IntensityTag))}>
+              <DropdownMenuRadioItem value="normal" className="pointer-coarse:min-h-11">{t.intensityNormalSet}</DropdownMenuRadioItem>
               <DropdownMenuSeparator />
-              {INTENSITY_TAGS.map((option) => (
-                <DropdownMenuItem key={option} onClick={() => select(setNumber, option)}>
-                  <span className="mr-2 font-mono text-micro font-semibold text-muted-foreground">
-                    {INTENSITY_TAG_BADGES[option]}
-                  </span>
-                  {getIntensityTagLabel(option, messages)}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )
+              {setNumber === 1 ? <DropdownMenuRadioItem value="top_set" className="pointer-coarse:min-h-11">{t.topBackoffPreset}</DropdownMenuRadioItem> : null}
+              {INTENSITY_TAGS.filter((method) => method !== "top_set" && method !== "back_off").map((method) => <DropdownMenuRadioItem key={method} value={method} className="pointer-coarse:min-h-11">
+                <span aria-hidden className="font-mono text-micro font-semibold text-muted-foreground">{INTENSITY_TAG_BADGES[method]}</span>
+                {getIntensityTagLabel(method, messages)}
+              </DropdownMenuRadioItem>)}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
       })}
-      </div>
     </div>
-  )
+  </div>
 }

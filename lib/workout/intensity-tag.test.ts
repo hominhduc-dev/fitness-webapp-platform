@@ -31,6 +31,12 @@ describe("method cell parsing", () => {
     expect(parseSetIntensityMethodCell("myorep", 3).error).toMatch(/myorep/)
     expect(parseSetIntensityMethodCell("4:mrm", 3).error).toMatch(/1-3/)
   })
+
+  it("preserves named top and back-off stages with backend-compatible aliases", () => {
+    expect(parseSetIntensityMethodCell("1:warmup,2:top_set,3:back-off set", 3)).toEqual({ assignments: [
+      { setNumber: 1, tag: "warmup" }, { setNumber: 2, tag: "top_set" }, { setNumber: 3, tag: "back_off" },
+    ] })
+  })
 })
 
 describe("the Method dropdown choices", () => {

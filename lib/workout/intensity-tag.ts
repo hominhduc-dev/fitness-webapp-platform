@@ -7,7 +7,7 @@
  * grammar because a coach's sheet is parsed on whichever side reads it first.
  */
 
-export type IntensityTag = "mrm" | "drop_set" | "rest_pause" | "cluster" | "failure" | "warmup"
+export type IntensityTag = "mrm" | "drop_set" | "rest_pause" | "cluster" | "failure" | "warmup" | "top_set" | "back_off"
 
 export type SetIntensityAssignment = {
   setNumber: number
@@ -21,6 +21,8 @@ export const INTENSITY_TAGS = [
   "cluster",
   "failure",
   "warmup",
+  "top_set",
+  "back_off",
 ] as const satisfies readonly IntensityTag[]
 
 /** The short badge the trainee sees in the set row. Keep them under five glyphs. */
@@ -31,6 +33,8 @@ export const INTENSITY_TAG_BADGES: Record<IntensityTag, string> = {
   mrm: "MRM",
   rest_pause: "RP",
   warmup: "WU",
+  top_set: "TOP",
+  back_off: "BACK",
 }
 
 /**
@@ -45,6 +49,8 @@ export const INTENSITY_METHOD_SHEET_TOKENS: Record<IntensityTag, string> = {
   mrm: "mrm",
   rest_pause: "rp",
   warmup: "warmup",
+  top_set: "top",
+  back_off: "backoff",
 }
 
 /**
@@ -70,6 +76,8 @@ const INTENSITY_TAG_ALIASES: Array<[IntensityTag, string[]]> = [
   ["cluster", ["cluster", "cls"]],
   ["failure", ["failure", "fail", "to failure"]],
   ["warmup", ["warmup", "warm up", "warm-up"]],
+  ["top_set", ["top", "top set", "top_set", "topset"]],
+  ["back_off", ["backoff", "back off", "back-off", "backoff set", "back off set", "back-off set", "back_off"]],
 ]
 
 /** Values that explicitly mean "no method here", as opposed to a typo. */
@@ -131,6 +139,31 @@ export function readSetIntensityAssignments(
   sets: ReadonlyArray<{ intensityTag?: IntensityTag; setNumber: number }>,
 ): SetIntensityAssignment[] {
   return sets.flatMap((set) => (set.intensityTag ? [{ setNumber: set.setNumber, tag: set.intensityTag }] : []))
+}
+
+/** Detects the scheme controlled by the first chip without changing imported methods. */
+export function hasTopBackoffScheme(assignments: readonly SetIntensityAssignment[] | undefined, setCount: number) {
+  const normalized = normalizeSetIntensityAssignments(assignments, setCount)
+  return setCount > 0 && normalized.length === setCount && normalized.every(({ setNumber, tag }) => tag === (setNumber === 1 ? "top_set" : "back_off"))
+}
+
+/** The combined choice sets all roles; changing set 1 exits the whole scheme. */
+export function setIntensityMethodAssignments(
+  assignments: readonly SetIntensityAssignment[] | undefined,
+  setCount: number,
+  setNumber: number,
+  tag: IntensityTag | null,
+): SetIntensityAssignment[] {
+  if (setNumber === 1 && tag === "top_set") {
+    return Array.from({ length: Math.max(0, Math.min(100, Math.floor(setCount))) }, (_, index) => ({
+      setNumber: index + 1,
+      tag: index === 0 ? "top_set" : "back_off",
+    }))
+  }
+  const isCombined = hasTopBackoffScheme(assignments, setCount)
+  if (isCombined && setNumber > 1) return normalizeSetIntensityAssignments(assignments, setCount)
+  const others = isCombined ? [] : (assignments ?? []).filter((assignment) => assignment.setNumber !== setNumber)
+  return normalizeSetIntensityAssignments(tag ? [...others, { setNumber, tag }] : others, setCount)
 }
 
 export type ParsedIntensityMethod =

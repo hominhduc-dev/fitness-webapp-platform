@@ -14,6 +14,8 @@ vi.mock("@/components/providers/locale-provider", () => ({
         markIncomplete: "Mark incomplete",
         noteForSet: "Note",
         progressionSetHint: (target: string) => `Suggested ${target}`,
+        backoffWeightHint: (weight: string, reduction: number, rounded: boolean) => `Suggested ${weight} (Top set −${reduction}%${rounded ? ", rounded to a 5 kg step" : ""})`,
+        useBackoffWeight: "Use suggestion",
         removeSet: "Remove set",
         seededWeightHint: "Starting weight from earlier training",
         tempoHint: (tempo: string, seconds: number) => `Tempo ${tempo}, ${seconds}s a rep`,
@@ -35,6 +37,18 @@ const baseSet: ExerciseSet = {
 afterEach(cleanup)
 
 describe("SessionSetRow", () => {
+  it("keeps manually entered weight until the trainee chooses the Back-off suggestion", () => {
+    const onChange = vi.fn()
+    render(<SessionSetRow backoffWeight={55} canRemove={false} onChange={onChange} onRemove={vi.fn()} set={{ ...baseSet, weight: 50 }} setIndex={1} weightUnit="kg" />)
+    const input = screen.getByLabelText("Weight in kg")
+    expect(input).toHaveValue("50")
+    expect(screen.getByText("Suggested 55 kg (Top set −15%, rounded to a 5 kg step)")).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Use suggestion" }))
+    expect(onChange).toHaveBeenLastCalledWith({ weight: 55 })
+    fireEvent.change(input, { target: { value: "52.5" } })
+    expect(onChange).toHaveBeenLastCalledWith({ weight: 52.5 })
+  })
   it("uses the program goal RIR suggestion as a placeholder without writing a value", () => {
     const onChange = vi.fn()
     render(

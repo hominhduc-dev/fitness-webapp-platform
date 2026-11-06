@@ -27,6 +27,7 @@ import type { CoachUpdate, ExerciseProgression, ExerciseSet, WorkoutExercise } f
 import { cn } from "@/lib/utils"
 import { formatRepTarget } from "@/lib/workout-reps"
 import { activeSetIndex } from "@/lib/workout/session-navigation"
+import { backoffWeightSuggestions } from "@/lib/workout/set-targets"
 
 /** Per-set targets from the progression engine, keyed by set number. */
 function progressionSuggestions(progression: ExerciseProgression | undefined) {
@@ -155,6 +156,7 @@ export function SessionExerciseView({
   const CoachUpdateIcon = coachUpdateMeta?.icon
   const targetSummary = useTargetSummary(exercise, programSetTargets)
   const suggestions = progressionSuggestions(exercise.progression)
+  const backoffWeights = backoffWeightSuggestions(exercise.sets, weightUnit)
   const progression = exercise.progression && exercise.progression.action !== "establish_baseline"
     ? exercise.progression
     : null
@@ -331,6 +333,7 @@ export function SessionExerciseView({
               key={set.id}
               programTarget={programSetTargets.get(set.id)}
               suggestion={suggestions.get(set.setNumber)}
+              backoffWeight={backoffWeights.get(set.id)}
               set={set}
               setIndex={idx}
               weightUnit={weightUnit}
