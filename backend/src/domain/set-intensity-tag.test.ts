@@ -8,6 +8,11 @@ import {
 } from "./set-intensity-tag"
 
 describe("method cell parsing", () => {
+  it("accepts explicit warm-up/top/back-off assignments", () => {
+    expect(parseSetIntensityMethodCell("1:warmup,2:top set,3:back-off set", 3)).toEqual({ assignments: [
+      { setNumber: 1, tag: "warmup" }, { setNumber: 2, tag: "top_set" }, { setNumber: 3, tag: "back_off" },
+    ] })
+  })
   it("treats blank, dash and 'normal' as an untagged exercise", () => {
     for (const raw of ["", "  ", "-", "—", "normal", undefined, null]) {
       expect(parseSetIntensityMethodCell(raw, 3)).toEqual({ assignments: [] })
