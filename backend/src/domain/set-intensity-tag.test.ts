@@ -1,11 +1,37 @@
+import { $Enums } from "@prisma/client"
 import { describe, expect, it } from "vitest"
 
 import {
+  SET_INTENSITY_TAGS,
+  SET_INTENSITY_TAG_BADGES,
   buildSetIntensityTagMap,
   normalizeSetIntensityAssignments,
   parseSetIntensityMethodCell,
   parseSetIntensityTag,
 } from "./set-intensity-tag"
+
+describe("the tags the database may hold", () => {
+  it("can render every value the enum allows, not just the ones it offers", () => {
+    // A value stored in the database but unknown to the code is a read error on
+    // every row that carries it, which took the coach programs page down once.
+    for (const tag of Object.values($Enums.SetIntensityTag)) {
+      expect(SET_INTENSITY_TAG_BADGES[tag], `no badge for ${tag}`).toBeTruthy()
+    }
+  })
+
+  it("offers a subset of them for writing, and resolves no alias to the rest", () => {
+    const offered = new Set<string>(SET_INTENSITY_TAGS)
+    const readOnly = Object.values($Enums.SetIntensityTag).filter((tag) => !offered.has(tag))
+
+    // Read-only today: `top_set` and `back_off` exist for rows already written,
+    // and nothing may put more of them there until the feature ships.
+    expect(readOnly).toEqual(["top_set", "back_off"])
+    for (const tag of readOnly) {
+      expect(parseSetIntensityTag(tag), `${tag} must not parse`).toBeUndefined()
+      expect(normalizeSetIntensityAssignments([{ setNumber: 1, tag }], 3)).toEqual([])
+    }
+  })
+})
 
 describe("method cell parsing", () => {
   it("treats blank, dash and 'normal' as an untagged exercise", () => {

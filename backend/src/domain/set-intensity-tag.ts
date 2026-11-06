@@ -21,6 +21,12 @@ type SetIntensityAssignment = {
 
 // A readonly tuple rather than an array so `z.enum()` at the route boundary keeps
 // the literal union instead of widening to `string`.
+//
+// Deliberately a subset of the enum: `top_set` and `back_off` exist in the
+// database and rows already carry them, so the enum has to name them for those
+// rows to be readable at all. They are left out here, which is what decides
+// what may be written — no alias resolves to them, no picker offers them, and
+// the route rejects them — until the feature that prescribes them ships.
 const SET_INTENSITY_TAGS = ["mrm", "drop_set", "rest_pause", "cluster", "failure", "warmup"] as const satisfies readonly SetIntensityTag[]
 
 /**
@@ -28,11 +34,13 @@ const SET_INTENSITY_TAGS = ["mrm", "drop_set", "rest_pause", "cluster", "failure
  * frontend, and is what coach-update banners print rather than the enum name.
  */
 const SET_INTENSITY_TAG_BADGES: Record<SetIntensityTag, string> = {
+  back_off: "BACK",
   cluster: "CLS",
   drop_set: "DROP",
   failure: "FAIL",
   mrm: "MRM",
   rest_pause: "RP",
+  top_set: "TOP",
   warmup: "WU",
 }
 
@@ -55,11 +63,13 @@ const SET_INTENSITY_TAG_ALIASES: Array<[SetIntensityTag, string[]]> = [
  * every one of these resolves through the aliases above.
  */
 const SET_INTENSITY_METHOD_SHEET_TOKENS: Record<SetIntensityTag, string> = {
+  back_off: "backoff",
   cluster: "cluster",
   drop_set: "drop",
   failure: "failure",
   mrm: "mrm",
   rest_pause: "rp",
+  top_set: "top",
   warmup: "warmup",
 }
 
