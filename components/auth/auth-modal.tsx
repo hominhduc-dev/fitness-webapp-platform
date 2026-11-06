@@ -52,8 +52,12 @@ function sanitizeRedirectPath(path?: string | null) {
   return path
 }
 
-function createCallbackRedirect(nextPath?: string | null) {
+function createCallbackRedirect(nextPath?: string | null, coachEmailSignup = false) {
   const redirectUrl = new URL("/auth/callback", getAppBaseUrl())
+  if (coachEmailSignup) {
+    redirectUrl.searchParams.set("flow", "coach-email")
+    return redirectUrl.toString()
+  }
   const sanitizedPath = sanitizeRedirectPath(nextPath)
 
   if (sanitizedPath) {
@@ -252,19 +256,23 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
         email: registerEmail,
         name: registerName,
         password: registerPassword,
-        redirectTo: createCallbackRedirect(finalRedirectPath),
+        redirectTo: createCallbackRedirect(finalRedirectPath, registerRole === "coach"),
         role: registerRole,
       })
       accountCreated = true
 
       trackRegistrationEvent("sign_up", {
         method: "email",
-        email_confirmation_required: Boolean(response.requiresEmailConfirmation || !response.session),
+        email_confirmation_required: response.requiresApproval
+          ? Boolean(response.requiresEmailConfirmation)
+          : Boolean(response.requiresEmailConfirmation || !response.session),
         role: registerRole,
       })
 
       if (response.requiresApproval) {
-        setSuccess(response.message ?? messages.auth.coachSignupPendingCopy)
+        setSuccess(response.requiresEmailConfirmation
+          ? messages.auth.coachSignupCheckEmailCopy
+          : messages.auth.coachSignupPendingCopy)
         setRegisterPassword("")
         setRegisterConfirmPassword("")
         return

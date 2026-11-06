@@ -68,12 +68,18 @@ const jsonLd = {
   },
 }
 
-export default async function Home() {
-  const [{ profile }, locale] = await Promise.all([getServerAuthState(), getServerLocale()])
+export default async function Home({ searchParams }: PageProps<"/">) {
+  const [{ profile }, { lang }, savedLocale] = await Promise.all([
+    getServerAuthState(),
+    searchParams,
+    getServerLocale(),
+  ])
 
   if (profile) {
     redirect(getRoleLandingPath(profile.role))
   }
+
+  const locale = lang === "en" || lang === "vi" ? lang : savedLocale
 
   return (
     <>
@@ -82,7 +88,7 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <AppProviders initialLocale={locale} withAuth={false}>
-        <LandingPage locale={locale} />
+        <LandingPage />
       </AppProviders>
     </>
   )

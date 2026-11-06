@@ -15,12 +15,27 @@ function sanitizeNextPath(nextPath?: string | null) {
 export async function GET(request: NextRequest) {
   const { publishableKey, url } = getSupabasePublicConfig()
   const code = request.nextUrl.searchParams.get("code")
+  const isCoachEmailSignup = request.nextUrl.searchParams.get("flow") === "coach-email"
   const nextPath = sanitizeNextPath(request.nextUrl.searchParams.get("next"))
   // Google carries no role of ours, so a coach signup says so on the callback
   // URL it sent the user out with.
   const isCoachSignup = request.nextUrl.searchParams.get("role") === "coach"
-  const redirectUrl = new URL(nextPath, request.url)
-  let response = NextResponse.redirect(redirectUrl)
+  const requestedRedirect = new URL(nextPath, request.url)
+  const redirectUrl = requestedRedirect.origin === request.nextUrl.origin
+    ? requestedRedirect
+    : new URL("/dashboard", request.url)
+  const response = NextResponse.redirect(redirectUrl)
+
+  if (isCoachEmailSignup && ["error", "error_code", "error_description"].some((key) => request.nextUrl.searchParams.has(key))) {
+    return NextResponse.redirect(new URL("/coach-signup?status=email-failed", request.url))
+  }
+
+  if (isCoachEmailSignup && !code) {
+    // Password signup is initiated by Express using Supabase's implicit flow.
+    // The browser carries the fragment through this redirect, where the signup
+    // screen can read and clear it without establishing a session.
+    return NextResponse.redirect(new URL("/coach-signup?status=email-return", request.url))
+  }
 
   const supabase = createServerClient(url, publishableKey, {
     cookies: {
@@ -28,8 +43,6 @@ export async function GET(request: NextRequest) {
         return request.cookies.getAll()
       },
       setAll(cookiesToSet) {
-        response = NextResponse.redirect(redirectUrl)
-
         cookiesToSet.forEach(({ name, options, value }) => {
           response.cookies.set(name, value, options)
         })
@@ -45,6 +58,15 @@ export async function GET(request: NextRequest) {
   }
 
   const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+
+  if (isCoachEmailSignup) {
+    const status = !error && data.user?.email_confirmed_at ? "email-confirmed" : "email-failed"
+    if (data.session) {
+      await supabase.auth.signOut({ scope: "local" }).catch(() => undefined)
+    }
+    response.headers.set("location", new URL(`/coach-signup?status=${status}`, request.url).toString())
+    return response
+  }
 
   if (error) {
     const loginUrl = new URL("/", request.url)
@@ -95,13 +117,6 @@ async function finishCoachSignup(
   // stale cookies get the visitor bounced to sign-in on their next page.
   await supabase.auth.signOut().catch(() => undefined)
 
-  const finalResponse = NextResponse.redirect(destination)
-
-  // signOut() writes its cookie removals onto the response the cookie adapter
-  // rebuilt, so carry them over rather than returning a response without them.
-  sessionResponse.cookies.getAll().forEach((cookie) => {
-    finalResponse.cookies.set(cookie)
-  })
-
-  return finalResponse
+  sessionResponse.headers.set("location", destination.toString())
+  return sessionResponse
 }

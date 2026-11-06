@@ -2,11 +2,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ProgramEditor } from "./program-editor"
-import { getProgramDraftStorageKey, readProgramDraft, writeProgramDraft } from "./program-draft-storage"
+import { getProgramDraftStorageKey, NEW_PROGRAM_SERVER_VERSION, readProgramDraft, writeProgramDraft } from "./program-draft-storage"
 import { messages } from "@/lib/i18n/messages"
 import type { CoachProgram, ExerciseVariationOption } from "@/lib/fitness/types"
 
-const { save } = vi.hoisted(() => ({ save: vi.fn() }))
+const { save, push, replace } = vi.hoisted(() => ({ save: vi.fn(), push: vi.fn(), replace: vi.fn() }))
 
 const program = {
   assignedTo: [],
@@ -44,7 +44,7 @@ const exerciseOptions = [
 ] as ExerciseVariationOption[]
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push, replace }),
   useSearchParams: () => new URLSearchParams(),
 }))
 vi.mock("@/components/providers/auth-provider", () => ({
@@ -57,7 +57,7 @@ vi.mock("@/lib/queries/coach-data", () => ({
   useCoachData: (queryKey: unknown[]) =>
     queryKey.includes("program-1")
       ? { data: program, error: null, isPending: false }
-      : { data: [], error: null, isPending: false },
+      : { data: queryKey[1] === "program" ? undefined : [], error: null, isPending: false },
   useCoachMutation: () => ({ mutateAsync: save }),
 }))
 vi.mock("@/lib/queries/exercises", () => ({
@@ -108,10 +108,39 @@ async function closeDialogWithoutSaving() {
 beforeEach(() => {
   save.mockReset()
   save.mockResolvedValue(program)
+  push.mockClear()
+  replace.mockClear()
 })
 afterEach(() => {
   cleanup()
   window.localStorage.clear()
+})
+
+it.each(["page", "modal"])("opens the saved program when creating from the %s", async (entry) => {
+  const routine = {
+    id: "routine-1", name: "Push", tag: "push" as const,
+    exercises: [{ id: "exercise-1", variationId: "bench-default", sets: 1, reps: "10", weight: "50" }],
+  }
+  writeProgramDraft(getProgramDraftStorageKey("coach"), {
+    form: {
+      description: "", difficulty: "beginner", duration: "1", programGoal: "hypertrophy",
+      programName: "Bulking", routineLibrary: [routine], schedule: [[{ routine }, null, null, null, null, null, null]],
+      selectedTraineeIds: [], startDate: "",
+    },
+    routineDrafts: {}, savedAt: "2026-09-29T08:00:00.000Z", serverVersion: NEW_PROGRAM_SERVER_VERSION,
+  })
+  const onClose = vi.fn()
+  const onSaved = vi.fn()
+  render(<ProgramEditor initialExerciseOptions={exerciseOptions} {...(entry === "modal" ? { onClose, onSaved } : {})} />)
+
+  fireEvent.click(screen.getByRole("button", { name: coach.saveProgram }))
+
+  await waitFor(() => expect(entry === "modal" ? push : replace).toHaveBeenCalledWith("/coach/programs/program-1"))
+  expect(save).toHaveBeenCalledTimes(1)
+  if (entry === "modal") {
+    expect(onSaved).toHaveBeenCalledWith(program)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  }
 })
 
 describe("program editor schedule", () => {

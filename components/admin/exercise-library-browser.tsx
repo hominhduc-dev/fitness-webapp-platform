@@ -15,6 +15,7 @@ import type { LibraryGroup, LibraryGroupKey } from "@/lib/fitness/exercise-libra
 import { movementPatternLabel } from "@/lib/fitness/movement-pattern"
 import type { ExerciseActivityType } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import styles from "./exercise-group-grid.module.css"
 
 type Locale = "en" | "vi"
 
@@ -74,20 +75,20 @@ function GroupFigure({ group }: { group: LibraryGroup }) {
   if (group.slugs.length === 0) {
     const Icon = group.key === "cardio" ? HeartPulse : PersonStanding
     return (
-      <span className="flex h-24 w-14 shrink-0 items-center justify-center text-muted-foreground" aria-hidden="true">
-        <Icon className="size-9" />
+      <span className="grid place-items-center text-primary">
+        <Icon className="size-8" />
       </span>
     )
   }
 
-  const highlights = Object.fromEntries(group.slugs.map((slug) => [slug, "var(--foreground)"])) as Partial<Record<MapMuscleSlug, string>>
+  const highlights = Object.fromEntries(group.slugs.map((slug) => [slug, "var(--exercise-group-highlight)"])) as Partial<Record<MapMuscleSlug, string>>
   return (
     <MuscleMap
       side={preferredBodySide(group.slugs)}
       highlights={highlights}
-      defaultFill="color-mix(in oklab, var(--muted-foreground) 45%, transparent)"
+      defaultFill="var(--exercise-group-silhouette)"
       outline={null}
-      className="h-24 w-14 shrink-0"
+      className="h-20 w-12"
     />
   )
 }
@@ -104,38 +105,26 @@ export function ExerciseGroupGrid({
   const copy = getBrowserCopy(locale)
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {groups.map(({ group, items }) => {
-        // The most-used exercises stand in for the group, like a gym's "popular" shelf.
-        const highlights = [...items].sort((left, right) => right.usageCount - left.usageCount || left.name.localeCompare(right.name)).slice(0, 3)
-
-        return (
-          <button
-            key={group.key}
-            type="button"
-            onClick={() => onOpen(group.key)}
-            className="group flex min-w-0 gap-4 rounded-2xl border border-border bg-card p-4 text-left transition-colors hover:border-foreground/30 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+      {groups.map(({ group, items }) => (
+        <button
+          key={group.key}
+          type="button"
+          onClick={() => onOpen(group.key)}
+          className={cn(styles.card, "group min-w-0 cursor-pointer rounded-2xl text-start motion-safe:transition-colors")}
+        >
+          <span className={cn(styles.figure, "grid place-items-center rounded-xl")} aria-hidden="true">
             <GroupFigure group={group} />
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="flex items-start justify-between gap-2">
-                <span className="min-w-0">
-                  <span className="block truncate text-base font-semibold text-foreground group-hover:underline">{group.label[locale]}</span>
-                  <span className="block text-xs text-muted-foreground">{copy.exerciseCount(items.length)}</span>
-                </span>
-                <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              </span>
-              <span className="mt-3 border-t border-border pt-3">
-                {highlights.map((exercise) => (
-                  <span key={exercise.id} className="block truncate py-0.5 text-sm text-muted-foreground">
-                    {capitalizeExerciseName(exercise.name)}
-                  </span>
-                ))}
-              </span>
+          </span>
+          <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+            <span className="min-w-0">
+              <span className="block break-words text-sm font-semibold leading-snug lg:text-base">{group.label[locale]}</span>
+              <span className="mt-1 block text-xs text-muted-foreground">{copy.exerciseCount(items.length)}</span>
             </span>
-          </button>
-        )
-      })}
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground group-hover:text-primary group-focus-visible:text-primary" aria-hidden="true" />
+          </span>
+        </button>
+      ))}
     </div>
   )
 }

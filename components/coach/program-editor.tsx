@@ -466,21 +466,25 @@ function RoutinePickerDialog({
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <div className="relative pt-2">
-            <Search className="pointer-events-none absolute left-3 top-[1.35rem] h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={messages.coach.searchRoutines}
-              className="h-9 bg-background pl-8 text-sm"
-              autoFocus
-            />
-          </div>
+          {library.length > 0 && (
+            <div className="relative pt-2">
+              <Search className="pointer-events-none absolute left-3 top-[1.35rem] h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={messages.coach.searchRoutines}
+                className="h-9 bg-background pl-8 text-sm"
+                autoFocus
+              />
+            </div>
+          )}
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {visibleRoutines.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-muted-foreground">{messages.coach.noRoutineMatches}</div>
+            <div className="px-5 py-8 text-center text-sm text-muted-foreground">
+              {library.length === 0 ? messages.coach.noRoutinesYet : messages.coach.noRoutineMatches}
+            </div>
           ) : (
             visibleRoutines.map((routine, index) => (
               <div
@@ -517,7 +521,7 @@ function RoutinePickerDialog({
         </div>
 
         <DialogFooter className="border-t border-border px-5 py-3 sm:justify-center">
-          <Button type="button" variant="ghost" size="sm" className="text-primary" onClick={onCreateNew}>
+          <Button type="button" variant={library.length === 0 ? "default" : "ghost"} size="sm" className={cn(library.length > 0 && "text-primary")} onClick={onCreateNew}>
             <Plus className="h-3.5 w-3.5" />
             {messages.schedule.createNewRoutine}
           </Button>
@@ -544,7 +548,7 @@ export function ProgramEditor({
 
   const [programName, setProgramName] = useState("")
   const [startDate, setStartDate] = useState("")
-  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false)
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(!programId)
   // As a modal the editor covers the page: the list behind it must stay put,
   // and only the editor's own body scroll.
   useBodyScrollLock(Boolean(onClose))
@@ -780,7 +784,13 @@ export function ProgramEditor({
   const totalProgramSlots = schedule.reduce((sum, week) => sum + week.filter((slot) => slot !== null).length, 0)
   const completion = totalProgramSlots > 0 ? Math.min(100, Math.round((filledSessions / totalProgramSlots) * 100)) : 0
   const isArchived = archivedAt !== null
-  const canSave = programName.trim().length > 0 && filledSessions > 0 && !isSaving && !isArchived
+  const hasProgramName = programName.trim().length > 0
+  const canSave = hasProgramName && filledSessions > 0 && !isSaving && !isArchived
+  const saveHint = !hasProgramName && filledSessions === 0
+    ? messages.coach.programSaveNeedsNameAndSession
+    : !hasProgramName
+      ? messages.coach.programSaveNeedsName
+      : filledSessions === 0 ? messages.coach.programSaveNeedsSession : null
   const activeWeekSlots = useMemo(() => schedule[activeWeek] ?? schedule[0] ?? [], [activeWeek, schedule])
   const sessionViews = useMemo<SessionSlotView[]>(
     () =>
@@ -1131,13 +1141,19 @@ export function ProgramEditor({
         setRoutineDrafts({})
       }
 
-      if (onSaved || onClose) {
-        onSaved?.(savedProgram)
-        onClose?.()
-          return savedProgram
-      }
+      onSaved?.(savedProgram)
+      onClose?.()
 
-      router.push(adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs")
+      if (!programId) {
+        const savedHref = `/coach/programs/${encodeURIComponent(savedProgram.id)}`
+        if (onClose) {
+          router.push(savedHref)
+        } else {
+          router.replace(savedHref)
+        }
+      } else if (!onSaved && !onClose) {
+        router.push(adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs")
+      }
 
       return savedProgram
     } catch (saveError) {
@@ -1212,7 +1228,7 @@ export function ProgramEditor({
       ) : null}
 
       <div
-        data-tour="coach-workout-builder"
+        data-tour={programId ? "coach-workout-builder" : undefined}
         className={cn(
           "glass-surface flex w-full max-w-[min(1480px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-[var(--glass-shadow)]",
           isModal && "h-[calc(100svh-1rem)] max-h-[980px] sm:h-auto sm:max-h-[calc(100svh-3rem)]",
@@ -1230,7 +1246,7 @@ export function ProgramEditor({
               </p>
               <div className="md:flex md:items-baseline md:gap-3">
               <h1 className="mt-2 truncate text-2xl font-semibold leading-tight tracking-[-0.02em] text-foreground sm:text-3xl md:mt-1 md:text-2xl">
-                {programId ? programName.trim() || messages.coach.untitledProgram : messages.coach.createWorkoutProgram}
+                {programId ? programName.trim() || messages.coach.untitledProgram : messages.coach.createProgram}
               </h1>
               {currentWeekProgress ? (
                 <p className="mt-1 shrink-0 font-mono text-xs text-primary tnum md:mt-0">
@@ -1331,7 +1347,7 @@ export function ProgramEditor({
               )}
             >
               <div className="grid grid-cols-2 items-start gap-x-2.5 gap-y-2 md:grid-cols-3 md:gap-x-4 md:gap-y-2.5 xl:grid-cols-[1.25fr_0.72fr_0.9fr_1fr_1fr_1.4fr]">
-                <label className="col-span-2 space-y-0.5 md:col-span-1 md:space-y-1">
+                <label className="col-span-2 space-y-0.5 md:col-span-1 md:space-y-1" data-tour={programId ? undefined : "coach-workout-builder"}>
                   <span className="text-micro font-medium text-muted-foreground md:text-xs">{messages.coach.programName} <span className="text-destructive-text">*</span></span>
                   <span className="relative block">
                     <FileText className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1403,7 +1419,7 @@ export function ProgramEditor({
                 </label>
                 <label className="space-y-0.5 md:space-y-1">
                   <span className="flex items-center gap-1 text-micro font-medium text-muted-foreground md:text-xs">
-                    {messages.coach.programStartDate} <span className="text-destructive-text">*</span>
+                    {messages.coach.programStartDate}
                     <span className="hidden md:inline-flex" title={messages.coach.programStartDateHint}>
                       <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     </span>
@@ -1592,16 +1608,20 @@ export function ProgramEditor({
         </div>
 
         <div className="grid shrink-0 grid-cols-1 gap-3 glass-veil border-t border-border/70 px-4 pb-[calc(0.9rem+env(safe-area-inset-bottom))] pt-4 sm:grid-cols-[1fr_auto] sm:items-center sm:px-6 md:px-8">
-          <div className="flex min-w-0 items-center gap-3">
-            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-            <span className="shrink-0 text-sm text-muted-foreground tnum">{messages.coach.filledSessionsCount(filledSessions, totalProgramSlots)}</span>
-            <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-border sm:max-w-sm">
-              <div
-                className={cn("h-full transition-[width] duration-200", completion === 100 ? "bg-success" : "bg-primary")}
-                style={{ width: `${completion}%` }}
-              />
+          {!isArchived && saveHint ? (
+            <p className="text-sm text-muted-foreground" role="status">{saveHint}</p>
+          ) : (
+            <div className="flex min-w-0 items-center gap-3">
+              <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+              <span className="shrink-0 text-sm text-muted-foreground tnum">{messages.coach.filledSessionsCount(filledSessions, totalProgramSlots)}</span>
+              <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-border sm:max-w-sm">
+                <div
+                  className={cn("h-full transition-[width] duration-200", completion === 100 ? "bg-success" : "bg-primary")}
+                  style={{ width: `${completion}%` }}
+                />
+              </div>
             </div>
-          </div>
+          )}
           <div className="grid grid-cols-2 gap-2.5 sm:flex sm:justify-end" data-tour="coach-workout-save">
           {onClose ? (
             <Button type="button" variant="outline" className="w-full rounded-xl bg-background/70 sm:w-auto" onClick={onClose}>

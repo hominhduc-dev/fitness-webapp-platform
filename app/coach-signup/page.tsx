@@ -42,9 +42,10 @@ export default async function CoachSignupPage({
     getServerLocale(),
     searchParams,
   ])
-  // Where the Google round-trip landed, so the form can open on the right state.
-  const notice =
-    params.status === "pending" ? "pending" : params.error === "oauth_claim_failed" ? "oauth-failed" : null
+  const { status, error } = params
+  const notice = status === "pending" || status === "email-return" || status === "email-confirmed" || status === "email-failed"
+    ? status
+    : error === "oauth_claim_failed" ? "oauth-failed" : null
 
   // Someone already signed in has no use for a signup form.
   if (profile) {

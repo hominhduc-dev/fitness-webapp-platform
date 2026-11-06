@@ -10,10 +10,19 @@ type LanguageToggleProps = {
   compact?: boolean
   className?: string
   variant?: "select" | "toggle"
+  syncLanguageQuery?: boolean
 }
 
-export function LanguageToggle({ compact = false, className, variant = "toggle" }: LanguageToggleProps) {
+export function LanguageToggle({ compact = false, className, variant = "toggle", syncLanguageQuery = false }: LanguageToggleProps) {
   const { locale, messages, setLocale } = useLocale()
+  const changeLocale = (nextLocale: AppLocale) => {
+    if (syncLanguageQuery) {
+      const url = new URL(window.location.href)
+      url.searchParams.set("lang", nextLocale)
+      window.history.replaceState(null, "", url)
+    }
+    setLocale(nextLocale)
+  }
 
   const options: Array<{ fullLabel: string; label: string; value: AppLocale }> = [
     { fullLabel: "English", label: messages.common.english, value: "en" },
@@ -22,7 +31,7 @@ export function LanguageToggle({ compact = false, className, variant = "toggle" 
 
   if (variant === "select") {
     return (
-      <Select value={locale} onValueChange={(value) => setLocale(value as AppLocale)}>
+      <Select value={locale} onValueChange={(value) => changeLocale(value as AppLocale)}>
         <SelectTrigger
           aria-label={messages.common.language}
           className={cn("glass-language-select w-full bg-muted/50", className)}
@@ -53,7 +62,7 @@ export function LanguageToggle({ compact = false, className, variant = "toggle" 
       <GlassSegmented
         activeIndex={options.findIndex((option) => option.value === locale)}
         lensClassName="rounded-md"
-        onSlide={(index) => setLocale(options[index].value)}
+        onSlide={(index) => changeLocale(options[index].value)}
         className={cn("gap-0.5", compact ? "grid w-full grid-cols-2" : "inline-flex")}
       >
         {(shownIndex) =>
@@ -67,7 +76,7 @@ export function LanguageToggle({ compact = false, className, variant = "toggle" 
                 "h-7 rounded-md px-2.5 font-mono text-micro font-semibold uppercase tracking-[0.08em] transition-colors",
                 index === shownIndex ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
-              onClick={() => setLocale(option.value)}
+              onClick={() => changeLocale(option.value)}
             >
               {option.label}
             </button>

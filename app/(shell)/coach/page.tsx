@@ -31,6 +31,28 @@ function formatPercent(value: number) {
   return `${Math.max(0, Math.round(value))}%`
 }
 
+/** How many trainees the roster shows before deferring to the "view all" link. */
+const ROSTER_LIMIT = 5
+
+/**
+ * Which trainees the dashboard roster shows: the ones furthest behind first.
+ * The full list lives behind the "view all" link, so this only decides what is
+ * worth a coach's first glance.
+ *
+ * A trainee with no completion rate yet sorts to the front rather than the
+ * back — newly assigned or not logging at all is the case a coach most needs
+ * to see, not one to hide. Ties break on name so the order stays put between
+ * the page's 30-second revalidations instead of cards swapping for no reason.
+ */
+function selectRosterTrainees(trainees: readonly Trainee[]): Trainee[] {
+  return [...trainees]
+    .sort((left, right) => {
+      const byCompletion = (left.completionRate ?? 0) - (right.completionRate ?? 0)
+      return byCompletion !== 0 ? byCompletion : left.name.localeCompare(right.name)
+    })
+    .slice(0, ROSTER_LIMIT)
+}
+
 function getAdjustHref(trainee: Trainee) {
   const programId = trainee.assignedProgramIds?.[0]
   return programId ? `/coach/programs/${programId}?adjustTrainee=${trainee.id}` : `/coach/trainees/${trainee.id}`
@@ -42,19 +64,29 @@ function formatDateTime(value: Date, locale: Locale, timeZone: string | undefine
   })
 }
 
-function CoachStatCard({ icon: Icon, title, value, subtitle, warning = false }: {
-  icon: LucideIcon; title: string; value: number | string; subtitle: string; warning?: boolean
+function CoachStatCard({ icon: Icon, title, value, subtitle, href, warning = false }: {
+  icon: LucideIcon; title: string; value: number | string; subtitle?: string; href?: string; warning?: boolean
 }) {
-  return (
-    <article className="min-w-0 rounded-2xl border border-border bg-card p-4 md:p-5">
+  const className = "min-w-0 rounded-2xl border border-border bg-card p-3.5 md:p-4"
+  const content = (
+    <>
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-muted-foreground">{title}</p>
-        <Icon aria-hidden="true" className={cn("size-4 shrink-0", warning ? "text-warning-text" : "text-muted-foreground")} />
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Icon aria-hidden="true" className={cn("size-4", warning ? "text-warning-text" : "text-muted-foreground")} />
+          {href && <ArrowRight aria-hidden="true" className="size-3.5 text-muted-foreground" />}
+        </div>
       </div>
-      <p className={cn("mt-3 font-mono text-3xl font-semibold tracking-tight tnum md:text-4xl", warning ? "text-warning-text" : "text-foreground")}>{value}</p>
-      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{subtitle}</p>
-    </article>
+      <p className={cn("mt-2 font-mono text-2xl font-semibold tracking-tight tnum md:text-3xl", warning ? "text-warning-text" : "text-foreground")}>{value}</p>
+      {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
+    </>
   )
+
+  return href ? (
+    <a href={href} className={cn(className, "block transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}>
+      {content}
+    </a>
+  ) : <article className={className}>{content}</article>
 }
 
 async function CoachDashboardContent() {
@@ -71,13 +103,13 @@ async function CoachDashboardContent() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 px-4 pb-6 pt-page md:space-y-6 md:px-6 md:pb-8">
-      <section className="relative overflow-hidden rounded-3xl border border-primary/20 bg-primary-soft p-5 md:p-7">
-        <div className="pointer-events-none absolute -right-12 -top-20 size-64 rounded-full border-[32px] border-primary/5" aria-hidden="true" />
-        <div className="relative flex items-start justify-between gap-3">
+      <section aria-labelledby="coach-week-title">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="label-micro text-primary">{copy.eyebrow}</p>
-            <h1 className="mt-3 max-w-xl text-3xl font-semibold leading-tight tracking-tight md:text-4xl">{copy.title}</h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">{copy.subtitle}</p>
+            {/* ShellPageTitle owns the page's h1, so this stays an h2: the
+                first section's label, not a second top-level heading. */}
+            <h2 id="coach-week-title" className="text-xl font-semibold tracking-tight">{copy.week}</h2>
+            {weekStart && weekEnd ? <p className="mt-0.5 font-mono text-xs text-muted-foreground tnum">{weekStart} – {weekEnd}</p> : null}
           </div>
           <Button asChild variant="outline" size="icon" className="size-11 shrink-0 rounded-xl border-primary/20 bg-card text-primary">
             <Link href="/chat" aria-label={agentMessages[locale].title} title={agentMessages[locale].title}>
@@ -85,17 +117,13 @@ async function CoachDashboardContent() {
             </Link>
           </Button>
         </div>
-        <div className="relative mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-primary/15 pt-4 text-xs">
-          <span className="font-medium text-primary">{copy.week}</span>
-          {weekStart && weekEnd ? <span className="font-mono text-muted-foreground tnum">{weekStart} — {weekEnd}</span> : null}
+        {/* No "Need attention" card here: its count is the section below, and
+            its unread-notification subtitle is the header bell's own badge. */}
+        <div className="grid grid-cols-3 gap-3">
+          <CoachStatCard title={coach.totalTrainees} value={dashboard.summary.totalTrainees} subtitle={copy.plannedSessions(dashboard.summary.totalPlannedSessions)} icon={Users} />
+          <CoachStatCard title={coach.workoutsLogged} value={dashboard.summary.workoutsThisWeek} icon={Dumbbell} />
+          <CoachStatCard title={coach.averageCompletion} value={formatPercent(dashboard.summary.averageCompletionRate)} subtitle={copy.assignedWorkload} icon={TrendingUp} />
         </div>
-      </section>
-
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label={copy.week}>
-        <CoachStatCard title={coach.totalTrainees} value={dashboard.summary.totalTrainees} subtitle={coach.totalPlannedSessionsThisWeek(dashboard.summary.totalPlannedSessions)} icon={Users} />
-        <CoachStatCard title={coach.workoutsLogged} value={dashboard.summary.workoutsThisWeek} subtitle={coach.acrossAllTrainees} icon={Dumbbell} />
-        <CoachStatCard title={coach.averageCompletion} value={formatPercent(dashboard.summary.averageCompletionRate)} subtitle={coach.basedOnAssignedWorkload} icon={TrendingUp} />
-        <CoachStatCard title={coach.needAttention} value={dashboard.summary.atRiskTraineeCount} subtitle={coach.unreadNotifications(dashboard.summary.unreadNotificationCount)} icon={AlertTriangle} warning={dashboard.summary.atRiskTraineeCount > 0} />
       </section>
 
       <nav className="grid grid-cols-3 gap-2" aria-label={coach.quickActionsTitle}>
@@ -113,9 +141,9 @@ async function CoachDashboardContent() {
       <PendingRequestsPanel initialRequests={dashboard.pendingRequests} />
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:gap-6">
-        <section className="order-1 rounded-2xl border border-border bg-card p-5 xl:col-start-2 xl:row-start-1">
+        <section aria-labelledby="coach-attention-title" className="order-1 rounded-2xl border border-border bg-card p-5 xl:col-start-2 xl:row-start-1">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold tracking-tight">{coach.needAttention}</h2>
+              <h2 id="coach-attention-title" className="text-lg font-semibold tracking-tight">{coach.needAttention}</h2>
               <span className={cn("flex size-8 items-center justify-center rounded-xl", dashboard.atRiskTrainees.length > 0 ? "bg-warning-soft text-warning-text" : "bg-success-soft text-success-text")}>
                 {dashboard.atRiskTrainees.length > 0 ? <AlertTriangle className="size-4" aria-hidden="true" /> : <CheckCheck className="size-4" aria-hidden="true" />}
               </span>
@@ -130,13 +158,14 @@ async function CoachDashboardContent() {
                 {dashboard.atRiskTrainees.map((trainee) => (
                   <div key={trainee.id} className="py-4 first:pt-0 last:pb-0">
                     <div className="flex items-center justify-between gap-3">
-                      <Link href={`/coach/trainees/${trainee.id}`} className="truncate text-sm font-semibold hover:underline">{trainee.name}</Link>
+                      <Link href={`/coach/trainees/${trainee.id}`} className="flex min-h-11 min-w-0 items-center text-sm font-semibold hover:underline">
+                        <span className="truncate">{trainee.name}</span>
+                      </Link>
                       <span className="shrink-0 font-mono text-xs text-muted-foreground tnum">{trainee.thisWeekWorkouts}/{trainee.plannedSessionsPerWeek ?? 0} {coach.workouts}</span>
                     </div>
                     <Progress value={Math.max(0, Math.min(100, trainee.completionRate ?? 0))} className="mt-3 h-1.5 bg-muted [&_[data-slot=progress-indicator]]:bg-warning" />
-                    <div className="mt-3 flex gap-2">
-                      <Button asChild variant="outline" size="sm" className="flex-1"><Link href={`/coach/trainees/${trainee.id}`}>{coach.viewDetail}</Link></Button>
-                      <Button asChild size="sm" className="flex-1"><Link href={getAdjustHref(trainee)}>{coach.adjustPlan}</Link></Button>
+                    <div className="mt-3 flex justify-end">
+                      <Button asChild size="sm" className="min-h-11"><Link href={getAdjustHref(trainee)}>{coach.adjustPlan}</Link></Button>
                     </div>
                   </div>
                 ))}
@@ -145,15 +174,11 @@ async function CoachDashboardContent() {
           </section>
 
         <section className="order-2 rounded-2xl border border-border bg-card p-5 md:p-6 xl:col-start-1 xl:row-start-1">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold tracking-tight">{copy.activity}</h2>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{copy.activityCopy}</p>
-              </div>
-
-
-
-              <span className="shrink-0 rounded-full bg-primary-soft px-3 py-1.5 font-mono text-xs font-medium text-primary tnum">{dashboard.summary.workoutsThisWeek} {coach.workouts}</span>
+            {/* The week's workout count is already the second stat card above,
+                so the chart carries its title alone rather than repeating it. */}
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">{copy.activity}</h2>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{copy.activityCopy}</p>
             </div>
             <div className="mt-6 grid h-40 grid-cols-7 gap-3 sm:gap-5">
               {dashboard.activityByDay.map((point) => {
@@ -179,7 +204,7 @@ async function CoachDashboardContent() {
             </div>
             {dashboard.trainees.length === 0 ? <p className="px-5 pb-6 text-sm text-muted-foreground">{coach.noTraineesAssignedToCoach}</p> : (
               <div className="divide-y divide-border">
-                {dashboard.trainees.map((trainee) => (
+                {selectRosterTrainees(dashboard.trainees).map((trainee) => (
                   <div key={trainee.id} className="space-y-3 px-5 py-4 md:px-6">
                     <div className="flex items-center gap-3">
                       <Avatar className="size-10 shrink-0 border border-border">
@@ -203,20 +228,19 @@ async function CoachDashboardContent() {
         <section className="order-4 rounded-2xl border border-border bg-card p-5 xl:col-start-2 xl:row-start-2">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold tracking-tight">{copy.latest}</h2>
-              <Link href="/coach/trainees" className="flex min-h-11 items-center gap-1 text-xs font-medium text-primary">{coach.viewAll}<ArrowRight className="size-3.5" aria-hidden="true" /></Link>
+              <Link href="/coach/trainees" className="flex min-h-11 shrink-0 items-center gap-1 text-xs font-medium text-primary">{copy.chooseClient}<ArrowRight className="size-3.5" aria-hidden="true" /></Link>
             </div>
             <div className="mt-2 divide-y divide-border">
               {dashboard.recentWorkoutLogs.length === 0 ? <p className="py-6 text-sm text-muted-foreground">{coach.noRecentWorkoutLogs}</p> : dashboard.recentWorkoutLogs.map((log) => (
-                <Link key={log.id} href={`/coach/trainees/${log.trainee.id}`} className="flex items-start gap-3 rounded-lg py-4 transition-colors hover:bg-muted/40">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary"><Dumbbell className="size-4" aria-hidden="true" /></span>
+                <Link key={log.id} href={`/coach/trainees/${log.trainee.id}`} className="flex min-h-11 items-start gap-3 rounded-lg py-3 transition-colors hover:bg-muted/40">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{log.trainee.name}</p>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">{log.workout.name}</p>
-                    <p className="mt-2 font-mono text-micro text-muted-foreground tnum">{formatDateTime(log.startedAt, locale, timeZone)}</p>
                     {log.commentCount > 0 ? <p className="mt-1 text-xs text-primary">{coach.feedbackCount(log.commentCount)}</p> : null}
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="font-mono text-xs font-medium tnum">{(log.totalVolume ?? 0).toLocaleString(locale === "vi" ? "vi-VN" : "en-US")} kg</p>
+                    <time dateTime={log.startedAt.toISOString()} className="mt-0.5 block font-mono text-micro text-muted-foreground tnum">{formatDateTime(log.startedAt, locale, timeZone)}</time>
                     {!log.completedAt ? <p className="mt-1 text-xs text-muted-foreground">{coach.inProgress}</p> : null}
                   </div>
                 </Link>

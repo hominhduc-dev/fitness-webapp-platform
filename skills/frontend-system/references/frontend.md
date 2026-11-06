@@ -95,7 +95,7 @@ app/layout.tsx
 
 | Route/nhóm | Strategy hiện tại | UI owner chính |
 |---|---|---|
-| `/` | SSR landing; redirect theo session/role | `components/landing/landing-page.tsx` |
+| `/` | SSR landing; `?lang=vi/en` ưu tiên hơn cookie; redirect theo session/role | `components/landing/landing-page.tsx` |
 | `/privacy-policy`, `/terms-of-service` | Public SSR, không yêu cầu auth; locale cookie hoặc `?lang=vi/en` | `components/legal/legal-page.tsx`, `lib/i18n/messages/legal.ts` |
 | `/(shell)` | SSR auth shell | `app/(shell)/layout.tsx` |
 | `/dashboard` | SSR + Suspense streaming | `components/dashboard/*` |
@@ -403,6 +403,10 @@ Light-mode overrides in `app/globals.css` intentionally flatten `.glass-surface`
 - Không đặt `position: relative` cho `.ai-bubble-trigger`; nó phải giữ `fixed`.
 
 ## 8. Responsive và mobile
+
+Thẻ nhóm cơ trong thư viện bài tập dùng chung cho Coach và Admin. Giữ lưới hai cột trên mobile, chuyển sang ba cột và đặt hình cạnh nhãn từ breakpoint `lg`. Dùng thang spacing Tailwind (4px mỗi đơn vị), gap 8–12px và padding 12px. Tên nhóm dùng 14px trên mobile và 16px từ `lg`, số bài tập dùng 12px.
+
+Token của thẻ nằm trong `exercise-group-grid.module.css`. Nền thẻ lấy từ `card`, nền hình từ `muted`, vùng cơ được tô từ `primary`. Khi hover dùng `surface-hover`, khi nhấn dùng `primary-soft` và viền `primary`, khi focus bằng bàn phím dùng outline 2px theo `ring`. Cả thẻ là một nút với tên nhóm và số bài tập.
 
 ### Breakpoint chính
 
