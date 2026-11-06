@@ -1,5 +1,6 @@
 import type { CreateCoachProgramInput, ExerciseVariationOption } from "@/lib/fitness/types"
 import { parseSetIntensityMethodCell } from "@/lib/workout/intensity-tag"
+import { parseSetTempoCell } from "@/lib/workout/set-tempo"
 import { parseRepTargetText } from "@/lib/workout-reps"
 
 /**
@@ -19,6 +20,8 @@ type ProgramImportRow = {
   exerciseName: string
   /** Raw `Method` cell, e.g. "mrm", "all:drop", "1:warmup,3:mrm", "-, -, rp". */
   method?: string
+  /** Raw `Tempo` cell, e.g. "3-1-1-0", "all:3-1-1-0", "1:2-0-1-0,2:4-1-1-0". */
+  tempo?: string
   /** Position inside the workout. Falls back to the order rows arrive in. */
   order?: number
   /** Raw text so ranges such as "8-12" survive; parsed with the shared helper. */
@@ -196,6 +199,13 @@ function buildWorkoutsFromRows(
       return
     }
 
+    const parsedTempo = parseSetTempoCell(row.tempo, sets)
+
+    if (!parsedTempo.assignments) {
+      issues.push({ message: `Dòng ${row.sourceRow}: ${parsedTempo.error}`, sourceRow: row.sourceRow })
+      return
+    }
+
     if (!row.variationId && !row.exerciseName) {
       issues.push({ message: `Dòng ${row.sourceRow}: cần tên Exercise hoặc variation id.`, sourceRow: row.sourceRow })
       return
@@ -224,6 +234,7 @@ function buildWorkoutsFromRows(
       rir: row.rir,
       restTime: row.restTime,
       setIntensityTags: parsedMethod.assignments.length ? parsedMethod.assignments : undefined,
+      setTempos: parsedTempo.assignments.length ? parsedTempo.assignments : undefined,
       sets,
       variationId: variation.id,
       weight: typeof row.weight === "number" && Number.isFinite(row.weight) ? Math.max(0, row.weight) : undefined,
@@ -242,6 +253,7 @@ function buildWorkoutsFromRows(
       workout.exercises.push({
         ...exercise,
         setIntensityTags: exercise.setIntensityTags?.map((assignment) => ({ ...assignment })),
+        setTempos: exercise.setTempos?.map((assignment) => ({ ...assignment })),
       })
       grouped.set(key, workout)
     }

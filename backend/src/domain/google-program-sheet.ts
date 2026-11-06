@@ -29,11 +29,13 @@ export const WEEK_HEADERS = [
   "",
   "RIR",
   "Method",
+  "Tempo",
   "Rest (s)",
   "Note",
 ]
 
 export const METHOD_COLUMN_INDEX = WEEK_HEADERS.indexOf("Method")
+export const TEMPO_COLUMN_INDEX = WEEK_HEADERS.indexOf("Tempo")
 
 export const DAYS = 6
 export const ROWS_PER_DAY = 8

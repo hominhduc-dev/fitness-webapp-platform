@@ -447,7 +447,7 @@ export async function exportGoogleProgramLogs(profile: SerializedProfile, traine
           notes: true,
           order: true,
           restTime: true,
-          sets: { orderBy: { setNumber: "asc" }, select: { intensityTag: true, rir: true, setNumber: true, targetReps: true, targetRepsMin: true, weight: true } },
+          sets: { orderBy: { setNumber: "asc" }, select: { intensityTag: true, rir: true, setNumber: true, targetReps: true, targetRepsMin: true, tempo: true, weight: true } },
           variation: { select: { exercise: { select: { muscleGroup: true, name: true } }, id: true, isDefault: true, name: true } },
         },
       },

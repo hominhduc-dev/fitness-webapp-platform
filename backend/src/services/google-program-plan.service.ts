@@ -21,6 +21,8 @@ export type PlanExercise = {
   restTime?: number
   rir?: number
   sets?: number
+  /** Rep cadence cell, e.g. "all:3-1-1-0" or "1:2-0-1-0,2:4-1-1-0". */
+  tempo?: string
   variationId: string
   variationName: string
   weight?: number
@@ -39,6 +41,7 @@ const REPS_COLUMN = WEEK_HEADERS.indexOf("Rep Range")
 const WEIGHT_COLUMN = WEEK_HEADERS.indexOf("Weight (kg)")
 const RIR_COLUMN = WEEK_HEADERS.indexOf("RIR")
 const METHOD_COLUMN = WEEK_HEADERS.indexOf("Method")
+const TEMPO_COLUMN = WEEK_HEADERS.indexOf("Tempo")
 const REST_COLUMN = WEEK_HEADERS.indexOf("Rest (s)")
 const NOTE_COLUMN = WEEK_HEADERS.indexOf("Note")
 
@@ -88,6 +91,7 @@ function tailRowCells(exercise: PlanExercise) {
   return fill(RIR_COLUMN, NOTE_COLUMN, (set) => {
     set(RIR_COLUMN, number(exercise.rir))
     set(METHOD_COLUMN, text(exercise.method))
+    set(TEMPO_COLUMN, text(exercise.tempo))
     set(REST_COLUMN, number(exercise.restTime))
     set(NOTE_COLUMN, text(exercise.notes))
   })

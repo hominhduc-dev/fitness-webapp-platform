@@ -14,7 +14,7 @@
  * Pure: no Prisma, no I/O. The caller supplies the history.
  */
 
-import { isComparablePrescription, type Prescription } from "./exercise-exposure"
+import { prescriptionMismatch, type Prescription } from "./exercise-exposure"
 import { lowerLoad, nextLoad } from "./load-increment"
 
 type OverloadAction = "add_load" | "add_reps" | "maintain" | "reduce_load" | "establish_baseline"
@@ -29,6 +29,7 @@ type OverloadReason =
   | "readiness_low"
   | "no_load_increment"
   | "prescription_changed"
+  | "tempo_changed"
 
 type OverloadSetInput = {
   setNumber: number
@@ -37,6 +38,8 @@ type OverloadSetInput = {
   targetReps: number
   /** RIR the coach programmed for this set, if any. */
   targetRir?: number | null
+  /** Rep cadence programmed for this set, e.g. "3-1-1-0", if any. */
+  tempo?: string | null
   /** Warm-ups are not progressed. */
   isWarmup?: boolean
   previous?: {
@@ -114,17 +117,32 @@ function buildOverloadRecommendation(input: {
     (set) => set.previous?.carriedOver !== true && typeof set.previous?.reps === "number" && set.previous.reps > 0,
   )
   // Last session only counts when it asked for the same thing: 10 reps in an
-  // 8–10 block is not "below range" once the coach moves the set to 15–20.
-  const withHistory = anyHistory.filter((set) =>
-    !set.previous?.prescription || isComparablePrescription(set.previous.prescription, {
-      repMax: set.targetReps,
-      repMin: set.targetRepsMin ?? null,
-      targetRir: set.targetRir ?? null,
-    }),
+  // 8–10 block is not "below range" once the coach moves the set to 15–20, and
+  // the same reps at a slower cadence is a harder set, not a flat comparison.
+  const mismatches = anyHistory.map((set) =>
+    set.previous?.prescription
+      ? prescriptionMismatch(set.previous.prescription, {
+          repMax: set.targetReps,
+          repMin: set.targetRepsMin ?? null,
+          targetRir: set.targetRir ?? null,
+          tempo: set.tempo ?? null,
+        })
+      : undefined,
   )
+  const withHistory = anyHistory.filter((_set, index) => mismatches[index] === undefined)
 
   if (withHistory.length === 0) {
-    return { action: "establish_baseline", reasons: [anyHistory.length > 0 ? "prescription_changed" : "no_history"], sets: [] }
+    if (anyHistory.length === 0) {
+      return { action: "establish_baseline", reasons: ["no_history"], sets: [] }
+    }
+    // Naming the cadence specifically lets the trainee be told why the baseline
+    // restarted, instead of reading it as lost progress.
+    const changedByTempo = mismatches.every((mismatch) => mismatch === "tempo")
+    return {
+      action: "establish_baseline",
+      reasons: [changedByTempo ? "tempo_changed" : "prescription_changed"],
+      sets: [],
+    }
   }
 
   const lowerBody = input.lowerBody === true

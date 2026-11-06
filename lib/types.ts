@@ -146,6 +146,8 @@ export interface ExerciseSet {
   actualReps?: number
   /** Method the coach prescribed for this set; absent means a normal set. */
   intensityTag?: IntensityTag
+  /** Rep cadence the coach prescribed for this set, e.g. "3-1-1-0". */
+  tempo?: string
   weight?: number
   rir?: number // Reps in Reserve
   notes?: string

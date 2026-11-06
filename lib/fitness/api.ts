@@ -124,6 +124,7 @@ type SerializedExerciseSet = {
   completed: boolean
   id: string
   intensityTag?: IntensityTag
+  tempo?: string
   notes?: string
   previousPerformance?: {
     completedAt: string
@@ -973,6 +974,7 @@ function mapExerciseSet(set: SerializedExerciseSet): ExerciseSet {
     completed: set.completed,
     id: set.id,
     intensityTag: set.intensityTag,
+    tempo: set.tempo,
     notes: set.notes,
     previousPerformance: set.previousPerformance
       ? {

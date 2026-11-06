@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { IntensityTagBadge, getIntensityTagLabel } from "@/components/workout/set-intensity-tag"
+import { SetTempoBadge } from "@/components/workout/set-tempo-badge"
 import type { ExerciseSet } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { formatRepTarget } from "@/lib/workout-reps"
@@ -162,15 +163,17 @@ export function SessionSetRow({
       )}
     >
       <div className={cn("grid min-w-0 items-center py-1", SET_ROW_GRID_CLASS)}>
-        {/* Set number, with the method the coach prescribed for this set */}
-        {set.intensityTag ? (
+        {/* Set number, with the method and cadence the coach prescribed for this set */}
+        {set.intensityTag || set.tempo ? (
           <span
             className="flex min-w-0 flex-col items-center justify-center gap-0.5 text-center"
-            title={getIntensityTagLabel(set.intensityTag, messages)}
-            aria-label={messages.workoutPage.intensitySetMethodLabel(
-              setIndex + 1,
-              getIntensityTagLabel(set.intensityTag, messages),
-            )}
+            title={set.intensityTag ? getIntensityTagLabel(set.intensityTag, messages) : undefined}
+            aria-label={set.intensityTag
+              ? messages.workoutPage.intensitySetMethodLabel(
+                  setIndex + 1,
+                  getIntensityTagLabel(set.intensityTag, messages),
+                )
+              : undefined}
           >
             <span
               className={cn(
@@ -180,7 +183,8 @@ export function SessionSetRow({
             >
               {setIndex + 1}
             </span>
-            <IntensityTagBadge tag={set.intensityTag} />
+            {set.intensityTag ? <IntensityTagBadge tag={set.intensityTag} /> : null}
+            <SetTempoBadge label={messages.workoutPage.tempoHint} tempo={set.tempo} />
           </span>
         ) : (
           <span

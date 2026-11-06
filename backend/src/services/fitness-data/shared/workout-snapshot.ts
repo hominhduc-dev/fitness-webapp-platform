@@ -23,6 +23,8 @@ type WorkoutLogSnapshotSet = {
   targetReps?: number | null
   /** The effort the coach prescribed for this set, copied from the plan; `rir` is what was logged. */
   targetRir?: number | null
+  /** The rep cadence prescribed for this set, copied from the plan, e.g. "3-1-1-0". */
+  tempo?: string | null
   weight?: number | null
 }
 

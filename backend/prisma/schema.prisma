@@ -1127,6 +1127,11 @@ model ExerciseSet {
   actualReps        Int?
   weight            Float?
   rir               Int?
+  /// Rep cadence for this set, as "eccentric-pause-concentric-pause", e.g.
+  /// "3-1-1-0". Every rep of the set holds it; different sets of the same
+  /// exercise may carry different ones — a heavy top set is often faster than
+  /// its back-off. Stored as text because a slot may be "X" (explosive).
+  tempo             String?
   intensityTag      SetIntensityTag?
   notes             String?
   completed         Boolean          @default(false)

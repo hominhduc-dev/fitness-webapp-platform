@@ -215,6 +215,8 @@ export const workoutMessages = {
       playExerciseAnimation: "Play animation",
       previous: "Prev",
       progressionSetHint: (target: string) => `Suggested today: ${target}`,
+      tempoHint: (tempo: string, seconds: number) =>
+        `Tempo ${tempo}: down · pause · up · pause, about ${seconds}s a rep`,
       seededWeightHint: "Starting weight from your earlier training, not from this program yet",
       progressionNote: (action: "add_load" | "add_reps" | "deload" | "hold" | "maintain" | "reduce_load", target: string) =>
         action === "deload"
@@ -514,6 +516,8 @@ export const workoutMessages = {
       playExerciseAnimation: "Phát animation",
       previous: "Trước",
       progressionSetHint: (target: string) => `Gợi ý hôm nay: ${target}`,
+      tempoHint: (tempo: string, seconds: number) =>
+        `Tempo ${tempo}: xuống · giữ · lên · giữ, khoảng ${seconds} giây mỗi rep`,
       seededWeightHint: "Mức tạ lấy từ các buổi tập trước đây của bạn, chưa phải của chương trình này",
       progressionNote: (action: "add_load" | "add_reps" | "deload" | "hold" | "maintain" | "reduce_load", target: string) =>
         action === "deload"

@@ -151,9 +151,9 @@ describe("progressive overload", () => {
 })
 
 describe("a changed prescription", () => {
-  const history = (reps: number, prescription?: { repMax: number; repMin: number; targetRir: number | null }) =>
+  const history = (reps: number, prescription?: { repMax: number; repMin: number; targetRir: number | null; tempo?: string | null }) =>
     [1, 2, 3].map((setNumber) => ({
-      previous: { prescription, reps, rir: 2, weight: 80 },
+      previous: { prescription: prescription ? { tempo: null, ...prescription } : undefined, reps, rir: 2, weight: 80 },
       setNumber,
       targetReps: 20,
       targetRepsMin: 15,
@@ -164,9 +164,27 @@ describe("a changed prescription", () => {
       .toEqual({ action: "establish_baseline", reasons: ["prescription_changed"], sets: [] })
   })
 
+  it("restarts the baseline when the cadence changes, and says that is why", () => {
+    // The trainee hit 10 reps at 2-0-1-0; the coach moves them to 4-1-1-0, which
+    // doubles the time under tension. Adding load on top of that is the mistake
+    // this guards against, so the set starts again rather than being pushed.
+    const slower = history(10, { repMax: 20, repMin: 15, targetRir: 2, tempo: "2-0-1-0" })
+      .map((set) => ({ ...set, tempo: "4-1-1-0" }))
+
+    expect(buildOverloadRecommendation({ sets: slower }))
+      .toEqual({ action: "establish_baseline", reasons: ["tempo_changed"], sets: [] })
+  })
+
+  it("keeps calling a changed range a changed prescription, not a tempo change", () => {
+    const sets = history(10, { repMax: 10, repMin: 8, targetRir: 2, tempo: "3-1-1-0" })
+      .map((set) => ({ ...set, tempo: "3-1-1-0" }))
+
+    expect(buildOverloadRecommendation({ sets }).reasons).toEqual(["prescription_changed"])
+  })
+
   it("still progresses a set whose range only moved a little, and older history with no prescription", () => {
     const close = [1, 2, 3].map((setNumber) => ({
-      previous: { prescription: { repMax: 10, repMin: 8, targetRir: 2 }, reps: 10, rir: 2, weight: 80 },
+      previous: { prescription: { repMax: 10, repMin: 8, targetRir: 2, tempo: null }, reps: 10, rir: 2, weight: 80 },
       setNumber,
       targetReps: 12,
       targetRepsMin: 10,
