@@ -21,7 +21,7 @@ type SetIntensityAssignment = {
 
 // A readonly tuple rather than an array so `z.enum()` at the route boundary keeps
 // the literal union instead of widening to `string`.
-const SET_INTENSITY_TAGS = ["mrm", "drop_set", "rest_pause", "cluster", "failure", "warmup"] as const satisfies readonly SetIntensityTag[]
+const SET_INTENSITY_TAGS = ["mrm", "drop_set", "rest_pause", "cluster", "failure", "warmup", "top_set", "back_off"] as const satisfies readonly SetIntensityTag[]
 
 /**
  * The short badge the trainee sees. Mirrors `INTENSITY_TAG_BADGES` on the
@@ -34,6 +34,8 @@ const SET_INTENSITY_TAG_BADGES: Record<SetIntensityTag, string> = {
   mrm: "MRM",
   rest_pause: "RP",
   warmup: "WU",
+  top_set: "TOP",
+  back_off: "BACK",
 }
 
 /**
@@ -47,6 +49,8 @@ const SET_INTENSITY_TAG_ALIASES: Array<[SetIntensityTag, string[]]> = [
   ["cluster", ["cluster", "cls"]],
   ["failure", ["failure", "fail", "to failure"]],
   ["warmup", ["warmup", "warm up", "warm-up"]],
+  ["top_set", ["top", "top set", "topset", "top_set"]],
+  ["back_off", ["backoff", "back off", "back-off", "backoff set", "back off set", "back-off set", "back_off"]],
 ]
 
 /**
@@ -61,6 +65,8 @@ const SET_INTENSITY_METHOD_SHEET_TOKENS: Record<SetIntensityTag, string> = {
   mrm: "mrm",
   rest_pause: "rp",
   warmup: "warmup",
+  top_set: "top",
+  back_off: "backoff",
 }
 
 /**

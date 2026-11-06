@@ -59,6 +59,8 @@ enum SetIntensityTag {
   cluster
   failure
   warmup
+  top_set
+  back_off
 }
 
 enum CoachRequestStatus {
