@@ -3,11 +3,11 @@
 import Link from "next/link"
 import { BarChart3, Check, ListChecks, Users } from "lucide-react"
 
-import { CoachSignupForm } from "@/components/auth/coach-signup-form"
+import { CoachSignupForm, type CoachSignupResult } from "@/components/auth/coach-signup-form"
 import { useLocale } from "@/components/providers/locale-provider"
 
 /** The marketing half of /coach-signup, next to the form itself. */
-export function CoachSignupPanel({ notice }: { notice?: "pending" | "oauth-failed" | null }) {
+export function CoachSignupPanel({ notice }: { notice?: CoachSignupResult | "oauth-failed" | null }) {
   const { messages } = useLocale()
   const benefits = [
     { icon: ListChecks, label: messages.landing.coachBenefitPlan },
@@ -57,7 +57,7 @@ export function CoachSignupPanel({ notice }: { notice?: "pending" | "oauth-faile
 
       <CoachSignupForm
         defaultError={notice === "oauth-failed" ? messages.auth.coachSignupOauthFailed : null}
-        defaultSubmitted={notice === "pending"}
+        initialResult={notice === "oauth-failed" ? null : notice}
       />
     </div>
   )

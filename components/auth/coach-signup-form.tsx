@@ -19,6 +19,14 @@ import { getAppBaseUrl, getSupabasePublicConfigError } from "@/lib/supabase/conf
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""
 
+export type CoachSignupResult = "pending" | "check-email" | "email-return" | "email-confirmed" | "email-failed"
+
+function getCoachEmailCallbackUrl() {
+  const url = new URL("/auth/callback", getAppBaseUrl())
+  url.searchParams.set("flow", "coach-email")
+  return url.toString()
+}
+
 /**
  * Coach self-signup. A coach account is created locked and waits in the admin
  * queue, so unlike the trainee modal this form never signs anyone in: it ends
@@ -26,12 +34,11 @@ const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""
  */
 export function CoachSignupForm({
   defaultError = null,
-  defaultSubmitted = false,
+  initialResult = null,
 }: {
   /** Set when the OAuth callback bounced back with a failure. */
   defaultError?: string | null
-  /** The Google round-trip already created the account: open on the pending screen. */
-  defaultSubmitted?: boolean
+  initialResult?: CoachSignupResult | null
 } = {}) {
   const { messages } = useLocale()
   const [name, setName] = useState("")
@@ -45,7 +52,8 @@ export function CoachSignupForm({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false)
   const [error, setError] = useState<string | null>(defaultError)
-  const [isSubmitted, setIsSubmitted] = useState(defaultSubmitted)
+  const [submittedResult, setSubmittedResult] = useState<CoachSignupResult | null>(null)
+  const result = submittedResult ?? initialResult
   const turnstileRef = useRef<TurnstileInstance | null>(null)
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const captchaEnabled = TURNSTILE_SITE_KEY.length > 0
@@ -59,6 +67,18 @@ export function CoachSignupForm({
   useEffect(() => {
     trackRegistrationEvent("form_view", { method: "email", role: "coach" })
   }, [])
+
+  useEffect(() => {
+    if (result !== "email-return") return
+
+    // Express starts Supabase email signup without a PKCE verifier, so a
+    // successful confirmation returns the signup result in a URL fragment.
+    const fragment = new URLSearchParams(window.location.hash.slice(1))
+    const hasError = ["error", "error_code", "error_description"].some((key) => fragment.has(key))
+    // This is only a display hint. The token is never read into an auth session.
+    const confirmed = !hasError && fragment.get("type") === "signup" && Boolean(fragment.get("access_token"))
+    window.location.replace(`/coach-signup?status=${confirmed ? "email-confirmed" : "email-failed"}`)
+  }, [result])
 
   /**
    * Google never sees our role, so the callback URL carries it and the callback
@@ -118,28 +138,23 @@ export function CoachSignupForm({
     setIsSubmitting(true)
 
     try {
-      // Confirming the email lands on the sign-in modal rather than the app: the
-      // account stays locked until an admin approves it, and signing in there is
-      // what surfaces that message.
-      const redirectUrl = new URL("/auth/callback", getAppBaseUrl())
-      redirectUrl.searchParams.set("next", "/?auth=login")
       const response = await registerRequest({
         captchaToken: captchaToken ?? undefined,
         email,
         name,
         password,
         phone: phone.trim() || undefined,
-        redirectTo: redirectUrl.toString(),
+        redirectTo: getCoachEmailCallbackUrl(),
         role: "coach",
       })
 
       trackRegistrationEvent("sign_up", {
         method: "email",
-        email_confirmation_required: Boolean(response.requiresEmailConfirmation || !response.session),
+        email_confirmation_required: Boolean(response.requiresEmailConfirmation),
         role: "coach",
       })
 
-      setIsSubmitted(true)
+      setSubmittedResult(response.requiresEmailConfirmation ? "check-email" : "pending")
     } catch (rawError) {
       trackRegistrationEvent("form_error", { method: "email", role: "coach" })
       setError(
@@ -151,19 +166,37 @@ export function CoachSignupForm({
     }
   }
 
-  if (isSubmitted) {
+  if (result) {
+    const [title, description] = {
+      pending: [messages.auth.coachSignupPendingTitle, messages.auth.coachSignupPendingCopy],
+      "check-email": [messages.auth.coachSignupCheckEmailTitle, messages.auth.coachSignupCheckEmailCopy],
+      "email-return": [messages.auth.coachSignupCheckingEmail, null],
+      "email-confirmed": [messages.auth.coachSignupEmailConfirmedTitle, messages.auth.coachSignupEmailConfirmedCopy],
+      "email-failed": [messages.auth.coachSignupEmailFailedTitle, messages.auth.coachSignupEmailFailedCopy],
+    }[result]
+    const Icon = result === "check-email" || result === "email-failed" ? Mail
+      : result === "email-return" ? Loader2 : CheckCircle2
     return (
-      <div className="rounded-2xl border border-border bg-card p-6 text-center sm:p-8">
+      <div role="status" className="rounded-2xl border border-border bg-card p-6 text-center sm:p-8">
         <span aria-hidden="true" className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-primary-soft">
-          <CheckCircle2 className="size-6 text-primary" />
+          <Icon className={result === "email-return" ? "size-6 animate-spin text-primary" : "size-6 text-primary"} />
         </span>
-        <h2 className="text-xl font-semibold tracking-[-0.01em]">{messages.auth.coachSignupPendingTitle}</h2>
-        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-          {messages.auth.coachSignupPendingCopy}
-        </p>
-        <Button asChild variant="outline" className="mt-6">
-          <Link href="/">{messages.auth.coachSignupBackHome}</Link>
-        </Button>
+        <h2 className="text-xl font-semibold tracking-[-0.01em]">{title}</h2>
+        {description && <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">{description}</p>}
+        {result === "email-failed" && (
+          <a className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline" href="mailto:hoominhduc@gmail.com">
+            {messages.auth.coachSignupContactSupport}
+          </a>
+        )}
+        {result !== "email-return" && (
+          <Button asChild variant="outline" className={result === "email-failed" ? "mx-auto mt-2 flex w-fit" : "mt-6"}>
+            {result === "check-email" ? (
+              <Link href="/">{messages.auth.coachSignupBackHome}</Link>
+            ) : (
+              <Link href="/?auth=login">{messages.auth.login}</Link>
+            )}
+          </Button>
+        )}
       </div>
     )
   }

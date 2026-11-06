@@ -97,10 +97,29 @@ describe("coach signup form", () => {
   })
 
   it("opens on the pending screen when the callback says the account is waiting", () => {
-    render(<CoachSignupForm defaultSubmitted />)
+    render(<CoachSignupForm initialResult="pending" />)
 
     expect(screen.getByText("Application received")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Apply as a coach/ })).not.toBeInTheDocument()
+  })
+
+  it("tells the coach to confirm their email before signing in", async () => {
+    api.registerRequest.mockResolvedValue({ requiresApproval: true, requiresEmailConfirmation: true, session: null })
+    render(<CoachSignupForm />)
+    fillForm()
+    fireEvent.click(screen.getByRole("button", { name: /Apply as a coach/ }))
+
+    expect(await screen.findByRole("heading", { name: "Check your email" })).toBeInTheDocument()
+    expect(api.registerRequest).toHaveBeenCalledWith(expect.objectContaining({
+      redirectTo: "https://yeahbuddy.test/auth/callback?flow=coach-email",
+    }))
+  })
+
+  it("shows the next approval step after email confirmation", () => {
+    render(<CoachSignupForm initialResult="email-confirmed" />)
+
+    expect(screen.getByRole("status")).toHaveTextContent(/admin has approved/)
+    expect(screen.getByRole("link", { name: "Sign In" })).toHaveAttribute("href", "/?auth=login")
   })
   it("refuses to register when the confirmation does not match", async () => {
     render(<CoachSignupForm />)

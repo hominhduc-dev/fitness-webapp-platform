@@ -588,7 +588,7 @@
   color: var(--muted-foreground);
   font-size: 11px;
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .mobileNav {
     display: none;
   }
@@ -734,6 +734,10 @@
     margin-inline: 16px;
     flex-direction: column;
     padding: 24px 6px 32px;
+  }
+  .sectionFoot a,
+  .footer a {
+    min-height: 44px;
   }
 }
 @media (max-width: 399px) {

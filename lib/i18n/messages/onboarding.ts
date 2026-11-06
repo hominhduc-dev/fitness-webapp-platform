@@ -88,12 +88,12 @@ export const onboardingMessages = {
         },
         coachWorkoutBuilder: {
           week: {
-            title: "Build the week",
-            body: "Add workouts to each week and place them on the days your client will train.",
+            title: "Name your program",
+            body: "To save a program, give it a name and add at least one workout to the schedule.",
           },
           exercises: {
-            title: "Prescribe clearly",
-            body: "Choose exercises, sets, reps, rest and intensity so the plan is ready to execute.",
+            title: "Add your first workout",
+            body: "Pick a training day, then choose a routine or create one with at least one exercise.",
           },
           save: {
             title: "Save, then assign",
@@ -343,12 +343,12 @@ export const onboardingMessages = {
         },
         coachWorkoutBuilder: {
           week: {
-            title: "Xây tuần tập",
-            body: "Thêm workout vào từng tuần và đặt vào ngày client sẽ tập.",
+            title: "Đặt tên giáo án",
+            body: "Để lưu giáo án, hãy đặt tên và thêm ít nhất một buổi tập vào lịch.",
           },
           exercises: {
-            title: "Kê bài rõ ràng",
-            body: "Chọn bài, set, rep, nghỉ và cường độ để giáo án sẵn sàng thực hiện.",
+            title: "Thêm buổi tập đầu tiên",
+            body: "Chọn một ngày tập, sau đó chọn routine có sẵn hoặc tạo routine với ít nhất một bài tập.",
           },
           save: {
             title: "Lưu rồi assign",

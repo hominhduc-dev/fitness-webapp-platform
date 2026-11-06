@@ -25,7 +25,6 @@ import { LanguageToggle } from "@/components/layout/language-toggle"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { BrandLogo } from "@/components/ui/brand-logo"
-import type { AppLocale } from "@/lib/i18n/config"
 import { cn } from "@/lib/utils"
 import styles from "./landing-page.module.css"
 
@@ -69,13 +68,14 @@ function useLandingMotion() {
   return ref
 }
 
-export function LandingPage(_props: { locale: AppLocale }) {
-  const { messages } = useLocale()
+export function LandingPage() {
+  const { locale, messages } = useLocale()
   const c = messages.landing
   const motionRef = useLandingMotion()
   return (
     <div
       ref={motionRef}
+      lang={locale}
       className={cn(styles.shell, "min-h-screen bg-background text-foreground")}
     >
       <a href="#main-content" className={styles.skipLink}>
@@ -106,7 +106,7 @@ export function LandingPage(_props: { locale: AppLocale }) {
             size="lg"
             className="mt-7 rounded-full shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
           >
-            <Link href="/?auth=register" scroll={false}>
+            <Link href={`/?lang=${locale}&auth=register`} scroll={false}>
               {c.primaryCta}
               <ArrowRight />
             </Link>
@@ -119,7 +119,7 @@ export function LandingPage(_props: { locale: AppLocale }) {
           <Link href="/privacy-policy">{c.privacy}</Link>
           <Link href="/terms-of-service">{c.terms}</Link>
           <Link href="#features">{c.navFeatures}</Link>
-          <Link href="/?auth=login" scroll={false}>
+          <Link href={`/?lang=${locale}&auth=login`} scroll={false}>
             {c.signIn}
             <ArrowRight size={14} />
           </Link>
@@ -133,7 +133,7 @@ export function LandingPage(_props: { locale: AppLocale }) {
 }
 
 function TopBar() {
-  const { messages } = useLocale()
+  const { locale, messages } = useLocale()
   const c = messages.landing
   const [menuOpen, setMenuOpen] = useState(false)
   return (
@@ -152,7 +152,7 @@ function TopBar() {
         </Link>
         <nav
           aria-label={c.navigation}
-          className="hidden items-center gap-7 text-sm text-muted-foreground md:flex"
+          className="hidden items-center gap-7 whitespace-nowrap text-sm text-muted-foreground lg:flex"
         >
           <Link href="#features" className="hover:text-foreground">
             {c.navFeatures}
@@ -168,14 +168,14 @@ function TopBar() {
           </Link>
         </nav>
         <div className="flex items-center gap-2">
-          <LanguageToggle className="shrink-0" />
+          <LanguageToggle className="shrink-0" syncLanguageQuery />
           <Button
             variant="ghost"
             asChild
-            className="hidden rounded-full sm:inline-flex"
+            className="hidden rounded-full lg:inline-flex"
             onClick={() => setMenuOpen(false)}
           >
-            <Link href="/?auth=login" scroll={false}>
+            <Link href={`/?lang=${locale}&auth=login`} scroll={false}>
               {c.signIn}
             </Link>
           </Button>
@@ -184,7 +184,7 @@ function TopBar() {
             className="hidden rounded-full sm:inline-flex"
             onClick={() => setMenuOpen(false)}
           >
-            <Link href="/?auth=register" scroll={false}>
+            <Link href={`/?lang=${locale}&auth=register`} scroll={false}>
               {c.getStarted}
               <ArrowRight size={15} className="hidden sm:block" />
             </Link>
@@ -192,7 +192,7 @@ function TopBar() {
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden"
+            className="lg:hidden"
             aria-label={menuOpen ? c.closeMenu : c.openMenu}
             aria-expanded={menuOpen}
             aria-controls="landing-navigation"
@@ -213,7 +213,7 @@ function TopBar() {
             { href: "#demo", label: c.productPreview },
             { href: "#trainers", label: c.navTrainers },
             { href: "#ai", label: c.navAI },
-            { href: "/?auth=login", label: c.signIn },
+            { href: `/?lang=${locale}&auth=login`, label: c.signIn },
           ].map((item) => (
             <Link
               key={item.href}
@@ -231,7 +231,7 @@ function TopBar() {
 }
 
 function Hero() {
-  const { messages } = useLocale()
+  const { locale, messages } = useLocale()
   const c = messages.landing
   return (
     <section className={styles.hero}>
@@ -254,7 +254,7 @@ function Hero() {
                 size="lg"
                 className="rounded-full px-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
               >
-                <Link href="/?auth=register" scroll={false}>
+                <Link href={`/?lang=${locale}&auth=register`} scroll={false}>
                   {c.primaryCta}
                   <ArrowRight size={17} />
                 </Link>
@@ -754,7 +754,7 @@ function Specs() {
 }
 
 function FeaturesSection() {
-  const { messages } = useLocale()
+  const { locale, messages } = useLocale()
   const c = messages.landing
   const features = [
     { Icon: Dumbbell, title: c.featureLogTitle, body: c.featureLogCopy },
@@ -810,7 +810,7 @@ function FeaturesSection() {
       </div>
       <div className={styles.sectionFoot}>
         <p>{c.featuresFootnote}</p>
-        <Link href="/?auth=register" scroll={false}>
+        <Link href={`/?lang=${locale}&auth=register`} scroll={false}>
           {c.getStarted}
           <ArrowRight size={15} />
         </Link>
@@ -866,7 +866,7 @@ function TrainerSection() {
   )
 }
 function AISection() {
-  const { messages } = useLocale()
+  const { locale, messages } = useLocale()
   const c = messages.landing
   const steps = [c.aiStepRead, c.aiStepDraft, c.aiStepReview]
   return (
@@ -908,7 +908,7 @@ function AISection() {
       </div>
       <div className={styles.sectionFoot}>
         <p className="flex items-start gap-2"><ShieldCheck size={16} className="shrink-0 text-primary" aria-hidden="true" />{c.aiGuardrail}</p>
-        <Link href="/?auth=register" scroll={false}>{c.primaryCta}<ArrowRight size={15} /></Link>
+        <Link href={`/?lang=${locale}&auth=register`} scroll={false}>{c.primaryCta}<ArrowRight size={15} /></Link>
       </div>
     </section>
   )
