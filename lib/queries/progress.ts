@@ -1,8 +1,10 @@
 "use client"
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { useUserQuery as useQuery } from "./scoped"
+import { userQueryKey, useUserQuery as useQuery } from "./scoped"
 
+import { useAuth } from "@/components/providers/auth-provider"
+import { ApiError } from "@/lib/auth/api"
 import { queryKeys } from "@/lib/queries/keys"
 import { requireAccessToken } from "@/lib/queries/token"
 import type { BodyMetricQueryOptions } from "@/lib/queries/types"
@@ -118,12 +120,32 @@ export function useWorkoutLogDetail(logId: string | null) {
   })
 }
 
+/**
+ * Without a `programId` the server picks the program (today's, else the newest
+ * assigned one), so the dashboard, the progress views and the agent all read
+ * one result per week under one key. A caller that names a program — the
+ * session page — starts from that shared entry when the server resolved the
+ * same program, so the session and the dashboard never hold two different
+ * answers for the same week; it only fetches its own when the program differs.
+ */
 export function useVolumeRecovery(options?: { enabled?: boolean; initialData?: VolumeRecoveryData; programId?: string | null; weekStart?: string }) {
+  const queryClient = useQueryClient()
+  const { profile } = useAuth()
+  const programId = options?.programId ?? null
+  const weekStart = options?.weekStart
+  const resolvedKey = userQueryKey(queryKeys.progress.volumeRecovery({ weekStart }), profile?.id)
+  const sharedEntry = () => {
+    if (!programId) return undefined
+    const data = queryClient.getQueryData<VolumeRecoveryData>(resolvedKey)
+    return data?.programContext?.programId === programId ? data : undefined
+  }
+
   return useQuery({
-    queryKey: queryKeys.progress.volumeRecovery({ programId: options?.programId, weekStart: options?.weekStart }),
-    queryFn: async () => fetchVolumeRecovery(await requireAccessToken(), { programId: options?.programId, weekStart: options?.weekStart }),
+    queryKey: queryKeys.progress.volumeRecovery({ programId, weekStart }),
+    queryFn: async () => fetchVolumeRecovery(await requireAccessToken(), { programId, weekStart }),
     enabled: options?.enabled ?? true,
-    initialData: options?.initialData,
+    initialData: options?.initialData ?? sharedEntry,
+    initialDataUpdatedAt: () => (sharedEntry() ? queryClient.getQueryState(resolvedKey)?.dataUpdatedAt : undefined),
     staleTime: PROGRESS_STALE_TIME_MS,
   })
 }
@@ -159,10 +181,17 @@ export function useSetVolumeRecommendationStatus() {
   return useMutation({
     mutationFn: async (input: Parameters<typeof setVolumeRecommendationStatus>[1]) =>
       setVolumeRecommendationStatus(await requireAccessToken(), input),
-    onSuccess: () => {
+    // A 409 means the advice changed after it was shown: refetching puts the
+    // current recommendation in front of the trainee instead of the stale one.
+    onSettled: (_data, error) => {
+      if (error && !isRecommendationChanged(error)) return
       void queryClient.invalidateQueries({ queryKey: queryKeys.progress.all })
     },
   })
+}
+
+export function isRecommendationChanged(error: unknown) {
+  return error instanceof ApiError && error.status === 409
 }
 
 export function useSaveVolumeLandmarks() {

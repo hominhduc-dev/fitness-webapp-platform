@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ApiError } from "@/lib/auth/api"
-import { useWeightEntries, useCreateWeightEntry, useProgressCalendar, useRecoveryHistory, useVolumeRecovery } from "./progress"
+import { useWeightEntries, useCreateWeightEntry, useProgressCalendar, useRecoveryHistory, useSetVolumeRecommendationStatus, useVolumeRecovery } from "./progress"
 import { ACTIVE_SESSION_SEED_REUSE_MS, prefetchOfflineReadyWorkouts, prefetchWorkouts, useWorkoutDetail, useWorkouts } from "./workouts"
 import { prefetchMeals, useAddMealItem, useFoods, useNutritionDay } from "./meals"
 import { useCoachLogs } from "./coach-logs"
@@ -16,7 +16,7 @@ const state = vi.hoisted(() => ({ userId: "user-a", token: "token-1" }))
 const api = vi.hoisted(() => ({
   weights: vi.fn(), createWeight: vi.fn(), calendar: vi.fn(), workout: vi.fn(), workouts: vi.fn(),
   addMeal: vi.fn(), foods: vi.fn(), nutritionDay: vi.fn(), logs: vi.fn(),
-  volume: vi.fn(), recovery: vi.fn(),
+  volume: vi.fn(), recovery: vi.fn(), setRecommendation: vi.fn(),
   navCounts: vi.fn(), trainees: vi.fn(), programs: vi.fn(), exercises: vi.fn(),
 }))
 const offline = vi.hoisted(() => ({ save: vi.fn(), warm: vi.fn() }))
@@ -32,7 +32,7 @@ vi.mock("@/lib/fitness/api", async (original) => ({
   fetchProgressCalendar: api.calendar, fetchWorkoutDetail: api.workout,
   fetchWorkouts: api.workouts, addMealItem: api.addMeal, fetchFoods: api.foods,
   fetchNutritionDay: api.nutritionDay, fetchCoachWorkoutLogs: api.logs,
-  fetchVolumeRecovery: api.volume, fetchRecoveryHistory: api.recovery,
+  fetchVolumeRecovery: api.volume, fetchRecoveryHistory: api.recovery, setVolumeRecommendationStatus: api.setRecommendation,
   fetchCoachNavCounts: api.navCounts, fetchCoachTrainees: api.trainees,
   fetchCoachPrograms: api.programs, fetchCoachExercises: api.exercises,
 }))
@@ -198,6 +198,74 @@ describe("client cache contracts", () => {
     expect(seeded.result.current.data).toBe(seed)
     expect(api.volume).not.toHaveBeenCalled()
     passive.unmount(); seeded.unmount(); client.clear()
+  })
+
+  it("gives the session the dashboard's volume result when the server resolved the same program", async () => {
+    const { client, wrapper } = setup()
+    const resolved = { programContext: { programId: "program-today" }, muscles: [], weekStart: "2026-11-02" } as unknown as
+      Awaited<ReturnType<typeof import("@/lib/fitness/api").fetchVolumeRecovery>>
+    api.volume.mockResolvedValue(resolved)
+
+    const dashboard = renderHook(() => useVolumeRecovery(), { wrapper })
+    await waitFor(() => expect(dashboard.result.current.data).toBe(resolved))
+    const session = renderHook(() => useVolumeRecovery({ programId: "program-today" }), { wrapper })
+
+    expect(session.result.current.data).toBe(resolved)
+    expect(api.volume).toHaveBeenCalledTimes(1)
+    expect(api.volume).toHaveBeenCalledWith(state.token, { programId: null, weekStart: undefined })
+    dashboard.unmount(); session.unmount(); client.clear()
+  })
+
+  it("fetches the session's own volume result when its program is not the resolved one", async () => {
+    const { client, wrapper } = setup()
+    const resolved = { programContext: { programId: "program-today" }, muscles: [] } as unknown as
+      Awaited<ReturnType<typeof import("@/lib/fitness/api").fetchVolumeRecovery>>
+    const other = { programContext: { programId: "program-other" }, muscles: [] } as unknown as typeof resolved
+    api.volume.mockImplementation(async (_token: string, options?: { programId?: string | null }) =>
+      options?.programId === "program-other" ? other : resolved)
+
+    const dashboard = renderHook(() => useVolumeRecovery(), { wrapper })
+    await waitFor(() => expect(dashboard.result.current.data).toBe(resolved))
+    const session = renderHook(() => useVolumeRecovery({ programId: "program-other" }), { wrapper })
+
+    await waitFor(() => expect(session.result.current.data).toBe(other))
+    expect(api.volume).toHaveBeenCalledTimes(2)
+    dashboard.unmount(); session.unmount(); client.clear()
+  })
+
+  it("refetches progress when an answer is refused because the recommendation changed", async () => {
+    const { client, wrapper } = setup()
+    const key = userQueryKey(queryKeys.progress.volumeRecovery(), state.userId)
+    client.setQueryData(key, { muscles: [] })
+    api.setRecommendation.mockRejectedValue(new ApiError("changed", 409))
+    const hook = renderHook(() => useSetVolumeRecommendationStatus(), { wrapper })
+
+    await act(async () => {
+      await hook.result.current
+        .mutateAsync({ action: "increase", muscleSlug: "chest", status: "accepted" })
+        .catch(() => undefined)
+    })
+
+    expect(api.setRecommendation).toHaveBeenCalledWith(state.token, { action: "increase", muscleSlug: "chest", status: "accepted" })
+    expect(client.getQueryState(key)?.isInvalidated).toBe(true)
+    hook.unmount(); client.clear()
+  })
+
+  it("leaves progress alone when an answer fails for another reason", async () => {
+    const { client, wrapper } = setup()
+    const key = userQueryKey(queryKeys.progress.volumeRecovery(), state.userId)
+    client.setQueryData(key, { muscles: [] })
+    api.setRecommendation.mockRejectedValue(new ApiError("down", 500))
+    const hook = renderHook(() => useSetVolumeRecommendationStatus(), { wrapper })
+
+    await act(async () => {
+      await hook.result.current
+        .mutateAsync({ action: "increase", muscleSlug: "chest", status: "accepted" })
+        .catch(() => undefined)
+    })
+
+    expect(client.getQueryState(key)?.isInvalidated).toBe(false)
+    hook.unmount(); client.clear()
   })
 
   it("seeds without fetching when the seeding observer is disabled", () => {

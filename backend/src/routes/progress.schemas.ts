@@ -43,6 +43,9 @@ const recoveryHistoryQuerySchema = z.object({
 })
 
 const volumeRecommendationStatusSchema = z.object({
+  // The action the trainee saw, so an answer to advice that has since changed
+  // is refused (409) instead of being stored against the new advice.
+  action: z.enum(["decrease", "deload", "increase", "maintain"]),
   muscleSlug,
   programId: z.string().uuid().optional(),
   status: z.enum(["accepted", "applied", "dismissed"]),

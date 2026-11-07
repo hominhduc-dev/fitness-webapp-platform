@@ -1,6 +1,9 @@
 import { HealthProvider } from "@prisma/client"
 import type { SerializedProfile } from "../auth.service"
 import { AppError } from "../errors"
+// core.ts imports this module too; the cycle is safe because each side only
+// reads the other's exports when a request runs, never at load time.
+import { findTodayScheduleEntryForTrainee } from "../fitness-data/core"
 import { addUtcDays, clientCalendarDay, clientDayStart, formatUtcDateOnly, startOfUtcWeek } from "../fitness-data/shared/dates"
 import { assertTrainee, ensurePrisma } from "../fitness-data/shared/guards"
 import { normalizeTrainingGoal, policyForTrainingGoal, type TrainingGoal, type TrainingGoalPolicy } from "../../domain/training-goal-policy"
@@ -51,6 +54,30 @@ type ProgramRecoveryContext = {
   policy: TrainingGoalPolicy | null
   programId: string
   weekIndex: number
+}
+
+type VolumeRecommendationAction = "decrease" | "deload" | "increase" | "maintain"
+
+/**
+ * The program a volume read is computed in. A caller that names one (the
+ * session page, a coach looking at an assignment) gets that one; everyone else
+ * gets the program the trainee trains in today, else the newest assigned
+ * program that has workouts. The dashboard, the session and the answer to a
+ * recommendation therefore all compute in the same context instead of the
+ * dashboard pooling logs from every program.
+ */
+async function resolveRecoveryProgramId(profile: SerializedProfile, programId: string | undefined) {
+  if (programId) return programId
+
+  const today = await findTodayScheduleEntryForTrainee(profile.id)
+  if (today?.programId) return today.programId
+
+  const latest = await ensurePrisma().programAssignment.findFirst({
+    orderBy: { assignedAt: "desc" },
+    select: { programId: true },
+    where: { program: { archivedAt: null, workouts: { some: {} } }, userId: profile.id },
+  })
+  return latest?.programId ?? undefined
 }
 
 async function resolveProgramRecoveryContext(
@@ -250,7 +277,11 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
   // Two weeks back, so a variation trained every other week still has a
   // previous session to be compared with.
   const analysisStart = addUtcDays(weekStart, -PERFORMANCE_LOOKBACK_DAYS)
-  const programContext = await resolveProgramRecoveryContext(profile, programId, weekStart)
+  const programContext = await resolveProgramRecoveryContext(
+    profile,
+    await resolveRecoveryProgramId(profile, programId),
+    weekStart,
+  )
 
   const [logs, checkIns, profiles, storedRecommendations] = await Promise.all([
     db.workoutLog.findMany({
@@ -273,7 +304,8 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
       where: { userId: profile.id },
     }),
     db.volumeRecommendation.findMany({
-      where: { userId: profile.id, weekStart },
+      select: { action: true, muscleSlug: true, status: true },
+      where: { programId: programContext?.programId ?? null, userId: profile.id, weekStart },
     }),
   ])
 
@@ -286,10 +318,16 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
   const sorenessByMuscle = new Map(latestCheckIn?.muscles.map((muscle) => [muscle.muscleSlug, muscle.soreness]) ?? [])
   const profileByMuscle = new Map(profiles.map((volumeProfile) => [volumeProfile.muscleSlug, volumeProfile]))
   // A recommendation the trainee already accepted or dismissed keeps that
-  // answer for the rest of the week, so the card does not ask again.
-  const statusByMuscle = new Map(storedRecommendations.flatMap((record) =>
-    record.muscleSlug == null ? [] : [[record.muscleSlug, record.status] as const],
+  // answer for the rest of the week, so the card does not ask again — but only
+  // while the engine still says the same thing. Once the action changes, the
+  // answer was to a different question and the new one reads as pending.
+  const answerByMuscle = new Map(storedRecommendations.flatMap((record) =>
+    record.muscleSlug == null ? [] : [[record.muscleSlug, record] as const],
   ))
+  const statusFor = (muscleSlug: string, action: VolumeRecommendationAction) => {
+    const answer = answerByMuscle.get(muscleSlug)
+    return answer && answer.action === action ? answer.status : "pending"
+  }
   const readinessScore = latestCheckIn?.readinessScore ?? null
 
   const muscles = volume.map((muscleVolume) => {
@@ -333,7 +371,7 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
       performanceChangePct,
       recommendation: {
         ...recommendation,
-        status: statusByMuscle.get(muscleVolume.muscleSlug) ?? "pending",
+        status: statusFor(muscleVolume.muscleSlug, recommendation.action),
       },
       soreness,
       zone,
@@ -426,14 +464,20 @@ async function listRecoveryHistoryForTrainee(profile: SerializedProfile, days: n
  */
 async function setVolumeRecommendationStatusForTrainee(
   profile: SerializedProfile,
-  input: { muscleSlug: string; programId?: string; status: "accepted" | "applied" | "dismissed"; weekStart?: Date },
+  input: {
+    action: VolumeRecommendationAction
+    muscleSlug: string
+    programId?: string
+    status: "accepted" | "applied" | "dismissed"
+    weekStart?: Date
+  },
 ) {
   const db = ensurePrisma()
   assertTrainee(profile)
 
   const weekStart = startOfUtcWeek(input.weekStart ?? clientCalendarDay())
-  // Recomputed in the same program context the trainee was shown, or the
-  // stored action could differ from the one they answered.
+  // Recomputed in the context the read resolved (the same fallback when no
+  // program is named), so the stored action is the one the trainee was shown.
   const recovery = await getVolumeRecoveryForTrainee(profile, weekStart, input.programId)
   const muscle = recovery.muscles.find((entry) => entry.muscleSlug === input.muscleSlug)
 
@@ -444,16 +488,33 @@ async function setVolumeRecommendationStatusForTrainee(
     })
   }
 
+  // A log or check-in since the trainee loaded the card can change the advice;
+  // answering the old one would record agreement with something never shown.
+  if (muscle.recommendation.action !== input.action) {
+    throw new AppError("Gợi ý cho nhóm cơ này vừa thay đổi. Hãy xem lại gợi ý mới.", {
+      code: "VOLUME_RECOMMENDATION_CHANGED",
+      status: 409,
+    })
+  }
+
+  const key = {
+    muscleSlug: input.muscleSlug,
+    programId: recovery.programContext?.programId ?? null,
+    userId: profile.id,
+    weekStart,
+  }
   const existing = await db.volumeRecommendation.findFirst({
-    where: { muscleSlug: input.muscleSlug, userId: profile.id, weekStart },
+    select: { acceptedAt: true, action: true },
+    where: key,
   })
   const now = new Date()
   // `applied` follows `accepted`, so it keeps the earlier acceptance rather
-  // than overwriting when it happened.
+  // than overwriting when it happened — if that acceptance was of this action.
+  const earlierAcceptance = existing?.action === muscle.recommendation.action ? existing.acceptedAt : null
   const timestamps = input.status === "accepted"
     ? { acceptedAt: now, appliedAt: null, dismissedAt: null }
     : input.status === "applied"
-      ? { acceptedAt: existing?.acceptedAt ?? now, appliedAt: now, dismissedAt: null }
+      ? { acceptedAt: earlierAcceptance ?? now, appliedAt: now, dismissedAt: null }
       : { acceptedAt: null, appliedAt: null, dismissedAt: now }
   const data = {
     action: muscle.recommendation.action,
@@ -466,11 +527,14 @@ async function setVolumeRecommendationStatusForTrainee(
     ...timestamps,
   }
 
-  const saved = existing
-    ? await db.volumeRecommendation.update({ data, where: { id: existing.id } })
-    : await db.volumeRecommendation.create({
-        data: { ...data, muscleSlug: input.muscleSlug, userId: profile.id, weekStart },
-      })
+  // INSERT … ON CONFLICT DO NOTHING against the NULLS NOT DISTINCT key, then
+  // update the row that won. Two taps racing each other end on one row, which
+  // findFirst-then-create could not promise.
+  const inserted = await db.volumeRecommendation.createMany({ data: [{ ...data, ...key }], skipDuplicates: true })
+  if (inserted.count === 0) {
+    await db.volumeRecommendation.updateMany({ data, where: key })
+  }
+  const saved = await db.volumeRecommendation.findFirstOrThrow({ where: key })
 
   return serializeRecommendationRecord(saved)
 }
