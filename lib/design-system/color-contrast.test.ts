@@ -268,7 +268,7 @@ describe("browser chrome canvas", () => {
     }
   })
 
-  it("uses the Black + Volt brand canvas for static PWA and browser defaults", () => {
+  it("uses the Black + Volt brand canvas for the installed PWA splash and tiles", () => {
     const brandTokens = paletteTokens.find(([theme]) => theme === "black-volt")?.[1]
     expect(brandTokens).toBeDefined()
     const background = resolveToken(brandTokens!, "--background").toLowerCase()
@@ -277,6 +277,10 @@ describe("browser chrome canvas", () => {
     expect(manifest.theme_color).toBe(background)
     const browserconfig = readFileSync(path.join(process.cwd(), "public/browserconfig.xml"), "utf8").toLowerCase()
     expect(browserconfig).toContain(`<tilecolor>${background}</tilecolor>`)
+  })
+
+  it("starts the browser chrome on the light canvas, matching the light default theme", () => {
+    const background = resolveToken(lightTokens, "--background").toLowerCase()
     const layout = readFileSync(path.join(process.cwd(), "app/layout.tsx"), "utf8").toLowerCase()
     expect(layout).toContain(`themecolor: "${background}"`)
   })
