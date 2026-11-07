@@ -747,6 +747,9 @@ model VolumeRecommendation {
   id               String                     @id @default(uuid()) @db.Uuid
   userId           String                     @db.Uuid
   muscleSlug       String?
+  /// The program the recommendation was computed in. Null when the trainee had
+  /// no program with workouts, so it was computed against all of their logs.
+  programId        String?                    @db.Uuid
   weekStart        DateTime                   @db.Date
   action           VolumeRecommendationAction
   status           VolumeRecommendationStatus @default(pending)
@@ -760,10 +763,17 @@ model VolumeRecommendation {
   appliedAt        DateTime?
   user             User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   muscle           MuscleRegion?              @relation(fields: [muscleSlug], references: [slug], onDelete: Restrict)
+  program          Program?                   @relation(fields: [programId], references: [id], onDelete: Cascade)
   createdAt        DateTime                   @default(now())
 
+  /// One answer per muscle, program and week. The migration creates it NULLS
+  /// NOT DISTINCT so rows with no program collide too. Prisma cannot express
+  /// that (nor take a null in a compound unique `where`), so writes go through
+  /// createMany({ skipDuplicates }) + updateMany rather than upsert.
+  @@unique([userId, programId, weekStart, muscleSlug])
   @@index([userId, weekStart])
   @@index([muscleSlug])
+  @@index([programId])
 }
 
 model VariationMuscleTarget {
@@ -908,6 +918,7 @@ model Program {
   createdBy           User                @relation("ProgramCreator", fields: [createdById], references: [id], onDelete: Cascade)
   workouts            Workout[]
   assignments         ProgramAssignment[]
+  volumeRecommendations VolumeRecommendation[]
   archivedAt          DateTime?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt

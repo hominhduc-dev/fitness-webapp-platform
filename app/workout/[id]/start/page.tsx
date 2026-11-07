@@ -824,6 +824,7 @@ function WorkoutSession() {
     setAppliedHintSlugs((prev) => [...prev, hint.muscleSlug])
     handleAddSet(exerciseId)
     answerRecommendation.mutate({
+      action: hint.action,
       muscleSlug: hint.muscleSlug,
       programId: volumeRecoveryQuery.data?.programContext?.programId,
       status: "applied",

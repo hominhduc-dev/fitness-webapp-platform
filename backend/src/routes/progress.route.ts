@@ -63,6 +63,7 @@ progressRouter.put(
   validated({ body: volumeRecommendationStatusSchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
     sendData(res, await setVolumeRecommendationStatusForTrainee(profile, {
+      action: req.body.action,
       muscleSlug: req.body.muscleSlug,
       programId: req.body.programId,
       status: req.body.status,

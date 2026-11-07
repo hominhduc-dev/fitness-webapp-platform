@@ -7,7 +7,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { useToast } from "@/components/providers/toast-provider"
 import { Button } from "@/components/ui/button"
 import type { VolumeRecoveryMuscle } from "@/lib/fitness/types"
-import { useSetVolumeRecommendationStatus, useVolumeRecovery } from "@/lib/queries/progress"
+import { isRecommendationChanged, useSetVolumeRecommendationStatus, useVolumeRecovery } from "@/lib/queries/progress"
 
 const actionPriority = { deload: 0, decrease: 1, increase: 2, maintain: 3 } as const
 
@@ -42,7 +42,9 @@ export function CoachInsightCard() {
 
   const answer = (status: "accepted" | "dismissed") =>
     answerRecommendation.mutate(
-      { muscleSlug: insight.muscleSlug, status, weekStart: data.weekStart },
+      // No programId: the server resolves the same program this read was
+      // computed in. The action pins the answer to the advice on screen.
+      { action: insight.recommendation.action, muscleSlug: insight.muscleSlug, status, weekStart: data.weekStart },
       { onSuccess: () => {
         setAnswered(true)
         if (status === "accepted") toast({ title: copy.recommendationAcknowledged, tone: "success" })
@@ -81,7 +83,9 @@ export function CoachInsightCard() {
         </button>
       </div>
       {answerRecommendation.error ? (
-        <p role="alert" className="mt-1.5 text-xs text-destructive-text">{answerRecommendation.error.message}</p>
+        isRecommendationChanged(answerRecommendation.error)
+          ? <p role="status" className="mt-1.5 text-xs text-muted-foreground">{copy.recommendationChanged}</p>
+          : <p role="alert" className="mt-1.5 text-xs text-destructive-text">{answerRecommendation.error.message}</p>
       ) : null}
     </section>
   )
