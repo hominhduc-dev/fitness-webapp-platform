@@ -22,7 +22,8 @@ export const themeStorageKey = "yeahbuddy-theme"
 const darkQuery = "(prefers-color-scheme: dark)"
 const lightThemeColor = "#e8ecf3"
 const darkThemeColor = "#080a0f"
-const defaultTheme: ThemeMode = "black-volt"
+// New visitors (nothing stored yet) start in light. A saved choice always wins.
+const defaultTheme: ThemeMode = "light"
 const paletteThemes: readonly PaletteTheme[] = [
   "performance-green",
   "electric-blue",

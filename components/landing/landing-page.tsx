@@ -5,6 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import {
   ArrowDown,
+  ArrowLeftRight,
   ArrowRight,
   BarChart3,
   Bot,
@@ -14,9 +15,9 @@ import {
   Flame,
   LayoutDashboard,
   Menu,
+  MessageCircle,
   Plus,
   ShieldCheck,
-  Sparkles,
   Timer,
   Users,
   X,
@@ -92,33 +93,27 @@ export function LandingPage() {
         <TrainerSection />
         <AISection />
         <ComparisonSection />
-        <section
-          data-motion="reveal" className={styles.finalCta}
-        >
-          <p className={styles.eyebrow}>{c.finalEyebrow}</p>
-          <h2 className={styles.sectionTitle}>
-            {c.finalHeading}
-            <br />
-            <span>{c.finalMuted}</span>
-          </h2>
-          <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground">
-            {c.finalCopy}
-          </p>
-          <Button
-            asChild
-            size="lg"
-            className="mt-7 rounded-full shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
-          >
-            <Link href={`/?lang=${locale}&auth=register`} scroll={false}>
-              {c.primaryCta}
-              <ArrowRight />
-            </Link>
-          </Button>
+        <section className={styles.finalCta}>
+          <div data-motion="reveal" className={styles.finalPanel}>
+            <p className={styles.eyebrow}>{c.finalEyebrow}</p>
+            <h2 className={styles.finalTitle}>
+              {c.finalHeading}
+              <br />
+              <span>{c.finalMuted}</span>
+            </h2>
+            <p className={styles.finalCopy}>{c.finalCopy}</p>
+            <Button asChild size="lg" className={styles.ctaOnBrand}>
+              <Link href={`/?lang=${locale}&auth=register`} scroll={false}>
+                {c.primaryCta}
+                <ArrowRight />
+              </Link>
+            </Button>
+          </div>
         </section>
       </main>
       <footer className={styles.footer}>
         <p>{c.footerLine}</p>
-        <div className="flex flex-wrap items-center gap-6">
+        <div className={styles.footerLinks}>
           <Link href="/privacy-policy">{c.privacy}</Link>
           <Link href="/terms-of-service">{c.terms}</Link>
           <Link href="#features">{c.navFeatures}</Link>
@@ -148,14 +143,13 @@ function TopBar() {
         >
           <BrandLogo
             className="gap-2.5"
-            markClassName="size-[30px]"
-            textClassName="font-semibold"
+            markClassName="size-8"
+            textClassName="text-xl font-semibold tracking-[-0.01em]"
           />
-          <span className="text-lg text-primary">.</span>
         </Link>
         <nav
           aria-label={c.navigation}
-          className="hidden items-center gap-7 whitespace-nowrap text-sm text-muted-foreground lg:flex"
+          className="hidden items-center gap-8 whitespace-nowrap text-[15px] text-muted-foreground lg:flex"
         >
           <Link href="#features" className="hover:text-foreground">
             {c.navFeatures}
@@ -170,21 +164,19 @@ function TopBar() {
             {c.navCompare}
           </Link>
         </nav>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 lg:gap-5">
           <LanguageToggle className="shrink-0" syncLanguageQuery />
-          <Button
-            variant="ghost"
-            asChild
-            className="hidden rounded-full lg:inline-flex"
+          <Link
+            href={`/?lang=${locale}&auth=login`}
+            scroll={false}
+            className="hidden min-h-11 items-center text-[15px] font-medium hover:text-primary lg:inline-flex"
             onClick={() => setMenuOpen(false)}
           >
-            <Link href={`/?lang=${locale}&auth=login`} scroll={false}>
-              {c.signIn}
-            </Link>
-          </Button>
+            {c.signIn}
+          </Link>
           <Button
             asChild
-            className="hidden rounded-full sm:inline-flex"
+            className={cn(styles.ctaPrimary, "hidden sm:inline-flex")}
             onClick={() => setMenuOpen(false)}
           >
             <Link href={`/?lang=${locale}&auth=register`} scroll={false}>
@@ -239,51 +231,38 @@ function Hero() {
   return (
     <section className={styles.hero}>
       <div className={styles.heroIntro}>
-        <p className={cn(styles.eyebrow, styles.heroStep1)}>
-          YEAHBUDDY <span className="text-muted-foreground">/</span>{" "}
-          {c.heroEyebrow}
+        <p className={cn(styles.heroPill, styles.heroStep1)}>
+          <span>{c.heroPillTag}</span>
+          {c.heroPill}
         </p>
         <h1 className={cn(styles.heroTitle, styles.heroStep2)}>
           {c.heroTitle}
           <br />
           <span>{c.heroMutedTitle}</span>
         </h1>
-        <div className={styles.heroDetails}>
-          <p className={cn(styles.heroCopy, styles.heroStep3)}>{c.heroCopy}</p>
-          <div>
-            <div className={cn(styles.heroActions, styles.heroStep4)}>
-              <Button
-                asChild
-                size="lg"
-                className="min-h-11 rounded-full px-5"
-              >
-                <Link href={`/?lang=${locale}&auth=register`} scroll={false}>
-                  {c.primaryCta}
-                  <ArrowRight size={17} />
-                </Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="min-h-11 rounded-full bg-transparent px-5"
-              >
-                <a href="#demo">
-                  {c.livePreviewCta}
-                  <ArrowDown size={17} />
-                </a>
-              </Button>
-            </div>
-            <p
-              className={cn(
-                "mt-5 text-xs leading-relaxed text-muted-foreground",
-                styles.heroStep5
-              )}
-            >
-              {c.trustLine}
-            </p>
-          </div>
+        <p className={cn(styles.heroCopy, styles.heroStep3)}>{c.heroCopy}</p>
+        <div className={cn(styles.heroActions, styles.heroStep4)}>
+          <Button asChild size="lg" className={styles.ctaPrimary}>
+            <Link href={`/?lang=${locale}&auth=register`} scroll={false}>
+              {c.primaryCta}
+              <ArrowRight size={17} />
+            </Link>
+          </Button>
+          <Button asChild size="lg" variant="outline" className={styles.ctaSecondary}>
+            <a href="#demo">
+              {c.livePreviewCta}
+              <ArrowDown size={17} />
+            </a>
+          </Button>
         </div>
+        <ul className={cn(styles.trustList, styles.heroStep5)}>
+          {c.trustLine.split(" · ").map((item) => (
+            <li key={item}>
+              <Check size={15} aria-hidden="true" />
+              {item}
+            </li>
+          ))}
+        </ul>
       </div>
       <HeroMockups />
     </section>
@@ -292,35 +271,60 @@ function Hero() {
 
 function HeroMockups() {
   const { messages } = useLocale()
-  const copy = messages.landing.heroMockup
+  const c = messages.landing
+  const copy = c.heroMockup
 
   return (
     <div className={styles.heroMockups}>
-      <figure className={styles.coachDevice} data-motion="device">
-        <figcaption className={styles.deviceBar}>
-          <span className={styles.windowDots} aria-hidden="true"><i /><i /><i /></span>
-          {copy.trainee}
-        </figcaption>
-        <Image
-          src="/landing/trainee-program.webp"
-          alt={copy.traineeAlt}
-          width={990}
-          height={410}
-          sizes="(min-width: 1024px) 500px, (min-width: 768px) 50vw, 90vw"
-          className="h-auto w-full"
-        />
+      {/* Device composition follows the "MacBook Pro 14 — Realistic Mockup" Figma file. */}
+      <figure className={styles.macbook} data-motion="device">
+        <figcaption className="sr-only">{copy.trainee}</figcaption>
+        <div className={styles.macLid}>
+          <div className={styles.macScreen}>
+            <span className={styles.macNotch} aria-hidden="true" />
+            <Image
+              src="/landing/mockup-macbook-workout.webp"
+              alt={copy.traineeAlt}
+              width={1920}
+              height={1100}
+              priority
+              unoptimized
+              sizes="(min-width: 1240px) 860px, 76vw"
+              className={styles.macImage}
+            />
+          </div>
+        </div>
+        <div className={styles.macBase} aria-hidden="true"><span /></div>
       </figure>
-      <figure className={styles.phoneDevice} data-motion="device" data-motion-order="1">
-        <figcaption className={styles.phoneCaption}>{copy.coach}</figcaption>
-        <Image
-          src="/landing/coach-program-mobile.webp"
-          alt={copy.coachAlt}
-          width={356}
-          height={602}
-          sizes="288px"
-          className="h-auto w-full rounded-xl"
-        />
+      <figure className={styles.iphone} data-motion="device" data-motion-order="1">
+        <figcaption className="sr-only">{copy.coach}</figcaption>
+        <div className={styles.iphoneScreen}>
+          <span className={styles.iphoneIsland} aria-hidden="true" />
+          <Image
+            src="/landing/mockup-iphone-session.webp"
+            alt={copy.coachAlt}
+            width={390}
+            height={844}
+            unoptimized
+            sizes="(min-width: 1240px) 240px, (min-width: 768px) 20vw, 32vw"
+            className={styles.iphoneImage}
+          />
+        </div>
       </figure>
+      <div className={cn(styles.heroChip, styles.chipSets)} aria-hidden="true">
+        <span className={styles.chipIcon}><Check size={16} /></span>
+        <span>
+          <strong>{c.savedSets}</strong>
+          <small>{c.benchPress} · 82.5 kg × 8</small>
+        </span>
+      </div>
+      <div className={cn(styles.heroChip, styles.chipRest)} aria-hidden="true">
+        <span className={styles.chipIcon}><Timer size={16} /></span>
+        <span>
+          <strong>{c.restTimer} 01:30</strong>
+          <small>{c.nextSet}</small>
+        </span>
+      </div>
     </div>
   )
 }
@@ -731,13 +735,14 @@ function Highlights() {
   ]
   return (
     <section id="why" aria-labelledby="why-title" className={styles.highlights}>
-      <h2 id="why-title" className={styles.eyebrow}>{c.differences.title}</h2>
+      <p className={styles.eyebrow}>{c.differences.title}</p>
+      <h2 id="why-title" className={styles.sectionTitle}>{c.differences.heading}</h2>
       <div className={styles.highlightsGrid}>
         {highlights.map(({ Icon, href, title, body }, index) => (
           <article className={styles.highlight} key={href} data-motion="reveal" data-motion-order={index}>
-            <Icon className="size-5 text-primary" aria-hidden="true" />
-            <h3 className="mt-3 text-lg font-semibold tracking-tight">{title}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
+            <span className={styles.featureIconWrap} aria-hidden="true"><Icon size={22} /></span>
+            <h3 className="mt-4 text-xl font-semibold tracking-[-0.01em]">{title}</h3>
+            <p className="mt-4 text-[15px] leading-6 text-muted-foreground">{body}</p>
             <a className={styles.detailLink} href={href}>
               {c.differences.details}<span className="sr-only"> {title}</span>
               <ArrowRight className="size-4" aria-hidden="true" />
@@ -766,20 +771,24 @@ function ComparisonSection() {
   ]
   return (
     <section id="compare" className={styles.comparison} aria-labelledby="compare-title" data-motion="heading">
-      <p className={styles.eyebrow}>{copy.label}</p>
-      <h2 id="compare-title" className={cn(styles.sectionTitle, "mt-3")}>{copy.title}</h2>
-      <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">{copy.intro}</p>
+      <div className={styles.sectionIntro}>
+        <p className={styles.eyebrow}>{copy.label}</p>
+        <h2 id="compare-title" className={styles.sectionTitle}>{copy.title}</h2>
+        <p className={styles.introSmall}>{copy.intro}</p>
+      </div>
       <dl className={styles.comparisonList}>
         {products.map(({ name, body, ...source }) => (
           <div key={name} className={styles.comparisonRow}>
-            <dt className={cn("font-semibold", name === "YeahBuddy" && "text-primary")}>{name}</dt>
-            <dd className="min-w-0 text-sm leading-relaxed text-muted-foreground">
-              {body}
-              {"href" in source && (
-                <div><a className={styles.detailLink} href={source.href}>
+            <dt>{name}</dt>
+            <dd className="min-w-0 text-[15px] leading-relaxed text-muted-foreground">{body}</dd>
+            <dd>
+              {"href" in source ? (
+                <a className={styles.comparisonTag} href={source.href}>
                   {copy.source}<span className="sr-only"> {name}</span>
-                  <ArrowRight className="size-4" aria-hidden="true" />
-                </a></div>
+                  <ArrowRight className="size-3.5" aria-hidden="true" />
+                </a>
+              ) : (
+                <span className={styles.comparisonTag}>{copy.current}</span>
               )}
             </dd>
           </div>
@@ -794,20 +803,12 @@ function FeaturesSection() {
   const { locale, messages } = useLocale()
   const c = messages.landing
   const features = [
-    { Icon: Dumbbell, title: c.featureLogTitle, body: c.featureLogCopy },
-    {
-      Icon: Flame,
-      title: c.featureNutritionTitle,
-      body: c.featureNutritionCopy,
-    },
-    { Icon: BarChart3, title: c.featureChartsTitle, body: c.featureChartsCopy },
-    {
-      Icon: CalendarDays,
-      title: c.featureHistoryTitle,
-      body: c.featureHistoryCopy,
-    },
-    { Icon: Timer, title: c.featureTimerTitle, body: c.featureTimerCopy },
-    { Icon: Users, title: c.featureCoachTitle, body: c.featureCoachCopy },
+    { title: c.featureLogTitle, body: c.featureLogCopy },
+    { title: c.featureNutritionTitle, body: c.featureNutritionCopy },
+    { title: c.featureChartsTitle, body: c.featureChartsCopy },
+    { title: c.featureHistoryTitle, body: c.featureHistoryCopy },
+    { title: c.featureTimerTitle, body: c.featureTimerCopy },
+    { title: c.featureCoachTitle, body: c.featureCoachCopy },
   ]
   return (
     <section
@@ -826,31 +827,22 @@ function FeaturesSection() {
         </p>
       </div>
       <div className={styles.featureGrid}>
-        {features.map(({ Icon, title, body }, index) => (
+        {features.map(({ title, body }, index) => (
           <article key={title} data-motion="reveal" data-motion-order={index % 3} className={styles.feature}>
-            <div className="flex items-center justify-between">
-              <span className={styles.featureIconWrap} aria-hidden="true">
-                <Icon size={20} strokeWidth={1.75} />
-              </span>
-              <span className="font-mono text-[10px] text-muted-foreground">
-                0{index + 1}
-              </span>
-            </div>
-            <h3 className="mb-2 mt-7 text-base font-semibold tracking-tight">
-              {title}
-            </h3>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              {body}
-            </p>
+            <span className={styles.featureNumber}>0{index + 1}</span>
+            <h3 className="mb-3 mt-3 text-xl font-semibold tracking-[-0.01em]">{title}</h3>
+            <p className="text-[15px] leading-6 text-muted-foreground">{body}</p>
           </article>
         ))}
       </div>
-      <div className={styles.sectionFoot}>
+      <div className={styles.accountBand}>
         <p>{c.featuresFootnote}</p>
-        <Link href={`/?lang=${locale}&auth=register`} scroll={false}>
-          {c.getStarted}
-          <ArrowRight size={15} />
-        </Link>
+        <Button asChild size="lg" className={styles.ctaPrimary}>
+          <Link href={`/?lang=${locale}&auth=register`} scroll={false}>
+            {c.getStarted}
+            <ArrowRight size={17} />
+          </Link>
+        </Button>
       </div>
     </section>
   )
@@ -874,19 +866,19 @@ function TrainerSection() {
         <p className="mt-5 max-w-lg text-sm leading-relaxed text-muted-foreground">
           {c.trainerCopy}
         </p>
-        <ul className="my-6 space-y-3 text-sm">
+        <ul className={styles.checkList}>
           {[
             c.coachBenefitPlan,
             c.coachBenefitProgress,
             c.coachBenefitOverview,
           ].map((item) => (
-            <li key={item} className="flex items-start gap-2.5">
-              <Check size={16} className="mt-0.5 shrink-0 text-primary" />
+            <li key={item}>
+              <span aria-hidden="true"><Check size={14} strokeWidth={3} /></span>
               {item}
             </li>
           ))}
         </ul>
-        <Button asChild size="lg" className="rounded-full">
+        <Button asChild size="lg" variant="outline" className={styles.ctaSecondary}>
           <Link href="/coach-signup">
             {c.coachSignupCta}
             <ArrowRight />
@@ -894,16 +886,13 @@ function TrainerSection() {
         </Button>
       </div>
       <figure data-motion="reveal" data-motion-order="1" className={styles.coachPreview}>
-        <CoachDemo />
-        <figcaption className="border-t border-border px-5 py-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          {c.sampleData}
-        </figcaption>
+        <CoachDemo badge={c.sampleData} />
       </figure>
     </section>
   )
 }
 function AISection() {
-  const { locale, messages } = useLocale()
+  const { messages } = useLocale()
   const c = messages.landing
   const steps = [c.aiStepRead, c.aiStepDraft, c.aiStepReview]
   return (
@@ -920,54 +909,53 @@ function AISection() {
       </div>
       <div className={styles.aiGrid}>
         <article data-motion="reveal" className={styles.aiCard}>
-          <span className={styles.featureIconWrap} aria-hidden="true"><Bot size={22} /></span>
-          <h3 className="mt-6 text-xl font-semibold tracking-tight">AI Coach</h3>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{c.aiCoachCopy}</p>
-          <div className={styles.aiQuestion}>
+          <span className={styles.featureIconWrap} aria-hidden="true"><MessageCircle size={22} /></span>
+          <h3 className="mt-4 text-xl font-semibold tracking-[-0.01em]">AI Coach</h3>
+          <p className="mt-4 text-[15px] leading-6 text-muted-foreground">{c.aiCoachCopy}</p>
+          <div className={styles.aiChat}>
             <span className={styles.eyebrow}>{c.aiExampleLabel}</span>
-            <p className="mt-3 text-sm leading-relaxed">{c.aiQuestion}</p>
+            <p className={styles.aiQuestion}>{c.aiQuestion}</p>
           </div>
         </article>
         <article data-motion="reveal" data-motion-order="1" className={cn(styles.aiCard, styles.aiAgentCard)}>
-          <span className={styles.featureIconWrap} aria-hidden="true"><Sparkles size={22} /></span>
-          <h3 className="mt-6 text-xl font-semibold tracking-tight">AI Agent</h3>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{c.aiAgentCopy}</p>
+          <span className={styles.featureIconWrap} aria-hidden="true"><Bot size={22} /></span>
+          <h3 className="mt-4 text-xl font-semibold tracking-[-0.01em]">AI Agent</h3>
+          <p className="mt-4 text-[15px] leading-6 text-muted-foreground">{c.aiAgentCopy}</p>
           <ol className={styles.aiSteps}>
             {steps.map((step, index) => (
               <li key={step}>
                 <span aria-hidden="true">0{index + 1}</span>
                 <p>{step}</p>
-                {index === 2 && <ShieldCheck size={18} className="shrink-0 text-primary" aria-hidden="true" />}
               </li>
             ))}
           </ol>
+          <p className={styles.aiNote}>
+            <ShieldCheck size={18} aria-hidden="true" />
+            {c.aiGuardrail}
+          </p>
         </article>
-      </div>
-      <div className={styles.sectionFoot}>
-        <p className="flex items-start gap-2"><ShieldCheck size={16} className="shrink-0 text-primary" aria-hidden="true" />{c.aiGuardrail}</p>
-        <Link href={`/?lang=${locale}&auth=register`} scroll={false}>{c.primaryCta}<ArrowRight size={15} /></Link>
       </div>
     </section>
   )
 }
 
-function CoachDemo() {
+function CoachDemo({ badge }: { badge?: string }) {
   const { messages } = useLocale()
   const c = messages.landing
   return (
     <div className={styles.previewMain}>
-      <div className="mb-5 flex items-start justify-between gap-3">
+      <div className="mb-5 flex items-center justify-between gap-3">
         <div>
-          <p className={styles.eyebrow}>{c.coachWorkspace}</p>
-          <h3 className="mt-2 text-xl font-semibold tracking-tight">
+          <p className={cn(styles.eyebrow, styles.eyebrowMuted)}>{c.coachWorkspace}</p>
+          <h3 className="mt-1 text-xl font-semibold tracking-[-0.01em]">
             {c.coachDemoTitle}
           </h3>
         </div>
-        <Users
-          size={20}
-          className="mt-1 shrink-0 text-primary"
-          aria-hidden="true"
-        />
+        {badge ? (
+          <span className={styles.sampleBadge}>{badge}</span>
+        ) : (
+          <Users size={20} className="shrink-0 text-primary" aria-hidden="true" />
+        )}
       </div>
       <div className={styles.coachMetrics}>
         {[
@@ -986,8 +974,8 @@ function CoachDemo() {
           </div>
         ))}
       </div>
-      <div className="mt-4 rounded-lg border border-border bg-background p-4">
-        <p className="text-xs font-medium">{c.coachWeeklyActivity}</p>
+      <div className={styles.weeklyChart}>
+        <p className="text-[15px] font-medium">{c.coachWeeklyActivity}</p>
         <div
           className={styles.activityBars}
           aria-label={c.coachActivityDescription}
@@ -995,32 +983,28 @@ function CoachDemo() {
         >
           {[2, 1, 0, 2, 1, 0, 0].map((count, index) => (
             <div key={index}>
-              <span className="font-mono text-[10px] text-muted-foreground">
-                {count}
-              </span>
+              <span className={count ? "text-foreground" : undefined}>{count}</span>
               <span
-                className={styles.activityBar}
-                style={{ height: Math.max(4, count * 18) + "px" }}
+                className={cn(styles.activityBar, !count && styles.activityBarEmpty)}
+                style={{ height: Math.max(6, count * 44) + "px" }}
               />
-              <span className="font-mono text-[9px] text-muted-foreground">
-                {5 + index}/10
-              </span>
+              <span>{5 + index}/10</span>
             </div>
           ))}
         </div>
       </div>
-      <div className="mt-4 rounded-lg border border-border bg-primary-soft p-4">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-primary">
-          {c.coachSwapTitle}
-        </p>
-        <p className="mt-2 text-sm font-medium">Maya R. · {c.coachSwapDay}</p>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          {c.coachSwapExample}
-        </p>
-        <p className="mt-3 flex items-start gap-2 text-xs text-primary">
-          <Check size={14} className="shrink-0" aria-hidden="true" />
-          {c.coachSwapReview}
-        </p>
+      <div className={styles.swapRequest}>
+        <span className={styles.swapIcon} aria-hidden="true">
+          <ArrowLeftRight size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className={styles.eyebrow}>{c.coachSwapTitle}</p>
+          <p className="mt-0.5 text-[15px] font-medium">{c.coachSwapExample}</p>
+          <p className="text-[15px] leading-6 text-muted-foreground">
+            Maya R. · {c.coachSwapDay} · {c.coachSwapReview}
+          </p>
+        </div>
+        <span className={styles.swapApprove}>{c.coachSwapApprove}</span>
       </div>
     </div>
   )

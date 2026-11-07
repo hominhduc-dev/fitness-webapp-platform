@@ -87,7 +87,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <AppProviders initialLocale={locale} withAuth={false}>
+      {/* Signed-out landing is always light; does not overwrite the stored theme. */}
+      <AppProviders initialLocale={locale} initialTheme="light" withAuth={false}>
         <LandingPage />
       </AppProviders>
     </>

@@ -51,10 +51,14 @@ const themeInitScript = `
     }
     var paletteThemes = ["performance-green", "electric-blue", "volt-lime", "iron-orange", "black-volt", "crimson-performance"];
     var isKnownTheme = storedTheme === "light" || storedTheme === "dark" || storedTheme === "system" || paletteThemes.indexOf(storedTheme) !== -1;
-    // Black + Volt is the brand default on every route. Existing choices,
-    // including system and legacy migrations, stay intact across the landing
-    // page and authenticated app.
-    var theme = isKnownTheme ? storedTheme : "black-volt";
+    // Light is the default for new visitors. Signed-out marketing routes are
+    // always light, whatever the last signed-in user picked; their stored
+    // choice is left untouched so it returns after they sign back in.
+    // Mirrors defaultTheme / initialTheme="light" in theme-provider.tsx.
+    var forcedLightPaths = ["/", "/coach-signup"];
+    var theme = forcedLightPaths.indexOf(window.location.pathname) !== -1
+      ? "light"
+      : isKnownTheme ? storedTheme : "light";
     var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
     var resolvedTheme = theme === "system" ? (prefersDark ? "dark" : "light") : theme;
     var root = document.documentElement;
@@ -205,7 +209,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#0d0f0e",
+  themeColor: "#e8ecf3",
   width: "device-width",
   initialScale: 1,
   // Pinch-zoom stays available — WCAG 1.4.4 wants it, and iOS Safari has
@@ -222,7 +226,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang={defaultLocale} className="dark black-volt" suppressHydrationWarning>
+    <html lang={defaultLocale} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <link rel="dns-prefetch" href="https://bljmubatdtvuomucqmoj.supabase.co" />
