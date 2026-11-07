@@ -17,3 +17,22 @@ export function nextIncompleteExercise(exercises: ReadonlyArray<SessionExercise>
   }
   return null
 }
+
+/**
+ * The queue under the current exercise in the stack layout. `upNext` is every
+ * unfinished exercise in the order the session bar would reach them (after
+ * `currentIndex` in planned order, then any skipped earlier); `done` is every
+ * finished one in planned order. The current exercise is in neither.
+ */
+export function exerciseQueue(exercises: ReadonlyArray<SessionExercise>, currentIndex: number) {
+  const upNext: number[] = []
+  const done: number[] = []
+  for (let step = 1; step < exercises.length; step++) {
+    const index = (currentIndex + step) % exercises.length
+    if (!isExerciseDone(exercises[index])) upNext.push(index)
+  }
+  exercises.forEach((exercise, index) => {
+    if (index !== currentIndex && isExerciseDone(exercise)) done.push(index)
+  })
+  return { upNext, done }
+}
