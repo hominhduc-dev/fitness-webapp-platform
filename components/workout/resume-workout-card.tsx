@@ -6,6 +6,8 @@ import { useEffect, useState } from "react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { useAuth } from "@/components/providers/auth-provider"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { queueWorkoutSessionDraftDelete } from "@/lib/offline/workout-log-queue"
 import { cn } from "@/lib/utils"
 import { clearStoredWorkoutSession } from "@/lib/workout/session-storage"
@@ -45,8 +47,37 @@ export function ResumeWorkoutCard() {
   const { profile } = useAuth()
   const { refresh, sessions } = useActiveWorkoutSessionList()
   const session = sessions[0] ?? null
+  const workoutId = session?.workoutId
   const [now, setNow] = useState(() => Date.now())
   const [visible, setVisible] = useState(false)
+  const [inlineResume, setInlineResume] = useState<string | null>(null)
+  const [discardWorkoutId, setDiscardWorkoutId] = useState<string | null>(null)
+
+  // The dashboard CTA streams in independently of this shell-level component.
+  useEffect(() => {
+    if (pathname !== "/dashboard" || !workoutId || typeof IntersectionObserver === "undefined") return
+    let target: Element | undefined
+    const intersection = new IntersectionObserver(([entry]) => {
+      setInlineResume(entry?.isIntersecting && entry.intersectionRatio >= 0.5 ? workoutId : null)
+    }, { threshold: 0.5, rootMargin: "-64px 0px -120px 0px" })
+    const observeTarget = () => {
+      const next = Array.from(document.querySelectorAll("[data-workout-resume-id]"))
+        .find((element) => element.getAttribute("data-workout-resume-id") === workoutId)
+      if (next === target) return
+      intersection.disconnect()
+      target = next
+      setInlineResume(null)
+      if (target) intersection.observe(target)
+    }
+    const mutations = new MutationObserver(observeTarget)
+    mutations.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-workout-resume-id"] })
+    observeTarget()
+    return () => {
+      mutations.disconnect()
+      intersection.disconnect()
+      setInlineResume(null)
+    }
+  }, [pathname, workoutId])
 
   // Rescan whenever the route changes (e.g. after leaving /start)
   useEffect(() => {
@@ -54,15 +85,12 @@ export function ResumeWorkoutCard() {
   }, [pathname, refresh])
 
   const onStartPage = pathname ? START_PATH_PATTERN.test(pathname) : false
-  const shouldShow = !!session && !onStartPage && pathname !== "/chat"
+  const hiddenByInline = pathname === "/dashboard" && inlineResume === session?.workoutId
+  const shouldShow = !!session && !onStartPage && pathname !== "/chat" && !hiddenByInline
 
   // Drive the fade transition
   useEffect(() => {
-    if (!shouldShow) {
-      setVisible(false)
-      return
-    }
-    const id = requestAnimationFrame(() => setVisible(true))
+    const id = requestAnimationFrame(() => setVisible(shouldShow))
     return () => cancelAnimationFrame(id)
   }, [shouldShow])
 
@@ -85,10 +113,12 @@ export function ResumeWorkoutCard() {
   }
 
   const handleDiscard = () => {
-    clearStoredWorkoutSession(session.workoutId)
+    if (!discardWorkoutId) return
+    clearStoredWorkoutSession(discardWorkoutId)
     // Queued so discarding works offline; the server draft goes on the next sync.
-    if (profile?.id) void queueWorkoutSessionDraftDelete(profile.id, session.workoutId).catch(() => undefined)
+    if (profile?.id) void queueWorkoutSessionDraftDelete(profile.id, discardWorkoutId).catch(() => undefined)
     setVisible(false)
+    setDiscardWorkoutId(null)
   }
 
   const name = session.workoutName?.trim() || messages.workoutPage.workoutInProgress
@@ -96,12 +126,14 @@ export function ResumeWorkoutCard() {
   const startedAgo = formatStartedAgo(session.startedAt, now)
 
   return (
+    <Dialog open={discardWorkoutId === session.workoutId} onOpenChange={(open) => setDiscardWorkoutId(open ? session.workoutId : null)}>
     <div
+      hidden={hiddenByInline}
       className={cn(
         "workout-floating-chip fixed z-40 pointer-events-auto",
         "bottom-[calc(var(--mobile-nav-offset)+4.25rem)] left-1/2 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2",
         "md:left-[280px] md:right-24 md:w-auto md:max-w-none md:translate-x-0 md:bottom-6",
-        "transition-opacity duration-[400ms]",
+        "transition-opacity duration-[400ms] motion-reduce:transition-none",
         visible ? "opacity-100" : "opacity-0",
       )}
     >
@@ -115,7 +147,7 @@ export function ResumeWorkoutCard() {
         {/* Left: label + workout name */}
         <div className="min-w-0 flex-1 md:flex-none md:min-w-[160px] md:max-w-[240px]">
           <div className="mb-0.5 flex items-center gap-1.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground md:text-micro">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
+            <span className="h-1.5 w-1.5 motion-safe:animate-pulse rounded-full bg-success" />
             {messages.workoutPage.inProgress}
           </div>
           <div className="truncate text-sm font-semibold leading-tight text-foreground md:text-base">
@@ -149,26 +181,36 @@ export function ResumeWorkoutCard() {
             onClick={handleResume}
             aria-label={messages.workoutPage.resume}
             className={cn(
-              "flex h-9 items-center gap-1 rounded-full px-2.5 text-xs font-medium md:h-auto md:rounded-md md:px-3 md:py-1.5 md:text-sm",
+              "flex min-h-11 items-center gap-1 rounded-full px-2.5 text-xs font-medium md:rounded-md md:px-3 md:text-sm focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2",
               "bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-150",
             )}
           >
             <Play className="h-3.5 w-3.5" fill="currentColor" />
             {messages.workoutPage.resume}
           </button>
-          <button
-            onClick={handleDiscard}
+          <DialogTrigger asChild><button
             aria-label={messages.workoutPage.discard}
             className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium md:h-auto md:w-auto md:rounded-md md:px-3 md:py-1.5",
+              "flex min-h-11 min-w-11 items-center justify-center rounded-full text-sm font-medium md:rounded-md md:px-3 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2",
               "bg-transparent text-destructive-text hover:bg-destructive-soft transition-colors duration-150",
             )}
           >
             <X className="h-3.5 w-3.5" />
             <span className="sr-only md:not-sr-only">{messages.workoutPage.discard}</span>
-          </button>
+          </button></DialogTrigger>
         </div>
       </div>
     </div>
+    <DialogContent showCloseButton={false} className="motion-reduce:animate-none" overlayClassName="motion-reduce:animate-none">
+      <DialogHeader>
+        <DialogTitle>{messages.workoutPage.discardSessionTitle}</DialogTitle>
+        <DialogDescription>{messages.workoutPage.discardSessionDescription}</DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
+        <DialogClose asChild><Button variant="outline" className="min-h-11" autoFocus>{messages.workoutPage.keepSession}</Button></DialogClose>
+        <Button variant="destructive" className="min-h-11" onClick={handleDiscard}>{messages.workoutPage.discard}</Button>
+      </DialogFooter>
+    </DialogContent>
+    </Dialog>
   )
 }

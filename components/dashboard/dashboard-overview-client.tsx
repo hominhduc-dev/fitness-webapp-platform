@@ -116,14 +116,12 @@ export function DashboardOverviewClient({
 
       <TodayTasks />
 
-      <div data-tour="dashboard-quick-actions"><QuickActions onOpenAIChat={() => router.push("/chat")} /></div>
-
-      {/* Mobile keeps the task-first reading order. Desktop follows the
+      {/* Mobile shows the workout before quick actions and summary cards. Desktop follows the
           overview matrix from the dashboard mockup. */}
       {/* Phones pair readiness and nutrition as two squares; every other card
           spans both columns. From `sm` the pair goes back to full width. */}
       <div className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-        <div className="order-3 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:col-start-1 lg:row-span-2 lg:row-start-1" data-tour="dashboard-today-workout">
+        <div className="order-1 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:col-start-1 lg:row-span-2 lg:row-start-2" data-tour="dashboard-today-workout">
           <TodayWorkout
             activeSessions={dashboard.activeSessions}
             preferActiveSession={hasHydrated}
@@ -133,15 +131,19 @@ export function DashboardOverviewClient({
           />
         </div>
 
-        <div className="order-1 col-span-1 min-w-0 sm:col-span-2 lg:order-none lg:col-span-1 lg:col-start-2 lg:row-start-1" data-tour="dashboard-readiness">
+        <div className="order-2 col-span-2 space-y-4 lg:order-none lg:col-span-3 lg:row-start-1" data-tour="dashboard-quick-actions">
+          <QuickActions onOpenAIChat={() => router.push("/chat")} />
+        </div>
+
+        <div className="order-3 col-span-1 min-w-0 sm:col-span-2 lg:order-none lg:col-span-1 lg:col-start-2 lg:row-start-2" data-tour="dashboard-readiness">
           <ReadinessCard seed={seeds?.volumeRecovery} />
         </div>
 
-        <div className="order-2 col-span-1 min-w-0 sm:col-span-2 lg:order-none lg:col-span-1 lg:col-start-3 lg:row-start-1" data-tour="dashboard-nutrition">
+        <div className="order-4 col-span-1 min-w-0 sm:col-span-2 lg:order-none lg:col-span-1 lg:col-start-3 lg:row-start-2" data-tour="dashboard-nutrition">
           <NutritionSummary nutrition={dailyNutrition} />
         </div>
 
-        <div className="order-4 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:col-start-2 lg:row-start-2" data-tour="dashboard-weekly-progress">
+        <div className="order-5 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:col-start-2 lg:row-start-3" data-tour="dashboard-weekly-progress">
           <WeeklyProgressCard
             activeDays={activeDaysThisWeek}
             completedWorkouts={workoutsThisWeek}
@@ -152,11 +154,11 @@ export function DashboardOverviewClient({
           />
         </div>
 
-        <div className="order-5 col-span-2 min-w-0 lg:order-none lg:col-span-2 lg:col-start-1 lg:row-start-3" data-tour="dashboard-weekly-volume">
+        <div className="order-6 col-span-2 min-w-0 lg:order-none lg:col-span-2 lg:col-start-1 lg:row-start-4" data-tour="dashboard-weekly-volume">
           <WeeklyVolumeCard seed={seeds?.volumeRecovery} />
         </div>
 
-        <div className="order-6 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:col-start-3 lg:row-span-2 lg:row-start-2" data-tour="dashboard-recent-activity">
+        <div className="order-7 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:col-start-3 lg:row-span-2 lg:row-start-3" data-tour="dashboard-recent-activity">
           <RecentActivity logs={dashboard.recentLogs} />
         </div>
       </div>

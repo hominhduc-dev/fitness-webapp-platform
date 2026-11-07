@@ -1284,7 +1284,7 @@ body {
     backdrop-filter: var(--glass-filter-frost);
   }
 
-  .app-shell:has(.workout-floating-chip) .ai-bubble-trigger {
+  .app-shell:has(.workout-floating-chip:not([hidden])) .ai-bubble-trigger {
     display: none;
   }
 }

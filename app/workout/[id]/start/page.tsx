@@ -56,6 +56,7 @@ import { markWorkoutCelebration } from "@/lib/workout/celebration"
 import { summarizeWorkoutSession } from "@/lib/workout/share-summary"
 import { restoreWorkoutSessionExercises } from "@/lib/workout/restore-session"
 import { isExerciseDone, nextIncompleteExercise } from "@/lib/workout/exercise-order"
+import { matchesWorkoutSchedule } from "@/lib/workout/log-date"
 import { primaryNavAction } from "@/lib/workout/session-navigation"
 import { calculateBackoffWeight } from "@/lib/workout/set-targets"
 import { useDefaultRest } from "@/lib/workout/use-default-rest"
@@ -938,35 +939,20 @@ function WorkoutSession() {
 
   const finishWorkout = () => {
     if (!workout) return
-    if (presetLogDate) {
-      void performSave(presetLogDate)
-      return
-    }
     const today = new Date()
     const todayMidnight = new Date(today)
     todayMidnight.setHours(0, 0, 0, 0)
     const startMidnight = new Date(startTime)
     startMidnight.setHours(0, 0, 0, 0)
-    const startedBeforeToday = startMidnight.getTime() < todayMidnight.getTime()
-    // Session resumed from a previous day (user forgot to finish) — the workout was done
-    // on startTime's date, so log it there directly and skip the date picker.
-    if (startedBeforeToday) {
-      void performSave(startMidnight)
+    // A URL preset or restored session suggests a date; neither bypasses
+    // confirmation when that date differs from the coach's schedule.
+    const suggestedDate = presetLogDate
+      ?? (startMidnight < todayMidnight ? startMidnight : today)
+    if (matchesWorkoutSchedule(workout, suggestedDate)) {
+      void performSave(suggestedDate)
       return
     }
-    const isToday =
-      (workout.scheduledDay !== undefined && workout.scheduledDay === today.getDay()) ||
-      (workout.scheduledDate !== undefined &&
-        workout.scheduledDate.getFullYear() === today.getFullYear() &&
-        workout.scheduledDate.getMonth() === today.getMonth() &&
-        workout.scheduledDate.getDate() === today.getDate())
-    if (isToday) {
-      void performSave(new Date())
-      return
-    }
-    // A live catch-up session happened today, not on its original planned date.
-    // Historical entry still uses the explicit logDate parameter above.
-    setSelectedDate(todayMidnight)
+    setSelectedDate(suggestedDate)
     setShowDateDialog(true)
   }
 
@@ -1211,9 +1197,9 @@ function WorkoutSession() {
           </DialogHeader>
 
           <div className="space-y-2 py-1">
-            {getRecentDays()
-              .slice()
-              .reverse()
+            {[...getRecentDays(), selectedDate]
+              .filter((day, index, days) => days.findIndex((candidate) => formatDateInputValue(candidate) === formatDateInputValue(day)) === index)
+              .sort((left, right) => right.getTime() - left.getTime())
               .map((day) => {
                 const { primary, secondary } = getDayLabel(day, messages, locale)
                 const isSelected =

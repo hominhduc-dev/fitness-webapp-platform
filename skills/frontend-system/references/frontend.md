@@ -602,3 +602,9 @@ Sau khi sửa:
 - Chạy test domain liên quan.
 - Visual verify đúng breakpoint/theme nếu là UI bug.
 - Cập nhật file này nếu architecture, token, route strategy, shared component hoặc convention thay đổi.
+
+### Trainee dashboard (2026-11-07)
+- Mobile retains the compact dashboard reference: the daily task/compact coach insight precedes today’s workout, then five quick actions on one row, followed by square readiness/nutrition cards side by side with centered rings and 2×2 metric slots.
+- Active inline workout links expose `data-workout-resume-id`; the shared resume card observes this matching CTA on dashboard to avoid duplicated visible resume actions. Discard requires confirmation before clearing local/offline drafts.
+
+- Workout completion reuses the existing actual-date dialog when the suggested log date differs from the coach schedule. URL logDate and restored start dates must pass the same check; explicit scheduledDate takes priority over scheduledDay. See lib/workout/log-date.ts.
