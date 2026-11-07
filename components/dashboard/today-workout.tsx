@@ -232,14 +232,14 @@ export function TodayWorkout({ activeSessions, workout: scheduledWorkout, comple
         ) : null}
       </ul>
 
-      <Button asChild size="lg" className="dashboard-primary-cta mt-4 h-10 w-full gap-2 rounded-xl text-sm lg:mt-auto">
+      <Button asChild size="lg" className="dashboard-primary-cta mt-4 h-11 w-full gap-2 rounded-xl text-sm lg:mt-auto">
         {isCompleted ? (
           <Link href="/schedule" scroll>
             <Play className="size-4 fill-current" aria-hidden="true" />
             {messages.schedule.review}
           </Link>
         ) : (
-          <WorkoutSessionLink href={`/workout/${workout.id}/start${activeWorkout ? '' : `?logDate=${dateKey}`}`} scroll>
+          <WorkoutSessionLink data-workout-resume-id={activeWorkout ? workout.id : undefined} href={`/workout/${workout.id}/start${activeWorkout ? '' : `?logDate=${dateKey}`}`} scroll>
             <Play className="size-4 fill-current" aria-hidden="true" />
             {activeWorkout ? messages.schedule.resume : copy.startWorkout}
           </WorkoutSessionLink>

@@ -4,6 +4,7 @@ import { Sparkles, X } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { useLocale } from "@/components/providers/locale-provider"
+import { useToast } from "@/components/providers/toast-provider"
 import { Button } from "@/components/ui/button"
 import type { VolumeRecoveryMuscle } from "@/lib/fitness/types"
 import { useSetVolumeRecommendationStatus, useVolumeRecovery } from "@/lib/queries/progress"
@@ -27,6 +28,7 @@ function selectPendingInsight(muscles: VolumeRecoveryMuscle[] | undefined) {
 export function CoachInsightCard() {
   const { messages } = useLocale()
   const copy = messages.volumeRecovery
+  const { toast } = useToast()
   const query = useVolumeRecovery()
   const answerRecommendation = useSetVolumeRecommendationStatus()
   // Answering hides the card for the rest of this visit; the next pending
@@ -41,7 +43,10 @@ export function CoachInsightCard() {
   const answer = (status: "accepted" | "dismissed") =>
     answerRecommendation.mutate(
       { muscleSlug: insight.muscleSlug, status, weekStart: data.weekStart },
-      { onSuccess: () => setAnswered(true) },
+      { onSuccess: () => {
+        setAnswered(true)
+        if (status === "accepted") toast({ title: copy.recommendationAcknowledged, tone: "success" })
+      } },
     )
 
   const message = copy.recommendation(
@@ -50,14 +55,19 @@ export function CoachInsightCard() {
   )
 
   return (
-    <section className="rounded-2xl border border-primary/20 bg-primary-soft p-3 md:p-4">
+    <section className="rounded-2xl border border-primary/20 bg-primary-soft px-3 py-2.5">
       <div className="flex items-start gap-2">
         <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
           <Sparkles className="size-3.5" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="label-micro truncate text-primary">{copy.coachInsight}</p>
-          <p className="mt-1 text-sm leading-5 text-foreground">{message}</p>
+          <div className="flex min-h-8 items-center justify-between gap-2">
+            <p className="label-micro text-primary">{copy.coachInsight}</p>
+            <Button type="button" disabled={answerRecommendation.isPending} onClick={() => answer("accepted")} variant="ghost" size="sm" className="-my-1 h-9 shrink-0 px-2 text-xs text-primary pointer-coarse:min-h-11">
+              {copy.acknowledgeRecommendation}
+            </Button>
+          </div>
+          <p className="text-sm leading-5 text-foreground">{message}</p>
         </div>
         <button
           type="button"
@@ -70,19 +80,8 @@ export function CoachInsightCard() {
           <X className="size-4" aria-hidden="true" />
         </button>
       </div>
-      <div className="mt-2 flex justify-end">
-        <Button
-          type="button"
-          disabled={answerRecommendation.isPending}
-          onClick={() => answer("accepted")}
-          size="sm"
-          className="h-8 rounded-xl px-3.5"
-        >
-          {copy.accept}
-        </Button>
-      </div>
       {answerRecommendation.error ? (
-        <p className="mt-1.5 text-xs text-destructive-text">{answerRecommendation.error.message}</p>
+        <p role="alert" className="mt-1.5 text-xs text-destructive-text">{answerRecommendation.error.message}</p>
       ) : null}
     </section>
   )

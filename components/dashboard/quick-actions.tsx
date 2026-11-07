@@ -34,7 +34,7 @@ export function QuickActions({ onOpenAIChat }: { onOpenAIChat: () => void }) {
             <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm transition-transform group-hover:-translate-y-0.5 md:size-10">
               <action.icon className="size-5" strokeWidth={2} aria-hidden="true" />
             </span>
-            <span className="line-clamp-2 text-[0.6875rem] font-medium leading-tight text-foreground md:text-xs">
+            <span className="text-[0.625rem] font-medium leading-tight text-foreground md:text-xs">
               {action.label}
             </span>
           </>
