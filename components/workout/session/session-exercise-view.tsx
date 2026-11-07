@@ -93,7 +93,7 @@ function getCoachUpdateMeta(type: CoachUpdate["type"]) {
 }
 
 /** "2 sets · 8–12 reps · RIR 2", from what the coach programmed for set one. */
-function useTargetSummary(exercise: WorkoutExercise, programSetTargets: ReadonlyMap<string, ProgramSetTarget>) {
+export function useTargetSummary(exercise: WorkoutExercise, programSetTargets: ReadonlyMap<string, ProgramSetTarget>) {
   const { messages } = useLocale()
   const firstSet = exercise.sets[0]
   const target = firstSet ? programSetTargets.get(firstSet.id) : undefined

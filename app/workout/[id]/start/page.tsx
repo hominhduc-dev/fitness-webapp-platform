@@ -9,6 +9,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { RestTimer, type RestEvent } from "@/components/workout/rest-timer"
+import { SessionExerciseQueue } from "@/components/workout/session/session-exercise-queue"
 import { SessionExerciseView } from "@/components/workout/session/session-exercise-view"
 import { SessionHeader } from "@/components/workout/session/session-header"
 import { SessionNavBar } from "@/components/workout/session/session-nav-bar"
@@ -60,6 +61,7 @@ import { matchesWorkoutSchedule } from "@/lib/workout/log-date"
 import { primaryNavAction } from "@/lib/workout/session-navigation"
 import { calculateBackoffWeight } from "@/lib/workout/set-targets"
 import { useDefaultRest } from "@/lib/workout/use-default-rest"
+import { useSessionLayout } from "@/lib/workout/use-session-layout"
 
 // ─── Session storage helpers (see @/lib/workout/session-storage) ──────────────
 
@@ -430,6 +432,7 @@ function WorkoutSession() {
   const [duplicateError, setDuplicateError] = useState<string | null>(null)
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
   const [defaultRest, setDefaultRest] = useDefaultRest(userId)
+  const [sessionLayout, setSessionLayout] = useSessionLayout(userId)
 
   useEffect(() => {
     if (!userId || !workoutId) return
@@ -1064,7 +1067,8 @@ function WorkoutSession() {
 
   return (
     <div className="min-h-[100dvh] overflow-x-clip bg-background">
-      {/* One exercise at a time. The bottom padding clears the pinned bar. */}
+      {/* One exercise at a time, or (stack layout) on top of the queue of the
+          rest. The bottom padding clears the pinned bar. */}
       <main className="mx-auto w-full max-w-[880px] min-w-0 px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-4 md:px-10">
         <SessionHeader
           dateLabel={dateLabel}
@@ -1090,21 +1094,42 @@ function WorkoutSession() {
         )}
 
         {currentExercise ? (
-          <SessionExerciseView
-            key={currentExercise.id}
-            exercise={currentExercise}
-            exerciseLabel={exerciseLabels[shownIndex]}
-            coachHint={currentCoachHint}
-            coachHintText={currentCoachHintText}
-            onApplyCoachHint={handleApplyCoachHint}
-            programSetTargets={programSetTargets}
-            weightUnit={weightUnit}
-            noteOpen={noteOpenForId === currentExercise.id}
-            onSetUpdate={(setId, patch) => handleSetUpdate(currentExercise.id, setId, patch)}
-            onAddSet={handleAddSet}
-            onRemoveSet={handleRemoveSet}
-            onExerciseNoteChange={handleExerciseNoteChange}
-          />
+          <>
+            <div
+              key={currentExercise.id}
+              // In the stack, the exercise rising to the top slides up into place.
+              className={cn(
+                sessionLayout === "stack" &&
+                  "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-4 motion-safe:duration-300",
+              )}
+            >
+              <SessionExerciseView
+                exercise={currentExercise}
+                exerciseLabel={exerciseLabels[shownIndex]}
+                coachHint={currentCoachHint}
+                coachHintText={currentCoachHintText}
+                onApplyCoachHint={handleApplyCoachHint}
+                programSetTargets={programSetTargets}
+                weightUnit={weightUnit}
+                noteOpen={noteOpenForId === currentExercise.id}
+                onSetUpdate={(setId, patch) => handleSetUpdate(currentExercise.id, setId, patch)}
+                onAddSet={handleAddSet}
+                onRemoveSet={handleRemoveSet}
+                onExerciseNoteChange={handleExerciseNoteChange}
+              />
+            </div>
+            {/* Outside the keyed card: the queue stays mounted, so only cards
+                joining it animate in. */}
+            {sessionLayout === "stack" ? (
+              <SessionExerciseQueue
+                exercises={exercises}
+                exerciseLabels={exerciseLabels}
+                currentIndex={shownIndex}
+                programSetTargets={programSetTargets}
+                onSelect={goToExercise}
+              />
+            ) : null}
+          </>
         ) : (
           // Every exercise removed: nothing to page through, only a way back in.
           <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center">
@@ -1138,6 +1163,8 @@ function WorkoutSession() {
           totalSets={totalSets}
           defaultRest={defaultRest}
           onDefaultRestChange={setDefaultRest}
+          layout={sessionLayout}
+          onLayoutChange={setSessionLayout}
           onSwap={() => {
             if (currentExercise) handleOpenReplace(currentExercise)
           }}

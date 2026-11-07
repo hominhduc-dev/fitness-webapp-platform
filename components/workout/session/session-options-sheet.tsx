@@ -8,6 +8,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { BottomSheet, BottomSheetBody } from "@/components/ui/bottom-sheet"
 import { cn } from "@/lib/utils"
 import { DEFAULT_REST_OPTIONS, type DefaultRestSeconds } from "@/lib/workout/use-default-rest"
+import type { SessionLayout } from "@/lib/workout/use-session-layout"
 
 function SheetSection({ title, children, first = false }: { title: string; children: ReactNode; first?: boolean }) {
   return (
@@ -57,6 +58,8 @@ interface SessionOptionsSheetProps {
   totalSets: number
   defaultRest: DefaultRestSeconds
   onDefaultRestChange: (seconds: DefaultRestSeconds) => void
+  layout: SessionLayout
+  onLayoutChange: (layout: SessionLayout) => void
   onSwap: () => void
   onNote: () => void
   onSkip: () => void
@@ -80,6 +83,8 @@ export function SessionOptionsSheet({
   totalSets,
   defaultRest,
   onDefaultRestChange,
+  layout,
+  onLayoutChange,
   onSwap,
   onNote,
   onSkip,
@@ -124,6 +129,23 @@ export function SessionOptionsSheet({
             />
           </div>
           <p className="mb-2 mt-2 text-xs text-muted-foreground">{copy.defaultRestHint}</p>
+        </SheetSection>
+
+        {/* A view setting like the rest above: it stays open on change, so the
+            trainee sees the screen switch behind the sheet. */}
+        <SheetSection title={copy.sessionLayoutTitle}>
+          <div className="mt-2">
+            <SingleChoice<SessionLayout>
+              ariaLabel={copy.sessionLayoutTitle}
+              value={layout}
+              onChange={onLayoutChange}
+              options={[
+                { label: copy.sessionLayoutSingle, value: "single" },
+                { label: copy.sessionLayoutStack, value: "stack" },
+              ]}
+            />
+          </div>
+          <p className="mb-2 mt-2 text-xs text-muted-foreground">{copy.sessionLayoutHint}</p>
         </SheetSection>
 
         <SheetSection title={copy.optionsSession}>
