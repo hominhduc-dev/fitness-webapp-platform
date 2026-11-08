@@ -305,8 +305,8 @@ export function SessionExerciseView({
 
       {/* Sets */}
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        {/* Animation, opened from the thumbnail: a 180px tile at the top of the
-            set card, as the old exercise card had it. Playing straight away is
+        {/* Animation, opened from the thumbnail, keeps its source aspect ratio
+            at the top of the set card. Playing straight away is
             fine under reduced motion too: the tap was the request. */}
         {media && animationOpen ? (
           <ExerciseAnimation exerciseName={exerciseLabel} media={media} playOnMount />

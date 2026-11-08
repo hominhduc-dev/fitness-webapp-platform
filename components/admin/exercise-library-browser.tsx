@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { ArrowDownUp, Check, ChevronRight, EllipsisVertical, HeartPulse, Loader2, Pencil, PersonStanding, Share2, Trash2, Undo2 } from "lucide-react"
 
 import { canApproveMuscleProfile } from "@/components/admin/muscle-profile-summary"
@@ -72,6 +73,9 @@ function exerciseTitle(exercise: AdminExerciseItem) {
 /* ------------------------------------------------------------------ */
 
 function GroupFigure({ group }: { group: LibraryGroup }) {
+  if (group.key === "other") {
+    return <Image src="/exercise-groups/mobility-muscle.svg" alt="" width={80} height={80} className="size-20 object-contain" />
+  }
   if (group.slugs.length === 0) {
     const Icon = group.key === "cardio" ? HeartPulse : PersonStanding
     return (
@@ -197,6 +201,7 @@ export function ExerciseRowGrid({
   locale,
   selected,
   onToggleSelect,
+  readOnly = false,
 }: {
   exercises: AdminExerciseItem[]
   handlers: ExerciseRowActionHandlers
@@ -204,14 +209,16 @@ export function ExerciseRowGrid({
   /** Without it the rows have no checkboxes. */
   selected?: ReadonlySet<string>
   onToggleSelect?: (id: string) => void
+  readOnly?: boolean
 }) {
   const copy = getBrowserCopy(locale)
 
   return (
     <div className="grid gap-2.5 lg:grid-cols-2">
       {exercises.map((exercise) => {
-        const canManage = canManageExercise(exercise)
-        const isSelected = selected?.has(exercise.id) ?? false
+        const canManage = !readOnly && canManageExercise(exercise)
+        const isSelected = !readOnly && (selected?.has(exercise.id) ?? false)
+        const TitleContainer = readOnly ? "div" : "button"
         const subtitle = exerciseSubtitle(exercise, locale)
         // Admins' own exercises are library data from the start; only a coach's carry a review status.
         const shareStatus = exercise.shareStatus && exercise.shareStatus !== "private" && exercise.createdBy?.role !== "admin" ? exercise.shareStatus : null
@@ -225,7 +232,7 @@ export function ExerciseRowGrid({
               isSelected ? "border-primary/50 bg-primary/5" : canManage && "hover:border-foreground/30 hover:bg-surface-hover",
             )}
           >
-            {selected && onToggleSelect ? (
+            {!readOnly && selected && onToggleSelect ? (
               canManage ? (
                 <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(exercise.id)} aria-label={exerciseTitle(exercise)} />
               ) : (
@@ -233,16 +240,14 @@ export function ExerciseRowGrid({
               )
             ) : null}
             <ExerciseThumbnail media={exercise.media} name={exerciseTitle(exercise)} previewable size="lg" />
-            <button
-              type="button"
-              disabled={!canManage}
-              onClick={() => handlers.onEdit(exercise)}
+            <TitleContainer
+              {...(!readOnly ? { type: "button" as const, disabled: !canManage, onClick: () => handlers.onEdit(exercise) } : {})}
               className="flex min-w-0 flex-1 items-center gap-2 self-stretch text-left disabled:cursor-default"
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-foreground">{exerciseTitle(exercise)}</span>
                 {subtitle ? <span className="mt-0.5 block truncate text-xs text-muted-foreground">{subtitle}</span> : null}
-                {shareStatus || exercise.muscleProfileStatus === "pending" ? (
+                {!readOnly && (shareStatus || exercise.muscleProfileStatus === "pending") ? (
                   <span className="mt-1 flex flex-wrap gap-1">
                     {shareStatus ? (
                       <Badge
@@ -260,8 +265,8 @@ export function ExerciseRowGrid({
                 ) : null}
               </span>
               {canManage ? <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" /> : null}
-            </button>
-            <ExerciseRowActions exercise={exercise} locale={locale} handlers={handlers} />
+            </TitleContainer>
+            {!readOnly ? <ExerciseRowActions exercise={exercise} locale={locale} handlers={handlers} /> : null}
           </div>
         )
       })}

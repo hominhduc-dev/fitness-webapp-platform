@@ -23,6 +23,7 @@ function ExerciseAnimation({ exerciseName, media, playOnMount = false }: Exercis
   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null)
   const [manualPlayback, setManualPlayback] = useState(playOnMount)
   const [unavailable, setUnavailable] = useState(false)
+  const [sourceWidth, setSourceWidth] = useState<number>(media.width)
   const videoRef = useRef<HTMLVideoElement | null>(null)
 
   useEffect(() => {
@@ -53,12 +54,15 @@ function ExerciseAnimation({ exerciseName, media, playOnMount = false }: Exercis
     })
   }
 
-  const mediaClassName = "h-[180px] w-[180px] object-cover"
+  const mediaClassName = "block h-auto max-h-[60dvh] w-full object-contain"
 
   return (
     <figure className="border-b border-border px-4 py-3 md:px-5">
       <div className="flex flex-col items-center">
-        <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
+        <div
+          className="w-full max-w-xs overflow-hidden rounded-lg border border-border bg-muted/30"
+          style={{ maxWidth: Math.min(320, sourceWidth) }}
+        >
           {isVideo ? (
             <video
               ref={videoRef}
@@ -68,6 +72,9 @@ function ExerciseAnimation({ exerciseName, media, playOnMount = false }: Exercis
               loop
               muted
               onError={() => setUnavailable(true)}
+              onLoadedMetadata={(event) => {
+                if (event.currentTarget.videoWidth > 0) setSourceWidth(event.currentTarget.videoWidth)
+              }}
               playsInline
               poster={poster}
               src={showAnimation ? media.animationUrl : undefined}
@@ -79,6 +86,9 @@ function ExerciseAnimation({ exerciseName, media, playOnMount = false }: Exercis
               height={media.height}
               loading="eager"
               onError={() => setUnavailable(true)}
+              onLoad={(event) => {
+                if (event.currentTarget.naturalWidth > 0) setSourceWidth(event.currentTarget.naturalWidth)
+              }}
               priority={false}
               src={source}
               unoptimized
