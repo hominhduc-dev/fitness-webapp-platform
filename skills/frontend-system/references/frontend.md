@@ -100,6 +100,7 @@ app/layout.tsx
 | `/(shell)` | SSR auth shell | `app/(shell)/layout.tsx` |
 | `/dashboard` | SSR + Suspense streaming | `components/dashboard/*` |
 | `/workout` | Server role guard → client cache-first; dùng chung workout collection | `components/workout/routines-workout-board.tsx` |
+| `/exercises` | SSR trainee role guard → client cache-first; public exercise catalogue, shared read-only library | `components/exercises/trainee-exercise-library-client.tsx`, `components/admin/admin-exercises-panel.tsx` |
 | `/schedule` | Server role guard → client cache-first; dùng chung workout collection | `components/schedule/weekly-calendar.tsx` |
 | `/meals` | Server role guard → client cache-first theo ngày + food catalogue | `components/meals/meals-client.tsx` |
 | `/progress` | SSR parallel fetch → client feature/charts | `components/progress/progress-client.tsx` |
@@ -450,7 +451,7 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 
 | Role | Items |
 |---|---|
-| Trainee | Dashboard, Workout, Meals, Progress, Schedule, Add Coach (bốn mục đầu lên bottom nav) |
+| Trainee | Dashboard, Workout, Meals, Progress, Schedule, Exercises, Add Coach; mobile giữ Home / Workouts / Routine / Nutrition / Progress, Exercises nằm trong account/More và desktop sidebar |
 | Coach | Home, Clients, Programs, Exercises, Stats |
 | Admin | Overview, Users, Coach Requests, Connections, Programs, Exercises, Audit, Settings |
 
@@ -571,6 +572,7 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 | Thẻ chia sẻ/xuất ảnh | `components/share/share-stats-dialog.tsx` | `components/share/stats-share-card.tsx`, `lib/share/*`, token `--share-*` |
 | Coach program editor | `components/coach/program-editor.tsx` | program page, fitness API/types |
 | Exercise picker/search | `components/exercises/*` | exercise search/display helpers |
+| Trainee exercise library | `app/(shell)/exercises/*`, `components/exercises/trainee-exercise-library-client.tsx` | Shared read-only `ExerciseLibraryPanel`; `useExercises` và public catalogue API; không có thao tác quản lý |
 | Muscle highlight sai | `lib/fitness/muscle-profile.ts` | muscle-map mapping, renderer |
 | Dialog/sheet/input/button chung | `components/ui/*` | globals glass/data-slot rules |
 | Login/session/profile | auth component/provider | `lib/auth/*`, Supabase client/server |

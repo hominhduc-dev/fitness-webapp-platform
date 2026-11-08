@@ -38,12 +38,14 @@ export function isNavItemActive(pathname: string, item: Pick<ShellNavItem, "exac
 
 export function getTraineeNavItems(messages: AppMessages, options?: { compactLabels?: boolean }): ShellNavItem[] {
   return [
-    // The first four fill the mobile bottom nav; the rest live behind "More".
+    // Keep the first five stable: mobile reorders Schedule into the center.
+    // Additional destinations live in the account/More menu and desktop sidebar.
     { exact: true, href: "/dashboard", icon: Home, label: options?.compactLabels ? messages.shell.home : messages.shell.dashboard },
     { href: "/workout", icon: Dumbbell, label: options?.compactLabels ? messages.shell.workouts : messages.shell.workout },
     { href: "/meals", icon: Utensils, label: options?.compactLabels ? messages.shell.nutrition : messages.shell.mealTracking },
     { href: "/progress", icon: BarChart3, label: messages.shell.progress },
     { href: "/schedule", icon: Calendar, label: options?.compactLabels ? messages.shell.schedule : messages.shell.weeklySchedule },
+    { href: "/exercises", icon: Activity, label: messages.shell.exercises },
     { href: "/coach/find", icon: UserPlus, label: messages.common.addCoach },
   ]
 }

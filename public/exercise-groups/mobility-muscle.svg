@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640" role="img" aria-labelledby="title desc">
+<title id="title">Half-kneeling overhead reach — mobility</title>
+<desc id="desc">Anatomical figure in a half-kneeling lunge with an arm overhead. Blue highlights illustrate the side of the trunk and front of the rear hip.</desc>
+<defs>
+ <linearGradient id="body" x1="0" x2="1"><stop stop-color="#c8ced7"/><stop offset=".5" stop-color="#e3e7ed"/><stop offset="1" stop-color="#aab3c0"/></linearGradient>
+ <linearGradient id="active" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#76a8ff"/><stop offset="1" stop-color="#315bd6"/></linearGradient>
+ <style>.base{fill:url(#body);stroke:#8993a2;stroke-width:2;stroke-linejoin:round}.muscle{fill:#b3bcc9;stroke:#f6f8fc;stroke-width:1.7;stroke-linejoin:round}.active{fill:url(#active);stroke:#edf3ff;stroke-width:1.7}.fiber{fill:none;stroke:#f3f6fc;stroke-width:1.3;stroke-linecap:round;opacity:.75}</style>
+</defs>
+<!-- Ground -->
+<path d="M70 544H575" fill="none" stroke="#d8dee9" stroke-width="2" stroke-linecap="round"/>
+<!-- Far arm, raised alongside the near arm -->
+<path class="base" d="M310 247Q325 209 340 167L365 103L373 81Q377 76 380 80L378 101L386 94Q391 92 389 98L377 115L359 182L338 251Z"/>
+<path class="muscle" d="M325 231L345 175L353 179L337 239Z"/>
+<!-- Neck and head -->
+<path class="base" d="M293 193L289 220L315 237L328 210L319 185Z"/>
+<path class="base" d="M282 141Q283 112 307 109Q334 108 341 134L338 165Q332 190 315 198L295 190L284 175L273 169L279 158Z"/>
+<path class="muscle" d="M308 115Q332 116 335 137L325 150L311 143L296 139Z"/>
+<path class="muscle" d="M297 151L315 153L318 169L306 183L288 175L284 165Z"/>
+<path d="M283 149L292 148M280 159L276 167L285 170M289 179L299 181" fill="none" stroke="#8a95a5" stroke-width="2" stroke-linecap="round"/>
+<path class="muscle" d="M314 188L323 181L321 208L309 223L302 213Z"/>
+<!-- Trunk -->
+<path class="base" d="M292 213Q273 226 262 253Q253 281 260 310L268 341Q270 358 283 371L326 370L341 344Q325 319 329 284L338 247Q329 224 314 222Z"/>
+<!-- Scapula, chest and spinal muscles -->
+<path class="muscle" d="M309 224Q281 226 269 252L294 265L318 243Z"/>
+<path class="muscle" d="M268 257L290 271L285 300L263 293Z"/>
+<path class="active" d="M316 248L328 258L319 294L322 325L335 345L316 352L299 322L296 286Z"/>
+<path class="active" d="M287 276L299 285L297 315L312 352L289 359L276 332L267 301Z"/>
+<path class="muscle" d="M264 302L274 313L279 335L273 337Z"/>
+<path class="fiber" d="M313 263L305 291L309 319M320 269L312 295L317 325M277 295L289 307M279 309L294 321M283 326L301 338M288 341L305 350"/>
+<!-- Pelvis -->
+<path class="base" d="M274 345Q298 362 331 346L349 373L324 409L276 396L256 370Z"/>
+<path class="muscle" d="M278 352Q302 365 324 355L321 381L292 390L267 375Z"/>
+<!-- Front thigh and lower leg -->
+<path class="base" d="M284 366Q246 354 205 359Q173 359 166 378Q164 389 170 413L187 503L180 520L153 529Q144 535 149 543H195Q207 541 203 528L202 504L204 416L226 409L298 422Q317 413 315 394Z"/>
+<path class="muscle" d="M276 372L207 365Q180 365 178 381L195 398L223 398L287 412L303 401Z"/>
+<path class="muscle" d="M208 369L215 391L277 405L290 394Z"/>
+<path class="muscle" d="M175 401L193 413L195 489L188 500L181 455Z"/>
+<path class="muscle" d="M197 416L200 421L198 501L193 514L191 500Z"/>
+<path class="fiber" d="M188 377L204 391M217 374L273 391M221 385L275 400M180 414L190 466M186 419L194 473"/>
+<path d="M156 536L185 531L193 537M177 388L191 397" class="fiber"/>
+<!-- Rear thigh, knee and shin -->
+<path class="base" d="M325 363Q351 365 365 396L395 473Q398 490 417 495L494 508L529 507L544 520L561 534Q565 542 557 543L522 537L498 535L414 543Q385 547 371 528L347 490L303 423Q292 403 303 382Z"/>
+<path class="active" d="M328 372Q350 374 359 399L384 465L363 478L325 416Q312 395 328 372Z"/>
+<path class="muscle" d="M310 391L324 424L359 483L350 488L313 436Q298 413 310 391Z"/>
+<path class="muscle" d="M364 486L385 478L394 501L383 519Z"/>
+<path class="muscle" d="M395 506Q429 503 487 517L494 528L416 534L394 528Z"/>
+<path class="muscle" d="M411 500L487 512L504 521L497 525L435 513Z"/>
+<path class="fiber" d="M334 386L369 461M328 396L362 463M341 391L376 460M320 415L352 469M408 511L478 523M412 521L479 528"/>
+<path d="M530 515L526 529L551 538M371 493L381 497" class="fiber"/>
+<!-- Near shoulder and arm, reaching overhead -->
+<path class="base" d="M304 233Q313 218 323 195L347 140L366 101L374 77Q378 70 382 75L381 94L388 89Q395 87 391 94L380 110L366 153L345 213Q337 238 322 252Z"/>
+<path class="muscle" d="M308 233Q314 216 325 208L336 217L328 240L320 248Z"/>
+<path class="muscle" d="M326 203L350 150L359 155L342 208L336 217Z"/>
+<path class="muscle" d="M350 144L369 106L375 110L361 152Z"/>
+<path class="fiber" d="M329 200L351 157M335 202L354 161M355 140L369 112M314 231L323 219"/>
+</svg>

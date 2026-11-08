@@ -11,7 +11,6 @@ import {
   ImageUp,
   Loader2,
   Plus,
-  RotateCcw,
   Search,
   SlidersHorizontal,
   Sparkles,
@@ -21,6 +20,7 @@ import {
 } from "lucide-react"
 
 import { ExerciseGroupGrid, ExerciseRowGrid, type ExerciseRowActionHandlers } from "@/components/admin/exercise-library-browser"
+import { ExerciseLibraryFilters } from "@/components/admin/exercise-library-filters"
 import { ExerciseMediaEditor } from "@/components/admin/exercise-media-editor"
 import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
 import { Badge } from "@/components/ui/badge"
@@ -31,6 +31,7 @@ import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { InputWithIcon } from "@/components/ui/input-with-icon"
 import { Label } from "@/components/ui/label"
 import {
@@ -46,7 +47,7 @@ import type { AdminExerciseImportRequest, AdminExerciseItem, AdminExerciseMediaF
 import { EXERCISE_MEDIA_FILE_RULES, exerciseMediaFileProblem, exerciseMediaMaxMegabytes } from "@/lib/admin/exercise-media-files"
 import type { ExerciseActivityType, MovementPattern, MuscleSlug } from "@/lib/types"
 import { MOVEMENT_PATTERNS, movementPatternLabel } from "@/lib/fitness/movement-pattern"
-import { getLibraryGroup, LIBRARY_GROUPS, libraryGroupOf, sortEquipmentChips, type LibraryGroupKey } from "@/lib/fitness/exercise-library-groups"
+import { getLibraryGroup, LIBRARY_GROUPS, libraryGroupOf, type LibraryGroupKey } from "@/lib/fitness/exercise-library-groups"
 import { findDuplicateExercise } from "@/lib/fitness/exercise-name"
 import type { ExerciseAIDraft } from "@/lib/fitness/api"
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
@@ -66,8 +67,6 @@ const EQUIP = [
 ]
 const ACTIVITY_TYPES: ExerciseActivityType[] = ["strength", "cardio", "mobility", "sport", "other"]
 const EXERCISE_FORM_LABEL_CLASS = "text-[10px] font-semibold uppercase tracking-[0.045em] text-muted-foreground"
-const NATIVE_SELECT_CLASS =
-  "h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground [color-scheme:light] dark:[color-scheme:dark] [&_option]:bg-background [&_option]:text-foreground"
 const MUSCLE_FILTERS: MuscleSlug[] = [
   "abs",
   "adductors",
@@ -1208,6 +1207,8 @@ export type ExerciseSaveData = {
 }
 
 type ExerciseLibraryPanelProps = {
+  /** Browse/search/preview only; never expose exercise management controls. */
+  readOnly?: boolean
   exercises: AdminExerciseItem[]
   actionKey: string | null
   importRequests?: AdminExerciseImportRequest[]
@@ -1252,6 +1253,7 @@ export function ExerciseLibraryPanel({
   onRequestShare,
   onAiDraft,
   capabilities = {},
+  readOnly = false,
 }: ExerciseLibraryPanelProps) {
   const copy = getExercisePanelCopy(locale)
   const [rawQ, setRawQ] = useState("")
@@ -1272,9 +1274,20 @@ export function ExerciseLibraryPanel({
   const [profileFilter, setProfileFilter] = useState<"all" | "pending" | "approved">("all")
   const [activityFilter, setActivityFilter] = useState<"all" | ExerciseActivityType>("all")
   const [mediaFilter, setMediaFilter] = useState<"all" | "missing" | "present">("all")
-  const [sortBy, setSortBy] = useState<"popular" | "name">("popular")
+  const [sortBy, setSortBy] = useState<"popular" | "name">(readOnly ? "name" : "popular")
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [excelToolsOpen, setExcelToolsOpen] = useState(false)
+  const excelCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const keepExcelToolsOpen = () => {
+    if (excelCloseTimer.current) clearTimeout(excelCloseTimer.current)
+  }
+  const scheduleExcelToolsClose = () => {
+    keepExcelToolsOpen()
+    excelCloseTimer.current = setTimeout(() => setExcelToolsOpen(false), 180)
+  }
+  useEffect(() => () => {
+    if (excelCloseTimer.current) clearTimeout(excelCloseTimer.current)
+  }, [])
   const [transferTarget, setTransferTarget] = useState<AdminExerciseItem | null>(null)
   const [transferSourceId, setTransferSourceId] = useState("")
   const transferBusyId = actionKey?.startsWith("exercise-metadata-transfer-") ? actionKey.slice("exercise-metadata-transfer-".length) : null
@@ -1290,7 +1303,7 @@ export function ExerciseLibraryPanel({
     setProfileFilter("all")
     setActivityFilter("all")
     setMediaFilter("all")
-    setSortBy("popular")
+    setSortBy(readOnly ? "name" : "popular")
   }
 
   const equipmentOptions = useMemo(
@@ -1324,7 +1337,7 @@ export function ExerciseLibraryPanel({
           !e.secondaryMuscles.includes(muscleFilter) &&
           !muscleGroupToSlugs(e.muscleGroup).includes(muscleFilter)
         ) return false
-        if (profileFilter !== "all" && (e.muscleProfileStatus ?? "pending") !== profileFilter) return false
+        if (!readOnly && profileFilter !== "all" && (e.muscleProfileStatus ?? "pending") !== profileFilter) return false
         if (activityFilter !== "all" && e.activityType !== activityFilter) return false
         if (mediaFilter !== "all" && Boolean(e.media) !== (mediaFilter === "present")) return false
         return true
@@ -1337,7 +1350,7 @@ export function ExerciseLibraryPanel({
         ({ document, exercise }, fuzzy) => passesFilters(exercise) && matchesExerciseSearchDocument(document, search, { fuzzy }),
       )
     },
-    [activityFilter, mediaFilter, muscleFilter, profileFilter, q, searchableExercises],
+    [activityFilter, mediaFilter, muscleFilter, profileFilter, q, readOnly, searchableExercises],
   )
   const filteredBeforeEquipment = useMemo(() => searchResult.items.map(({ exercise }) => exercise), [searchResult])
   const filtered = useMemo(
@@ -1376,12 +1389,6 @@ export function ExerciseLibraryPanel({
     () => activeGroup ? sortRows(filtered.filter((e) => groupOf.get(e.id) === activeGroup)) : [],
     [activeGroup, filtered, groupOf, sortRows],
   )
-  const activeEquipmentChips = useMemo(
-    () => activeGroup
-      ? sortEquipmentChips(filteredBeforeEquipment.filter((e) => groupOf.get(e.id) === activeGroup).flatMap((e) => (e.equipment ? [e.equipment] : [])))
-      : [],
-    [activeGroup, filteredBeforeEquipment, groupOf],
-  )
   /* A search on the grid page lists matches from every group instead of the cards. */
   const searchRows = useMemo(() => (!activeGroup && q.trim() ? sortRows(filtered) : []), [activeGroup, filtered, q, sortRows])
   const visibleRows = activeGroup ? activeRows : searchRows
@@ -1415,9 +1422,9 @@ export function ExerciseLibraryPanel({
       : undefined,
     transferringId: transferBusyId,
   }
-  const selectableVisibleIds = visibleRows.filter((e) => ((e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true)).map((e) => e.id)
+  const selectableVisibleIds = readOnly ? [] : visibleRows.filter((e) => ((e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true)).map((e) => e.id)
   const allVisibleSelected = selectableVisibleIds.length > 0 && selectableVisibleIds.every((id) => selected.has(id))
-  const showCheckboxes = selecting || selected.size > 0
+  const showCheckboxes = !readOnly && (selecting || selected.size > 0)
 
   function stopSelecting() {
     setSelected(new Set())
@@ -1447,16 +1454,18 @@ export function ExerciseLibraryPanel({
   }
 
   async function handleSave(data: FormData) {
+    if (readOnly) return
     await onSave(data)
     setModal(null)
   }
 
   async function handleDelete(e: AdminExerciseItem) {
+    if (readOnly) return
     setDeleteDialog({ type: "single", exercise: e })
   }
 
   async function confirmDelete() {
-    if (!deleteDialog) return
+    if (readOnly || !deleteDialog) return
 
     if (deleteDialog.type === "bulk") {
       await onBulkDelete(deleteDialog.ids)
@@ -1476,6 +1485,7 @@ export function ExerciseLibraryPanel({
   }
 
   async function handleBulkDelete() {
+    if (readOnly) return
     const ids = Array.from(selected)
     if (!ids.length) return
     setDeleteDialog({ type: "bulk", ids })
@@ -1520,7 +1530,7 @@ export function ExerciseLibraryPanel({
         </div>
       )}
 
-      {importRequests.length > 0 ? (
+      {!readOnly && importRequests.length > 0 ? (
         <Card>
           <div className="flex flex-col gap-1 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -1601,97 +1611,71 @@ export function ExerciseLibraryPanel({
               <span>{locale === "en" ? "Filters" : "Bộ lọc"}</span>
             </Button>
           </DialogTrigger>
-          <Button className="h-11 shrink-0 whitespace-nowrap px-3 sm:min-w-[152px] sm:px-4" onClick={() => setModal("new")}>
+          {!readOnly ? <Button className="h-11 shrink-0 whitespace-nowrap px-3 sm:min-w-[152px] sm:px-4" onClick={() => setModal("new")}>
             <Plus className="h-4 w-4 mr-1.5" />
             <span>{copy.newExercise}</span>
-          </Button>
+          </Button> : null}
         </div>
 
         {filtersOpen ? (
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <DialogTitle>{locale === "en" ? "Filters" : "Bộ lọc"}</DialogTitle>
-                  <DialogDescription className="mt-1">
-                    {locale === "en" ? "Refine the exercise library results." : "Thu hẹp kết quả trong thư viện bài tập."}
-                  </DialogDescription>
-                </div>
-                <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={resetFilters}>
-                  <RotateCcw className="mr-1.5 size-4" />
-                  {locale === "en" ? "Reset filters" : "Đặt lại bộ lọc"}
-                </Button>
-              </div>
-            </DialogHeader>
-            <div className="grid gap-3 sm:grid-cols-2">
-            <select className={NATIVE_SELECT_CLASS} value={muscleFilter} onChange={(event) => setMuscleFilter(event.target.value as typeof muscleFilter)}>
-              <option value="all">{copy.profileFilterAll}</option>
-              {MUSCLE_FILTERS.map((muscle) => <option key={muscle} value={muscle}>{formatMuscleSlug(muscle)}</option>)}
-            </select>
-            <select className={NATIVE_SELECT_CLASS} value={equipmentFilter} onChange={(event) => setEquipmentFilter(event.target.value)}>
-              <option value="all">{copy.equipmentFilterAll}</option>
-              {equipmentOptions.map((equipment) => <option key={equipment} value={equipment}>{equipment}</option>)}
-            </select>
-            <select className={NATIVE_SELECT_CLASS} value={activityFilter} onChange={(event) => setActivityFilter(event.target.value as typeof activityFilter)}>
-              <option value="all">Activity: all</option>
-              {ACTIVITY_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-            </select>
-            <select className={NATIVE_SELECT_CLASS} value={profileFilter} onChange={(event) => setProfileFilter(event.target.value as typeof profileFilter)}>
-              <option value="all">{locale === "en" ? "Review: all" : "Duyệt: tất cả"}</option>
-              <option value="pending">{copy.profileFilterPending}</option>
-              <option value="approved">{copy.profileFilterApproved}</option>
-            </select>
-            <select
-              aria-label="Media"
-              className={NATIVE_SELECT_CLASS}
-              value={mediaFilter}
-              onChange={(event) => setMediaFilter(event.target.value as typeof mediaFilter)}
-            >
-              <option value="all">{locale === "en" ? "Media: all" : "Media: tất cả"}</option>
-              <option value="missing">{locale === "en" ? "Missing media" : "Chưa có media"}</option>
-              <option value="present">{locale === "en" ? "Has media" : "Đã có media"}</option>
-            </select>
-            <label className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-              <span className="shrink-0">{locale === "en" ? "Sort by" : "Sắp xếp"}</span>
-              <select
-                className={cn(NATIVE_SELECT_CLASS, "flex-1")}
-                value={sortBy}
-                onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-              >
-                <option value="popular">{locale === "en" ? "Most used" : "Dùng nhiều nhất"}</option>
-                <option value="name">{locale === "en" ? "Name A-Z" : "Tên A-Z"}</option>
-              </select>
-            </label>
-              </div>
-          </DialogContent>
+          <ExerciseLibraryFilters
+            showReview={!readOnly}
+            showPopularity={!readOnly}
+            locale={locale}
+            muscleFilter={muscleFilter}
+            equipmentFilter={equipmentFilter}
+            activityFilter={activityFilter}
+            profileFilter={profileFilter}
+            mediaFilter={mediaFilter}
+            sortBy={sortBy}
+            equipmentOptions={equipmentOptions}
+            resultCount={activeGroup ? activeRows.length : filtered.length}
+            onMuscleChange={setMuscleFilter}
+            onEquipmentChange={setEquipmentFilter}
+            onActivityChange={setActivityFilter}
+            onProfileChange={setProfileFilter}
+            onMediaChange={setMediaFilter}
+            onSortChange={setSortBy}
+            onReset={resetFilters}
+            onClose={() => setFiltersOpen(false)}
+          />
         ) : null}
 
         </Dialog>
 
-        <Dialog open={excelToolsOpen} onOpenChange={setExcelToolsOpen}>
-          <DialogTrigger asChild>
-            <Button type="button" variant="outline" className="h-11 shrink-0 whitespace-nowrap bg-card px-3 font-medium">
+        {!readOnly ? <DropdownMenu open={excelToolsOpen} onOpenChange={setExcelToolsOpen} modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 shrink-0 whitespace-nowrap bg-card px-3 font-medium"
+              onPointerEnter={(event) => {
+                if (event.pointerType !== "mouse") return
+                keepExcelToolsOpen()
+                setExcelToolsOpen(true)
+              }}
+              onPointerLeave={(event) => {
+                if (event.pointerType === "mouse") scheduleExcelToolsClose()
+              }}
+            >
               <FileSpreadsheet className="mr-1.5 size-4 text-primary" />
               {copy.importExcel}
             </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>{locale === "en" ? "Excel tools" : "Công cụ Excel"}</DialogTitle>
-              <DialogDescription>
-                {locale === "en" ? "Import, export, or sync exercise data." : "Nhập, xuất hoặc đồng bộ dữ liệu bài tập."}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-2 sm:grid-cols-2">
-            <Button variant="outline" size="sm" className="h-9 justify-start bg-background" onClick={onImport}>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="min-w-48"
+            onPointerEnter={keepExcelToolsOpen}
+            onPointerLeave={(event) => {
+              if (event.pointerType === "mouse") scheduleExcelToolsClose()
+            }}
+          >
+            <DropdownMenuItem onSelect={onImport}>
               <FileSpreadsheet className="mr-1.5 h-4 w-4" />
               {copy.importExcel}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 justify-start bg-background"
-              onClick={onDownloadTemplate}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={onDownloadTemplate}
               disabled={actionKey === "exercise-template-download"}
             >
               {actionKey === "exercise-template-download"
@@ -1699,20 +1683,19 @@ export function ExerciseLibraryPanel({
                 : <Download className="mr-1.5 h-4 w-4" />
               }
               {copy.downloadTemplate}
-            </Button>
+            </DropdownMenuItem>
             {capabilities.canExport && onExportAll && (
-              <Button variant="outline" size="sm" className="h-9 justify-start bg-background" onClick={onExportAll} disabled={actionKey === "exercise-export" || exercises.length === 0}>
+              <DropdownMenuItem onSelect={onExportAll} disabled={actionKey === "exercise-export" || exercises.length === 0}>
                 {actionKey === "exercise-export" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Upload className="mr-1.5 h-4 w-4" />}
                 {copy.exportAll}
-              </Button>
+              </DropdownMenuItem>
             )}
-            </div>
-          </DialogContent>
-        </Dialog>
+          </DropdownMenuContent>
+        </DropdownMenu> : null}
       </div>
 
       {/* Bulk action bar */}
-      {selected.size > 0 && (
+      {!readOnly && selected.size > 0 && (
         <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
           <span className="text-sm font-medium text-foreground">
             {copy.selected(selected.size)}
@@ -1743,31 +1726,6 @@ export function ExerciseLibraryPanel({
         </div>
       )}
 
-      {activeGroup && activeEquipmentChips.length > 0 ? (
-        // One scrolling row on phones, where wrapped chips would push the list off screen.
-        <div role="group" aria-label={copy.equipment} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
-          {["all", ...activeEquipmentChips].map((value) => {
-            const active = equipmentFilter.toLowerCase() === value.toLowerCase()
-            return (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={active}
-                onClick={() => setEquipmentFilter(value)}
-                className={cn(
-                  "h-9 shrink-0 whitespace-nowrap rounded-full border px-4 text-sm transition-colors pointer-coarse:h-10",
-                  active
-                    ? "border-foreground bg-foreground font-medium text-background"
-                    : "border-border bg-card text-foreground hover:bg-surface-hover",
-                )}
-              >
-                {value === "all" ? copy.allEquipment : value}
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
-
       {activeGroup || q.trim() ? (
         <div className="space-y-3">
           <div className="flex min-h-8 items-center justify-between gap-3">
@@ -1793,6 +1751,7 @@ export function ExerciseLibraryPanel({
           </div>
           {visibleRows.length > 0 ? (
             <ExerciseRowGrid
+              readOnly={readOnly}
               exercises={visibleRows}
               handlers={rowHandlers}
               locale={locale}
@@ -1811,7 +1770,7 @@ export function ExerciseLibraryPanel({
       )}
 
       {/* Modal */}
-      {modal !== null && (
+      {!readOnly && modal !== null && (
         <ExerciseFormModal
           allowMedia={Boolean(onSaveMedia)}
           initial={modal === "new" ? null : editingExercise}
@@ -1830,7 +1789,7 @@ export function ExerciseLibraryPanel({
         />
       )}
 
-      <Dialog open={deleteDialog !== null} onOpenChange={(open) => {
+      <Dialog open={!readOnly && deleteDialog !== null} onOpenChange={(open) => {
         if (!open && !isDeleting) setDeleteDialog(null)
       }}>
         <DialogContent className="sm:max-w-md">
@@ -1850,7 +1809,7 @@ export function ExerciseLibraryPanel({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={transferTarget !== null} onOpenChange={(open) => { if (!open && !transferBusyId) setTransferTarget(null) }}>
+      <Dialog open={!readOnly && transferTarget !== null} onOpenChange={(open) => { if (!open && !transferBusyId) setTransferTarget(null) }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>{copy.transferTitle}</DialogTitle><DialogDescription>{copy.transferDescription}</DialogDescription></DialogHeader>
           {transferTarget ? <div className="min-w-0 space-y-4">
