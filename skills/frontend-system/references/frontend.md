@@ -610,3 +610,5 @@ Sau khi sửa:
 - Active inline workout links expose `data-workout-resume-id`; the shared resume card observes this matching CTA on dashboard to avoid duplicated visible resume actions. Discard requires confirmation before clearing local/offline drafts.
 
 - Workout completion reuses the existing actual-date dialog when the suggested log date differs from the coach schedule. URL logDate and restored start dates must pass the same check; explicit scheduledDate takes priority over scheduledDay. See lib/workout/log-date.ts.
+
+- Landing hero uses CSS laptop/phone chassis with overlapping absolute composition inside a reserved aspect-ratio stage. Screens reuse public/landing real YeahBuddy captures; device captions are localized and chassis tones stay graphite across themes. Existing device scroll reveal respects reduced motion.

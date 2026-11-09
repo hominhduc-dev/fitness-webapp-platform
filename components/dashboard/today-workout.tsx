@@ -74,13 +74,13 @@ export function TodayWorkout({ activeSessions, workout: scheduledWorkout, comple
     return (
       <section className="glass-card flex h-full min-w-0 flex-col rounded-2xl border border-border bg-card p-4">
         {header}
-        <div className="mt-4 flex items-center gap-4">
-          <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
-            <Moon className="size-7" aria-hidden="true" />
+        <div className="mt-3 flex items-center gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
+            <Moon className="size-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <h3 className="text-xl font-semibold text-foreground">{copy.restDay}</h3>
-            <p className="mt-0.5 text-sm text-muted-foreground">{copy.restDayCopy}</p>
+            <h3 className="text-base font-semibold text-foreground">{copy.restDay}</h3>
+            <p className="text-xs text-muted-foreground">{copy.restDayCopy}</p>
           </div>
         </div>
       </section>
@@ -104,6 +104,8 @@ export function TodayWorkout({ activeSessions, workout: scheduledWorkout, comple
       exercise.workoutExerciseId && exercise.action !== "establish_baseline" ? [[exercise.workoutExerciseId, exercise] as const] : [],
     ),
   )
+  // A finished workout shows no adjusted targets, so it has nothing to add on a phone either.
+  const showsAdjustments = !isCompleted && adjustments.size > 0
   const muscleLabels = messages.volumeRecovery.muscleLabels
   const phase = recommendation?.intensity.phase ? planCopy.phase[recommendation.intensity.phase] ?? recommendation.intensity.phase : null
 
@@ -111,14 +113,14 @@ export function TodayWorkout({ activeSessions, workout: scheduledWorkout, comple
       <section className="glass-card flex h-full min-w-0 flex-col rounded-2xl border border-border bg-card p-4">
       {header}
 
-      <div className="mt-4 flex min-w-0 items-center gap-3">
-        <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
-          <Dumbbell className="size-6" aria-hidden="true" />
+      <div className="mt-3 flex min-w-0 items-center gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
+          <Dumbbell className="size-5" aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <h3 className="truncate text-lg font-semibold leading-snug text-foreground">{workout.name}</h3>
+          <h3 className="truncate text-base font-semibold leading-snug text-foreground">{workout.name}</h3>
           {muscleGroups.length > 0 ? (
-            <p className="mt-0.5 line-clamp-2 text-sm capitalize text-muted-foreground">
+            <p className="truncate text-xs capitalize text-muted-foreground">
               {muscleGroups.slice(0, 4).join(" · ")}
             </p>
           ) : null}
@@ -143,20 +145,21 @@ export function TodayWorkout({ activeSessions, workout: scheduledWorkout, comple
         </div>
       ) : null}
 
-      <ul className="mt-4 flex gap-2 md:flex-wrap">
+      {/* One quiet line of numbers rather than a row of chips. */}
+      <ul className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
         {stats.map((stat) => (
           <li
             key={stat.label}
-          className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-surface-subtle px-2 py-1.5 text-xs font-medium tnum text-foreground md:flex-none md:px-3"
+            className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium tnum text-muted-foreground"
           >
-            <stat.icon className="size-4 shrink-0 text-primary" aria-hidden="true" />
+            <stat.icon className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
             {stat.label}
           </li>
         ))}
       </ul>
 
       {/* Phones keep the card short unless there is an adjusted target to show. */}
-      <ul className={cn("mt-4 min-w-0 space-y-2", adjustments.size === 0 && "hidden md:block")}>
+      <ul className={cn("mt-3 min-w-0 space-y-1.5", !showsAdjustments && "hidden md:block")}>
         {workout.exercises.slice(0, 4).map((exercise) => {
           const adjustment = isCompleted ? undefined : adjustments.get(exercise.id)
           const target = adjustment ? adjustedTarget(adjustment) : null
@@ -232,7 +235,7 @@ export function TodayWorkout({ activeSessions, workout: scheduledWorkout, comple
         ) : null}
       </ul>
 
-      <Button asChild size="lg" className="dashboard-primary-cta mt-4 h-11 w-full gap-2 rounded-xl text-sm lg:mt-auto">
+      <Button asChild size="lg" className="dashboard-primary-cta mt-3 h-10 w-full gap-2 rounded-xl text-sm lg:mt-auto">
         {isCompleted ? (
           <Link href="/schedule" scroll>
             <Play className="size-4 fill-current" aria-hidden="true" />
