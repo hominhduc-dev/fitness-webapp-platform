@@ -25,6 +25,7 @@ import { useCreateWorkout, useUpdateWorkout } from "@/lib/queries/workouts"
 import { useCreateExerciseFromPicker, useExerciseAIDraft, useExercises, useUpdateExerciseFromPicker } from "@/lib/queries/exercises"
 import { buildMuscleProfileHighlights } from "@/lib/fitness/muscle-map"
 import { normalizeSetIntensityAssignments, readSetIntensityAssignments, type SetIntensityAssignment } from "@/lib/workout/intensity-tag"
+import { buildBackOffSetTargets, readBackOffTarget, type BackOffTargetDraft } from "@/lib/workout/per-set-target"
 import type { AppMessages } from "@/lib/i18n/messages"
 import type { ExerciseActivityType, ExerciseVariationOption, MuscleSlug, Workout } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -52,6 +53,8 @@ export type RoutineExerciseDraft = {
   notes?: string
   /** Methods the coach prescribed per set; sets left out are normal sets. */
   setIntensityTags?: SetIntensityAssignment[]
+  /** The back-off sets' own target under a top set; undefined while they follow the top set. */
+  backOff?: BackOffTargetDraft
 }
 
 export type RoutineDraftData = {
@@ -155,6 +158,7 @@ function toDraft(exercise: Workout["exercises"][number]): RoutineExerciseDraft {
     restTime: exercise.restTime != null ? String(exercise.restTime) : "",
     notes: exercise.notes ?? "",
     setIntensityTags: readSetIntensityAssignments(exercise.sets),
+    backOff: readBackOffTarget(exercise.sets, readSetIntensityAssignments(exercise.sets)),
   }
 }
 
@@ -182,6 +186,8 @@ export function buildRoutineWorkoutPayload(
       const parsedRest = Number(ex.restTime)
       const sets = Math.max(1, Number(ex.sets) || 1)
       const setIntensityTags = normalizeSetIntensityAssignments(ex.setIntensityTags, sets)
+      const backOff = buildBackOffSetTargets(ex.backOff, sets, setIntensityTags)
+      if (backOff.error) throw new Error(messages.workoutPage.invalidBackOffRepsAtExercise(i + 1))
       return {
         notes: ex.notes?.trim() || undefined,
         reps: repTarget.reps,
@@ -189,6 +195,7 @@ export function buildRoutineWorkoutPayload(
         rir: ex.rir.trim() && Number.isFinite(parsedRir) ? Math.max(0, Math.round(parsedRir)) : undefined,
         restTime: ex.restTime?.trim() && Number.isFinite(parsedRest) ? Math.max(0, Math.round(parsedRest)) : undefined,
         setIntensityTags: setIntensityTags.length ? setIntensityTags : undefined,
+        setTargets: backOff.setTargets,
         variationId: ex.variationId,
         sets,
         weight: ex.weight.trim() && Number.isFinite(parsedWeight) ? Math.max(0, parsedWeight) : undefined,
@@ -581,6 +588,8 @@ export function RoutineBuilderDialog({
                       onSwap={() => undefined}
                       setIntensityTags={ex.setIntensityTags}
                       onSetIntensityTagsChange={() => undefined}
+                      backOff={ex.backOff}
+                      onBackOffChange={() => undefined}
                     />
                   </div>
                 )}
@@ -614,6 +623,8 @@ export function RoutineBuilderDialog({
                     onSwap={() => setPickerTarget(ex.id)}
                     setIntensityTags={ex.setIntensityTags}
                     onSetIntensityTagsChange={(setIntensityTags) => updateExercise(ex.id, { setIntensityTags })}
+                    backOff={ex.backOff}
+                    onBackOffChange={(backOff) => updateExercise(ex.id, { backOff })}
                   />
                 )}
               />

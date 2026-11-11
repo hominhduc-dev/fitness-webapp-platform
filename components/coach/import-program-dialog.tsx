@@ -28,6 +28,7 @@ import {
   normalizeSetIntensityAssignments,
   type SetIntensityAssignment,
 } from "@/lib/workout/intensity-tag"
+import { buildBackOffSetTargets, type BackOffTargetDraft } from "@/lib/workout/per-set-target"
 import { createCoachProgram } from "@/lib/fitness/api"
 import type {
   CoachProgram,
@@ -112,6 +113,8 @@ type EditableExercise = {
   variationId: string
   /** Per-set methods imported from the sheet and editable in the shared card. */
   setIntensityTags?: SetIntensityAssignment[]
+  /** The back-off sets' own target under a top set; undefined while they follow the top set. */
+  backOff?: BackOffTargetDraft
   sets: string
   reps: string   // "8-12" or "10"
   weight: string
@@ -162,6 +165,13 @@ function imageDraftToEditable(draft: ProgramImageDraft): EditableWorkout[] {
       setIntensityTags: exercise.setIntensityTags?.length
         ? normalizeSetIntensityAssignments(exercise.setIntensityTags, exercise.sets)
         : undefined,
+      backOff: exercise.backOff
+        ? {
+            reps: exercise.backOff.reps,
+            rir: exercise.rir != null ? String(exercise.rir) : "",
+            weight: exercise.backOff.weight != null ? String(exercise.backOff.weight) : "",
+          }
+        : undefined,
       sets: String(exercise.sets),
       sourceName: exercise.sourceName,
       variationId: exercise.variationId ?? "",
@@ -188,12 +198,15 @@ function editableToPayloadWorkout(
         // A coach who edits the set count down here loses the tags on the sets
         // they removed, exactly as in the program editor.
         const setIntensityTags = normalizeSetIntensityAssignments(ex.setIntensityTags, sets)
+        // Unreadable back-off reps fall back to the top set's, like the main reps field does.
+        const backOff = buildBackOffSetTargets(ex.backOff, sets, setIntensityTags)
         return {
           notes: ex.notes,
           restTime: ex.restTime.trim() && Number.isFinite(Number(ex.restTime))
             ? Math.max(0, Math.round(Number(ex.restTime))) : undefined,
           variationId: ex.variationId,
           setIntensityTags: setIntensityTags.length ? setIntensityTags : undefined,
+          setTargets: backOff.setTargets,
           sets,
           reps: repTarget.reps,
           repsMin: repTarget.repsMin,
@@ -1004,6 +1017,8 @@ export function ImportProgramDialog({
                                   swapDisabled={exerciseOptions.length === 0}
                                   setIntensityTags={ex.setIntensityTags}
                                   onSetIntensityTagsChange={(setIntensityTags) => updateExercise(workoutIdx, exerciseIdx, { setIntensityTags })}
+                                  backOff={ex.backOff}
+                                  onBackOffChange={(backOff) => updateExercise(workoutIdx, exerciseIdx, { backOff })}
                                   onFieldChange={(field, value) => updateExercise(workoutIdx, exerciseIdx, { [field]: value })}
                                   onMove={(direction) => moveExercise(workoutIdx, exerciseIdx, direction)}
                                   onRemove={() => removeExercise(workoutIdx, exerciseIdx)}

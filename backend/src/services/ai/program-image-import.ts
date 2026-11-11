@@ -299,6 +299,12 @@ type ImportedExercise = {
   weight: number | null
   /** Per-set methods read from the set scheme cell; empty when it named none the app knows. */
   setIntensityTags: SetIntensityAssignment[]
+  /**
+   * Under a top set + back-off scheme, the back-off sets' own reps and weight
+   * when the sheet gives them ("6-8/5-10", "65,50"). Null when they match the
+   * top set or the sheet does not say.
+   */
+  backOff: { reps: string; weight: number | null } | null
   notes: string
 }
 
@@ -318,6 +324,41 @@ function splitReps(raw: string | null) {
   const reps = /^\d+(-\d+)?$/.test(first ?? "") ? (first as string) : "10"
   const note = cleaned !== reps ? `Reps: ${raw.trim()}` : null
   return { note, reps }
+}
+
+/** Each range of a reps cell in order: "6-8/5-10" is ["6-8", "5-10"]; empty when one part is unreadable. */
+function repRanges(raw: string | null) {
+  const parts = (raw ?? "").replace(/[–—]/g, "-").replace(/\s+/g, "").split(/[/;|]/).filter(Boolean)
+  return parts.every((part) => /^\d+(-\d+)?$/.test(part)) ? parts : []
+}
+
+function isTopBackOffScheme(tags: readonly SetIntensityAssignment[], sets: number) {
+  return sets > 1 && tags.length === sets && tags.every(({ setNumber, tag }) => tag === (setNumber === 1 ? "top_set" : "back_off"))
+}
+
+/**
+ * The back-off sets' reps and weight under a top set, from a reps cell with
+ * one range per role and a weight cell with one load per role. Only two-part
+ * cells map cleanly: anything longer stays in the notes for the coach.
+ */
+function backOffFromCells(input: {
+  perSetKg: number[] | null
+  reps: string
+  rawReps: string | null
+  tags: readonly SetIntensityAssignment[]
+  sets: number
+  weight: number | null
+}) {
+  if (!isTopBackOffScheme(input.tags, input.sets)) return null
+  const ranges = repRanges(input.rawReps)
+  const backOffReps = ranges.length === 2 ? ranges[1] : null
+  const backOffWeight = input.perSetKg?.length === 2 ? input.perSetKg[1] : null
+  if (backOffReps == null && backOffWeight == null) return null
+  return {
+    backOff: { reps: backOffReps ?? input.reps, weight: backOffWeight ?? input.weight },
+    repsMapped: backOffReps != null,
+    weightMapped: backOffWeight != null,
+  }
 }
 
 /**
@@ -398,6 +439,7 @@ function normalizedImageWeight(raw: string | null, rawUnit: string | null, sets:
   const kg = values.map((value) => (LB_UNITS.includes(unit) ? Math.round(value * 0.45359237 * 100) / 100 : value))
   const perSet = kg.length > 1 && kg.some((value) => value !== kg[0])
   return {
+    perSetKg: perSet ? kg : null,
     note: perSet
       ? `${locale === "vi" ? "Tạ từng set" : "Weight per set"}: ${kg.map(formatKg).join(" / ")} kg`
       : null,
@@ -475,12 +517,28 @@ async function importProgramFromImages(
         const schemeTags = setSchemeTags(exercise.setScheme, sets)
         const noteTags = schemeTags || exercise.setScheme ? null : setSchemeTags(exercise.note, sets)
         const unknownScheme = schemeTags ? null : exercise.setScheme
+        const setIntensityTags = schemeTags ?? noteTags ?? []
+        // A top set and its back-off sets written in one cell become two rows, not a note.
+        const backOff = backOffFromCells({
+          perSetKg: normalizedWeight.perSetKg ?? null,
+          rawReps: exercise.reps,
+          reps,
+          sets,
+          tags: setIntensityTags,
+          weight: normalizedWeight.weight,
+        })
         return {
-          notes: [unknownScheme, noteTags ? null : exercise.note, repsNote, normalizedWeight.note].filter(Boolean).join(" · "),
+          backOff: backOff?.backOff ?? null,
+          notes: [
+            unknownScheme,
+            noteTags ? null : exercise.note,
+            backOff?.repsMapped ? null : repsNote,
+            backOff?.weightMapped ? null : normalizedWeight.note,
+          ].filter(Boolean).join(" · "),
           reps,
           rir: exercise.rir != null && exercise.rir >= 0 && exercise.rir <= 10 ? exercise.rir : null,
           restTime: exercise.restTime != null && exercise.restTime >= 0 ? Math.round(exercise.restTime) : null,
-          setIntensityTags: schemeTags ?? noteTags ?? [],
+          setIntensityTags,
           sets,
           sourceName: exercise.name,
           variationId,

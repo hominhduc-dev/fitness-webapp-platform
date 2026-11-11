@@ -48,6 +48,21 @@ const setTempoAssignment = z.object({
   tempo: z.string().trim().min(1).max(20),
 })
 
+/**
+ * The reps, weight and RIR of one set that differs from its exercise, e.g. a
+ * back-off set after a top set. Range order (`repsMin < reps`) is checked by
+ * the service, which names the session and exercise in its message.
+ */
+const setTargetAssignment = z.object({
+  setNumber: z.number().int().min(1).max(100),
+  reps: z.number().int().min(1).max(1000),
+  repsMin: z.number().int().min(1).max(1000).optional(),
+  rir: z.number().min(0).max(10).optional(),
+  weight: z.number().min(0).max(2000).optional(),
+})
+
+const setTargetAssignments = z.array(setTargetAssignment).max(100)
+
 const personalWorkoutExercise = z.object({
   notes: z.string().max(500).optional(),
   reps: z.number().int().min(0).max(1000),
@@ -55,6 +70,7 @@ const personalWorkoutExercise = z.object({
   restTime: z.number().int().min(0).max(3600).optional(),
   rir: z.number().min(0).max(10).optional(),
   setIntensityTags: z.array(setIntensityAssignment).max(100).optional(),
+  setTargets: setTargetAssignments.optional(),
   setTempos: z.array(setTempoAssignment).max(100).optional(),
   sets: z.number().int().min(0).max(100),
   /** One cadence for the whole exercise; `setTempos` overrides it per set. */
@@ -146,6 +162,7 @@ export {
   personalWorkoutSchema,
   programIdParams,
   programWorkoutSchema,
+  setTargetAssignments,
   swapExerciseSchema,
   swapParams,
   updateTraineeProgramSchema,

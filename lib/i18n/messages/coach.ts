@@ -156,6 +156,8 @@ export const coachMessages = {
       inProgressShort: "In prog.",
       invalidRepRangeError: (routine: string, exercise: number) =>
         `Invalid reps range in ${routine} / exercise ${exercise}. Use 8-12 or 10.`,
+      invalidBackOffRepsError: (routine: string, exercise: number) =>
+        `Invalid back-off reps in ${routine} / exercise ${exercise}. Use 5-10 or 8.`,
       keyLifts: "Key lifts (estimated 1RM)",
       lastSeen: (date: string) => `last seen ${date}`,
       loadingProgram: "Loading program...",
@@ -530,6 +532,8 @@ export const coachMessages = {
       inProgressShort: "Đang tập",
       invalidRepRangeError: (routine: string, exercise: number) =>
         `Reps range không hợp lệ ở ${routine} / bài tập ${exercise}. Dùng dạng 8-12 hoặc 10.`,
+      invalidBackOffRepsError: (routine: string, exercise: number) =>
+        `Reps của set giảm tải không hợp lệ ở ${routine} / bài tập ${exercise}. Dùng dạng 5-10 hoặc 8.`,
       keyLifts: "Key lifts (ước tính 1RM)",
       lastSeen: (date: string) => `lần cuối ${date}`,
       loadingProgram: "Đang tải program...",

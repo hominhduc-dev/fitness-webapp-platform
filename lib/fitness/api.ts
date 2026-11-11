@@ -295,6 +295,8 @@ export type ProgramImageDraft = {
       weight: number | null
       /** Methods read from the sheet's set scheme; absent on older stored drafts. */
       setIntensityTags?: SetIntensityAssignment[]
+      /** The back-off sets' reps and weight under a top set, when the sheet gives them. */
+      backOff?: { reps: string; weight: number | null } | null
       notes: string
     }>
   }>

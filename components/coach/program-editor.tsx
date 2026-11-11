@@ -72,6 +72,7 @@ import {
   type CurrentWeekProgress,
 } from "@/lib/fitness/program-week"
 import { normalizeSetIntensityAssignments, readSetIntensityAssignments } from "@/lib/workout/intensity-tag"
+import { buildBackOffSetTargets, readBackOffTarget } from "@/lib/workout/per-set-target"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import type {
   AssignedTrainee,
@@ -260,6 +261,7 @@ function mapWorkoutExerciseToRoutineExercise(
     }),
     restTime: workoutExercise.restTime != null ? String(workoutExercise.restTime) : "",
     setIntensityTags: readSetIntensityAssignments(workoutExercise.sets),
+    backOff: readBackOffTarget(workoutExercise.sets, readSetIntensityAssignments(workoutExercise.sets)),
     sets: workoutExercise.sets.length || 1,
     variationId: resolvedOption?.id ?? workoutExercise.variation.id,
     weight: workoutExercise.sets[0]?.weight != null ? String(workoutExercise.sets[0].weight) : "",
@@ -378,6 +380,7 @@ function routineToDraft(routine: Routine): RoutineDraftData {
       rir: ex.rir != null ? String(ex.rir) : "",
       restTime: ex.restTime ?? "",
       setIntensityTags: ex.setIntensityTags,
+      backOff: ex.backOff,
     })),
   }
 }
@@ -402,6 +405,7 @@ function draftToRoutine(draft: RoutineDraftData): Routine {
         rir: ex.rir.trim() && Number.isFinite(parsedRir) ? Math.max(0, Math.round(parsedRir)) : undefined,
         restTime: ex.restTime?.trim() && Number.isFinite(parsedRest) ? String(Math.max(0, Math.round(parsedRest))) : undefined,
         setIntensityTags: ex.setIntensityTags,
+        backOff: ex.backOff,
         sets: ex.sets,
         reps: ex.reps,
         weight: ex.weight,
@@ -1039,6 +1043,12 @@ export function ProgramEditor({
               const parsedRest = Number(exercise.restTime)
               const normalizedRir = normalizeOptionalWholeNumber(exercise.rir)
               const setIntensityTags = normalizeSetIntensityAssignments(exercise.setIntensityTags, exercise.sets)
+              const backOff = buildBackOffSetTargets(exercise.backOff, exercise.sets, setIntensityTags)
+
+              if (backOff.error) {
+                const routineLabel = routine.name.trim() || messages.coach.weekDayLabel(weekIndex + 1, dayIndex + 1)
+                throw new Error(messages.coach.invalidBackOffRepsError(routineLabel, exerciseIndex + 1))
+              }
 
               return {
                 reps: repTarget.reps,
@@ -1046,6 +1056,7 @@ export function ProgramEditor({
                 rir: normalizedRir,
                 restTime: exercise.restTime?.trim() && Number.isFinite(parsedRest) ? Math.max(0, Math.round(parsedRest)) : undefined,
                 setIntensityTags: setIntensityTags.length ? setIntensityTags : undefined,
+                setTargets: backOff.setTargets,
                 sets: exercise.sets,
                 variationId: exercise.variationId,
                 weight:

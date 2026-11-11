@@ -152,6 +152,48 @@ describe("program editor schedule", () => {
   })
 })
 
+describe("program editor per-set targets", () => {
+  // Bench as a top set (6-8 @65) and one back-off set (5-10 @50).
+  const original = program.workouts
+  beforeEach(() => {
+    const [workout] = original
+    const [exercise] = workout.exercises
+    Object.assign(program, {
+      workouts: [{
+        ...workout,
+        exercises: [{
+          ...exercise,
+          sets: [
+            { intensityTag: "top_set", rir: 1, setNumber: 1, targetReps: 8, targetRepsMin: 6, weight: 65 },
+            { intensityTag: "back_off", rir: 2, setNumber: 2, targetReps: 10, targetRepsMin: 5, weight: 50 },
+          ],
+        }],
+      }],
+    })
+  })
+  afterEach(() => {
+    Object.assign(program, { workouts: original })
+  })
+
+  it("saves the back-off set's own target back as it was loaded", async () => {
+    renderEditor()
+    fireEvent.change(programNameInput(), { target: { value: "Bulking v2" } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: messages.en.common.saveChanges }))
+    })
+
+    expect(save).toHaveBeenCalledOnce()
+    expect(save.mock.calls[0][0][1].workouts[0].exercises[0]).toMatchObject({
+      reps: 8,
+      repsMin: 6,
+      rir: 1,
+      setIntensityTags: [{ setNumber: 1, tag: "top_set" }, { setNumber: 2, tag: "back_off" }],
+      setTargets: [{ reps: 10, repsMin: 5, rir: 2, setNumber: 2, weight: 50 }],
+      weight: 65,
+    })
+  })
+})
+
 describe("program editor unsaved draft", () => {
   it("keeps program edits after the editor is closed without saving", async () => {
     const first = renderEditor()

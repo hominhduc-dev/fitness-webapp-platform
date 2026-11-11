@@ -27,6 +27,24 @@ describe("personalWorkoutSchema", () => {
     expect(result.success).toBe(false)
   })
 
+  it("keeps per-set targets and rejects a malformed one", () => {
+    const exercise = { reps: 8, sets: 2, variationId: "var-1", weight: 65 }
+    const parsed = personalWorkoutSchema.parse({
+      exercises: [{ ...exercise, setTargets: [{ reps: 10, repsMin: 5, setNumber: 2, weight: 50 }] }],
+      name: "Push A",
+    })
+
+    expect(parsed.exercises[0]?.setTargets).toEqual([{ reps: 10, repsMin: 5, setNumber: 2, weight: 50 }])
+    expect(
+      personalWorkoutSchema.safeParse({ exercises: [{ ...exercise, setTargets: [{ reps: "ten", setNumber: 2 }] }], name: "Push A" })
+        .success,
+    ).toBe(false)
+    expect(
+      personalWorkoutSchema.safeParse({ exercises: [{ ...exercise, setTargets: [{ reps: 10, setNumber: 0 }] }], name: "Push A" })
+        .success,
+    ).toBe(false)
+  })
+
   it("rejects physically impossible values", () => {
     const base = { name: "Push A", variationId: "var-1" }
 

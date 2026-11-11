@@ -38,6 +38,9 @@ export const workoutMessages = {
       untitledRoutine: "Untitled routine",
       noExercisesYet: "No exercises yet. Add your first one.",
       invalidRepsAtExercise: (index: number) => `Invalid reps at exercise ${index}. Use 8-12 or 10.`,
+      invalidBackOffRepsAtExercise: (index: number) => `Invalid back-off reps at exercise ${index}. Use 5-10 or 8.`,
+      backOffRow: (count: number) => `Back ×${count}`,
+      backOffField: (field: string) => `Back-off sets ${field}`,
       addAtLeastOneExercise: "Add at least one exercise.",
       deleteRoutineDescription:
         "This will remove the personal routine. Coach-assigned routines are not affected.",
@@ -194,6 +197,8 @@ export const workoutMessages = {
       noSessionsThisMonth: "No sessions this month.",
       previewTotalKg: (value: string) => `${value} kg total`,
       reps: "Reps",
+      /** The coach's target range for a set, not the reps a trainee logs. */
+      repRange: "Rep range",
       removeExercise: "Remove exercise",
       removeSet: "Remove set",
       rest: "Rest",
@@ -356,6 +361,9 @@ export const workoutMessages = {
       untitledRoutine: "Routine chưa đặt tên",
       noExercisesYet: "Chưa có bài tập. Hãy thêm bài đầu tiên.",
       invalidRepsAtExercise: (index: number) => `Reps không hợp lệ ở bài tập ${index}. Dùng dạng 8-12 hoặc 10.`,
+      invalidBackOffRepsAtExercise: (index: number) => `Reps của set giảm tải không hợp lệ ở bài tập ${index}. Dùng dạng 5-10 hoặc 8.`,
+      backOffRow: (count: number) => `Back ×${count}`,
+      backOffField: (field: string) => `${field} của set giảm tải`,
       addAtLeastOneExercise: "Thêm ít nhất một bài tập.",
       deleteRoutineDescription:
         "Thao tác này sẽ xóa routine cá nhân. Routine do coach giao sẽ không bị ảnh hưởng.",
@@ -512,6 +520,7 @@ export const workoutMessages = {
       noSessionsThisMonth: "Tháng này chưa có buổi tập.",
       previewTotalKg: (value: string) => `${value} kg tổng`,
       reps: "Reps",
+      repRange: "Rep range",
       removeExercise: "Xóa bài tập",
       removeSet: "Xóa set",
       rest: "Nghỉ",
