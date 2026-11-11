@@ -273,5 +273,20 @@ function buildWorkoutsFromRows(
   }
 }
 
-export { buildVariationLookup, buildWorkoutsFromRows, normalizeLookup, parsePositiveInteger, resolveVariation }
+/**
+ * One week of sessions laid out on every week of a `duration`-week program.
+ * An image holds a single week, and the coach reviews and fixes that week
+ * once: the copies are made from the reviewed week when the program is built.
+ */
+function repeatWeekAcrossProgram(
+  workouts: CreateCoachProgramInput["workouts"],
+  duration: number,
+): CreateCoachProgramInput["workouts"] {
+  const weeks = Math.max(1, Math.round(duration))
+  return Array.from({ length: weeks }, (_week, weekIndex) =>
+    workouts.map((workout) => ({ ...workout, exercises: workout.exercises.map((exercise) => ({ ...exercise })), weekIndex })),
+  ).flat()
+}
+
+export { buildVariationLookup, buildWorkoutsFromRows, normalizeLookup, parsePositiveInteger, repeatWeekAcrossProgram, resolveVariation }
 export type { BuildWorkoutsResult, ProgramImportIssue, ProgramImportRow }

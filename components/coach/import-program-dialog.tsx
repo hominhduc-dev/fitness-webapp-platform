@@ -23,7 +23,7 @@ import { Stepper } from "@/components/ui/stepper"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { AIProgramDraft } from "@/components/coach/coach-ai-program-assistant"
 import type { ImportedProgramDraft } from "@/components/coach/program-excel"
-import { buildWorkoutsFromRows } from "@/components/coach/program-import-rows"
+import { buildWorkoutsFromRows, repeatWeekAcrossProgram } from "@/components/coach/program-import-rows"
 import {
   normalizeSetIntensityAssignments,
   type SetIntensityAssignment,
@@ -292,6 +292,7 @@ export function ImportProgramDialog({
   const payload = useMemo((): CreateCoachProgramInput | null => {
     if (!draft) return null
     const name = programName.trim() || draft.name?.trim() || fileName.replace(/\.[^.]+$/, "") || "Imported program"
+    const reviewedWorkouts = editableWorkouts.map(editableToPayloadWorkout).filter((w) => w.exercises.length > 0)
     return {
       ...(aiDraft ? { aiGenerationId: aiDraft.generationId } : {}),
       assignToUserIds: selectedTraineeId ? [selectedTraineeId] : [],
@@ -302,9 +303,7 @@ export function ImportProgramDialog({
       name,
       startDate: startDate.trim() || null,
       ...(googleSource ? { googleSpreadsheetId: googleSource.spreadsheetId, googleSheetName: googleSource.sheetName } : {}),
-      workouts: editableWorkouts
-        .map(editableToPayloadWorkout)
-        .filter((w) => w.exercises.length > 0),
+      workouts: draft.repeatsWeekly ? repeatWeekAcrossProgram(reviewedWorkouts, duration) : reviewedWorkouts,
     }
   }, [aiDraft, description, difficulty, draft, duration, editableWorkouts, fileName, googleSource, programGoal, programName, selectedTraineeId, startDate])
 
@@ -403,7 +402,8 @@ export function ImportProgramDialog({
       setAddedExerciseIds(state.addedExerciseIds ?? [])
       setDescription(state.description)
       setDifficulty(state.difficulty)
-      setDraft(state.draft)
+      // Image reviews saved before `repeatsWeekly` existed hold one week as well.
+      setDraft(state.source === "image" ? { ...state.draft, repeatsWeekly: true } : state.draft)
       setDuration(state.duration)
       setEditableWorkouts(state.editableWorkouts)
       setFileName(state.fileName)
@@ -515,7 +515,8 @@ export function ImportProgramDialog({
       ])
       if (version !== imageRequestVersion.current) return
       const workouts = imageDraftToEditable(imageDraft)
-      setDraft({ workouts: workouts.map(editableToPayloadWorkout) })
+      // A photo shows one week; the program repeats it on every week.
+      setDraft({ repeatsWeekly: true, workouts: workouts.map(editableToPayloadWorkout) })
       setEditableWorkouts(workouts)
       setUnmatchedCount(imageDraft.unmatchedCount)
       setFileName(images[0]?.name ?? "")
@@ -933,7 +934,7 @@ export function ImportProgramDialog({
                   {/* Stats summary */}
                   <div className="flex flex-wrap gap-5">
                     <Stat value={duration} label={t.review.statWeeks} />
-                    <Stat value={editableWorkouts.length} label={t.review.statSessions} />
+                    <Stat value={payload?.workouts.length ?? editableWorkouts.length} label={t.review.statSessions} />
                     <Stat value={exerciseCount} label={t.review.statExercises} />
                   </div>
 

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ImportProgramDialog } from "./import-program-dialog"
 import { messages } from "@/lib/i18n/messages"
-import type { CoachTrainee, ExerciseVariationOption } from "@/lib/fitness/types"
+import type { CoachTrainee, CreateCoachProgramInput, ExerciseVariationOption } from "@/lib/fitness/types"
 
 const { save } = vi.hoisted(() => ({ save: vi.fn() }))
 vi.mock("@/components/providers/auth-provider", () => ({
@@ -315,23 +315,43 @@ describe("creating a program from an image", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create program" }))
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(2))
-    expect(save.mock.calls[1][0][0]).toMatchObject({
-      name: "Minicut",
-      workouts: [{
-        name: "Session 1",
-        scheduledDay: 1,
-        weekIndex: undefined,
-        exercises: [
-          {
-            variationId: "bench", sets: 2, repsMin: 6, reps: 8, rir: 2, restTime: 120, weight: 65,
-            setIntensityTags: [{ setNumber: 1, tag: "top_set" }, { setNumber: 2, tag: "back_off" }],
-            // The back-off set keeps its own range and load, with the top set's RIR.
-            setTargets: [{ setNumber: 2, repsMin: 5, reps: 10, rir: 2, weight: 50 }],
-          },
-          { variationId: "squat", sets: 2, repsMin: 5, reps: 10, rir: 2, restTime: 0 },
-        ],
-      }],
+    const session = (weekIndex: number) => ({
+      name: "Session 1",
+      scheduledDay: 1,
+      weekIndex,
+      exercises: [
+        {
+          variationId: "bench", sets: 2, repsMin: 6, reps: 8, rir: 2, restTime: 120, weight: 65,
+          setIntensityTags: [{ setNumber: 1, tag: "top_set" }, { setNumber: 2, tag: "back_off" }],
+          // The back-off set keeps its own range and load, with the top set's RIR.
+          setTargets: [{ setNumber: 2, repsMin: 5, reps: 10, rir: 2, weight: 50 }],
+        },
+        { variationId: "squat", sets: 2, repsMin: 5, reps: 10, rir: 2, restTime: 0 },
+      ],
     })
+    // The photo is one week: it repeats on every week of the default 4-week program.
+    expect(save.mock.calls[1][0][0]).toMatchObject({
+      duration: 4,
+      name: "Minicut",
+      workouts: [session(0), session(1), session(2), session(3)],
+    })
+  })
+
+  it("repeats the reviewed week on every week of the length the coach sets", async () => {
+    await readImage()
+    fireEvent.change(screen.getByDisplayValue("4"), { target: { value: "5" } })
+    fireEvent.click(screen.getByRole("button", { name: "Expand exercise: Hack Squat" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Swap exercise: Hack Squat" }))
+    fireEvent.click(screen.getByText("Pick Squat"))
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create program" })).toBeEnabled())
+    fireEvent.click(screen.getByRole("button", { name: "Create program" }))
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2))
+    const created = save.mock.calls[1][0][0] as CreateCoachProgramInput
+    expect(created.duration).toBe(5)
+    expect(created.workouts.map((workout) => workout.weekIndex)).toEqual([0, 1, 2, 3, 4])
+    // The exercise picked once in review is in every week.
+    expect(created.workouts.every((workout) => workout.exercises[1]?.variationId === "squat")).toBe(true)
   })
 
   it("preselects the methods read from the set scheme on the review card", async () => {
