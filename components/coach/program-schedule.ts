@@ -54,3 +54,45 @@ export function layoutLoadedSchedule(schedule: Schedule): Schedule {
     return laidOut
   })
 }
+
+function weekHasAuthoredSessions(week: ScheduleSlot[] | undefined) {
+  return Boolean(week?.some((slot) => slot?.routine?.exercises.length))
+}
+
+/** Why a copied week cannot be pasted onto the target week, or null when it can. */
+export type WeekPasteBlock = "archived" | "nothing-copied" | "same-week" | "started"
+
+/**
+ * Whether the copied week may replace `targetWeekIndex`.
+ *
+ * Weeks the trainee has already trained are kept as they were. The week in
+ * progress is one of them only once it has sessions of its own. Until then
+ * the trainee is shown the nearest earlier week that has sessions (see
+ * `resolveEffectiveWeekIndex`), so filling it overwrites nothing the coach
+ * wrote; with the same sessions, completions this week still match by name.
+ */
+export function resolveWeekPasteBlock({
+  copiedWeekIndex,
+  currentWeekIndex,
+  isArchived,
+  isProgramCompleted,
+  schedule,
+  targetWeekIndex,
+}: {
+  copiedWeekIndex: number | null
+  /** The trainee's week in progress, or null when none is. */
+  currentWeekIndex: number | null
+  isArchived: boolean
+  isProgramCompleted: boolean
+  schedule: Schedule
+  targetWeekIndex: number
+}): WeekPasteBlock | null {
+  if (isArchived) return "archived"
+  if (copiedWeekIndex === null) return "nothing-copied"
+  if (copiedWeekIndex === targetWeekIndex) return "same-week"
+  if (isProgramCompleted) return "started"
+  if (currentWeekIndex === null) return null
+  if (targetWeekIndex < currentWeekIndex) return "started"
+  if (targetWeekIndex === currentWeekIndex && weekHasAuthoredSessions(schedule[targetWeekIndex])) return "started"
+  return null
+}

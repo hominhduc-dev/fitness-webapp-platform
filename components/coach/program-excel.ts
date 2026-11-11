@@ -14,7 +14,10 @@ import { normalizeTrainingGoal } from "@/lib/training-goals"
 type RawCell = string | number | boolean | null | undefined
 
 type ImportedProgramDraft = {
+  /** The rows are Week 1 and already copied onto every week; changing the length adds or drops copies. */
   weekTemplate?: boolean
+  /** The workouts are one week that repeats on every week of the program when it is created. */
+  repeatsWeekly?: boolean
   assignToUserIds?: string[]
   description?: string
   difficulty?: CreateCoachProgramInput["difficulty"]

@@ -72,6 +72,7 @@ vi.mock("@/lib/queries/workouts", () => ({
 }))
 vi.mock("@/components/exercises/add-exercise-modal", () => ({ AddExerciseModal: () => null }))
 vi.mock("@/components/body/muscle-map-pair", () => ({ MuscleMapPair: () => null }))
+vi.mock("@/components/coach/export-program-logs-dialog", () => ({ ExportProgramLogsDialog: () => null }))
 vi.mock("./session-slot-grid", () => ({
   SessionSlotGrid: ({ onEdit, views }: { onEdit: (dayIndex: number) => void; views: Array<{ kind: string }> }) => (
     <div>
@@ -191,6 +192,51 @@ describe("program editor per-set targets", () => {
       setTargets: [{ reps: 10, repsMin: 5, rir: 2, setNumber: 2, weight: 50 }],
       weight: 65,
     })
+  })
+})
+
+describe("program editor copy and paste week", () => {
+  // Three weeks, sessions only in week 1, and a trainee one week in: week 2 is in progress and empty.
+  const assignedAt = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const original = { assignedTrainees: program.assignedTrainees, duration: program.duration }
+  beforeEach(() => {
+    Object.assign(program, {
+      assignedTrainees: [{ assignedAt, avatar: null, email: "minh@example.com", id: "trainee-1", name: "Minh" }],
+      duration: 3,
+    })
+  })
+  afterEach(() => {
+    Object.assign(program, original)
+  })
+
+  const weekTab = (week: number) =>
+    screen.getAllByRole("button").find((button) => button.textContent?.replace(coach.currentWeekBadge, "").trim() === String(week))!
+  const days = () => screen.getAllByRole("listitem").map((item) => item.textContent)
+
+  it("fills the empty week the trainee is in with a copied week", () => {
+    renderEditor()
+    // The editor opens on the trainee's week, empty.
+    expect(days()).not.toContain("session")
+
+    fireEvent.click(weekTab(1))
+    fireEvent.click(screen.getByRole("button", { name: coach.copyWeek(1) }))
+    fireEvent.click(weekTab(2))
+    const paste = screen.getByRole("button", { name: coach.pasteWeekHere(1) })
+    expect(paste).toBeEnabled()
+    fireEvent.click(paste)
+
+    expect(days()).toEqual(["session", "rest", "rest", "rest", "rest", "rest", "rest"])
+    expect(screen.getByText(coach.pasteWeekNotice(1, 2))).toBeInTheDocument()
+  })
+
+  it("says on the page why a week already trained cannot be pasted over", () => {
+    renderEditor()
+    fireEvent.click(weekTab(3))
+    fireEvent.click(screen.getByRole("button", { name: coach.copyWeek(3) }))
+    fireEvent.click(weekTab(1))
+
+    expect(screen.getByRole("button", { name: coach.pasteWeekHere(3) })).toBeDisabled()
+    expect(screen.getByText(coach.pasteWeekLocked)).toBeInTheDocument()
   })
 })
 

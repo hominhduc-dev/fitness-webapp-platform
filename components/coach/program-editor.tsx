@@ -42,7 +42,7 @@ import {
   type Schedule,
   type StoredProgramDraft,
 } from "@/components/coach/program-draft-storage"
-import { layoutLoadedSchedule, makeEmptySchedule, resizeScheduleWeeks } from "@/components/coach/program-schedule"
+import { layoutLoadedSchedule, makeEmptySchedule, resizeScheduleWeeks, resolveWeekPasteBlock } from "@/components/coach/program-schedule"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
 import { useExercises } from "@/lib/queries/exercises"
@@ -836,13 +836,15 @@ export function ProgramEditor({
   }, [assignedTrainees, adjustForTraineeId, startDate, totalWeeks])
 
   const currentWeekIndex = currentWeekProgress?.kind === "active" ? currentWeekProgress.weekIndex : null
-  const isPastOrCurrentTrainingWeek = (weekIndex: number) =>
-    currentWeekProgress?.kind === "completed" || (currentWeekIndex !== null && weekIndex <= currentWeekIndex)
-  const canPasteCopiedWeek =
-    copiedWeekIndex !== null &&
-    copiedWeekIndex !== activeWeek &&
-    !isArchived &&
-    !isPastOrCurrentTrainingWeek(activeWeek)
+  const pasteBlock = resolveWeekPasteBlock({
+    copiedWeekIndex,
+    currentWeekIndex,
+    isArchived,
+    isProgramCompleted: currentWeekProgress?.kind === "completed",
+    schedule,
+    targetWeekIndex: activeWeek,
+  })
+  const canPasteCopiedWeek = pasteBlock === null
 
   const filteredTrainees = useMemo(() => {
     const normalized = clientQuery.trim().toLowerCase()
@@ -1592,7 +1594,7 @@ export function ProgramEditor({
                   variant="outline"
                   className="rounded-xl bg-background/70"
                   disabled={!canPasteCopiedWeek}
-                  title={isPastOrCurrentTrainingWeek(activeWeek) ? messages.coach.pasteWeekLocked : undefined}
+                  aria-describedby={pasteBlock === "started" ? "paste-week-locked" : undefined}
                   onClick={pasteCopiedWeekToActive}
                 >
                   <ClipboardPaste className="h-4 w-4" />
@@ -1604,6 +1606,12 @@ export function ProgramEditor({
                 </Button>
               </div>
             </div>
+            {/* A tooltip never shows on a phone: say on the page why paste is off. */}
+            {pasteBlock === "started" ? (
+              <p id="paste-week-locked" className="-mt-2 mb-4 text-sm text-muted-foreground lg:-mt-1 lg:mb-3">
+                {messages.coach.pasteWeekLocked}
+              </p>
+            ) : null}
 
             <SessionSlotGrid
               className={cn("xl:min-h-0 xl:flex-1", isArchived && "pointer-events-none opacity-70")}

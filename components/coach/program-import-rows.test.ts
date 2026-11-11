@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { buildWorkoutsFromRows } from "@/components/coach/program-import-rows"
+import { buildWorkoutsFromRows, repeatWeekAcrossProgram } from "@/components/coach/program-import-rows"
 import type { ProgramImportRow } from "@/components/coach/program-import-rows"
 import type { ExerciseVariationOption } from "@/lib/fitness/types"
 
@@ -169,5 +169,29 @@ describe("buildWorkoutsFromRows", () => {
 
     expect(workouts).toHaveLength(1)
     expect(workouts[0].weekIndex).toBe(0)
+  })
+})
+
+describe("repeatWeekAcrossProgram", () => {
+  const week = [
+    { exercises: [{ reps: 8, sets: 3, variationId: "bench" }], name: "Push", scheduledDay: 1 },
+    { exercises: [{ reps: 10, sets: 3, variationId: "row" }], name: "Pull", scheduledDay: 3 },
+  ]
+
+  it("puts the week on every week of the program, in week order", () => {
+    const workouts = repeatWeekAcrossProgram(week, 3)
+    expect(workouts.map((workout) => [workout.weekIndex, workout.name])).toEqual([
+      [0, "Push"], [0, "Pull"], [1, "Push"], [1, "Pull"], [2, "Push"], [2, "Pull"],
+    ])
+  })
+
+  it("gives each week its own exercises", () => {
+    const [first, , second] = repeatWeekAcrossProgram(week, 2)
+    expect(second.exercises).toEqual(first.exercises)
+    expect(second.exercises[0]).not.toBe(first.exercises[0])
+  })
+
+  it("keeps at least one week", () => {
+    expect(repeatWeekAcrossProgram(week, 0)).toHaveLength(2)
   })
 })
