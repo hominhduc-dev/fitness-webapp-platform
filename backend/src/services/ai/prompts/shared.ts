@@ -13,7 +13,7 @@
  */
 import { AppError } from "../../errors"
 
-export const PROMPT_VERSION = "2026-09-19.1"
+export const PROMPT_VERSION = "2026-11-11.1"
 
 // ---------------------------------------------------------------------------
 // Untrusted text
@@ -91,7 +91,7 @@ ${UNTRUSTED_INPUT_RULE}`
 export const TRAINING_GOAL_RULES = `- Nếu goal là hypertrophy/build_muscle: ưu tiên volume theo nhóm cơ, rep range thường 6-20, RIR tuần đầu cao hơn để lấy baseline rồi giảm dần trong chu kỳ.
 - Nếu goal là strength: ưu tiên compound chính, rep range thường 1-6 cho bài chính, nghỉ dài hơn, tránh failure liên tục; dùng RIR 1-3 để giữ kỹ thuật.
 - Nếu goal là powerbuilding: đầu buổi có bài compound nặng 3-6 reps, sau đó back-off/accessory 6-15 reps để tăng cơ.
-- Nếu goal là fat_loss/lose_weight: giữ strength và khối cơ với volume vừa phải, thêm conditioning/cardio hợp lý, không tăng volume quá mạnh khi recovery thấp.
+- Nếu goal là fat_loss/lose_weight (cutting): mục tiêu là giữ cơ và sức mạnh, không phải tăng tạ. Giữ mức tạ và rep range như một block bình thường (khoảng 5-15 reps cho bài chính, isolation tới khoảng 15); không dùng set 20-30 reps trên bài tạ như cardio. Cần nhẹ bớt thì giảm volume (số set) trước, không hạ cường độ. Không đặt mục tiêu tăng tạ mỗi tuần; thêm conditioning/cardio hợp lý, không tăng volume quá mạnh khi recovery thấp.
 - Nếu goal là endurance: ưu tiên rep cao, density, rest ngắn vừa phải, circuit hoặc cardio; cường độ tạ không cần sát failure.
 - Nếu goal là athletic_performance: ưu tiên sức mạnh, power, tốc độ, unilateral/core; không biến thành bodybuilding thuần.
 - Nếu goal là rehab_corrective: giữ RIR cao 3-5+, tải nhẹ-vừa, kỹ thuật kiểm soát, tránh đau và tránh các pattern đã khai báo hạn chế.`
