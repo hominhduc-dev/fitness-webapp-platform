@@ -12,12 +12,13 @@
  */
 import { z } from "zod"
 
+import { parseSetIntensityMethodCell, type SetIntensityAssignment } from "../../domain/set-intensity-tag"
 import { parseAI } from "../../lib/ai/output-schemas"
 import type { AIImageInput, AIProvider } from "../../lib/ai/types"
 import { generateValidatedJSON } from "../../lib/ai/validated-generation"
 import { sanitizeUserText } from "./prompts/shared"
 
-const PROGRAM_IMAGE_PROMPT_VERSION = "2026-11-04.1"
+const PROGRAM_IMAGE_PROMPT_VERSION = "2026-11-11.1"
 
 const MAX_WORKOUTS = 14
 const MAX_EXERCISES_PER_WORKOUT = 30
@@ -58,8 +59,11 @@ const transcriptionSchema = z.object({
               reps: looseText,
               rir: looseNumber,
               restTime: looseNumber,
-              weight: looseNumber,
+              /** As written: "65,50" may be one weight per set, so it is parsed here, not by the schema. */
+              weight: looseText,
               weightUnit: looseText,
+              /** The set scheme / set type cell, e.g. "Topset-Backoffset". */
+              setScheme: looseText,
               note: looseText,
             }),
           )
@@ -76,19 +80,25 @@ const TRANSCRIBE_SYSTEM_PROMPT = `Bạn đọc ảnh chụp hoặc ảnh màn h�
 ## Quy tắc
 - Chỉ chép những bài tập thực sự có trong ảnh, đúng tên như được viết (giữ nguyên tiếng Anh, viết tắt như "SA", "DB", "1 Arm"). Không thêm, không bỏ, không đổi bài.
 - Bỏ qua dòng trống, dòng tiêu đề cột và các ô không phải bài tập.
-- Chia buổi tập: theo tên buổi/ngày nếu có (ví dụ "Upper", "Day 1", "Push"); nếu không có, mỗi khối bài liền nhau ngăn cách bởi dòng trống là một buổi. Đổi màu nền trong cùng một khối không tạo buổi mới. Giữ đúng thứ tự từ trên xuống.
-- Buổi không có tên: để name là null.
-- sets, rir, weight: số như trong ảnh; ô trống thì null. Không đoán.
-- weightUnit: "kg" hoặc "lb" chỉ khi ảnh ghi rõ đơn vị (kể cả tiêu đề cột, ghi chú toàn bảng hoặc buổi tập); sao chép đơn vị được kế thừa đó vào từng dòng. Không tự đoán đơn vị khi ảnh không ghi: để null. Nếu ảnh ghi đơn vị khác, giữ nguyên trong weightUnit để coach kiểm tra; không đổi số weight.
+- Chia buổi tập, theo thứ tự ưu tiên:
+  1. Có cột số ngày/buổi (thường là ô gộp ở mép trái, ghi 1, 2, 3... hoặc "Day 1"): mỗi số là một buổi riêng, kể cả khi giữa các ngày không có dòng trống. Dải màu nền xen kẽ đổi cùng lúc với số ngày xác nhận ranh giới đó.
+  2. Có tên buổi/ngày (ví dụ "Upper", "Push"): mỗi tên là một buổi.
+  3. Không có cả hai: mỗi khối bài liền nhau ngăn cách bởi dòng trống là một buổi.
+  Đổi màu nền bên trong cùng một ngày (ví dụ tô theo nhóm cơ) không tạo buổi mới. Ngày không có bài tập nào thì bỏ qua. Giữ đúng thứ tự từ trên xuống.
+- Buổi không có tên (chỉ có số ngày hoặc không có gì): để name là null.
+- sets, rir: số như trong ảnh; ô trống thì null. Không đoán.
+- weight: chép nguyên văn ô tạ thành chuỗi (ví dụ "60", "62,5", hoặc "65,50" khi mỗi set một mức tạ); ô trống thì null. Không tự cộng, gộp hay đổi số.
+- weightUnit: "kg" hoặc "lb" chỉ khi ảnh ghi rõ đơn vị (kể cả tiêu đề cột như "Weight (Kg)", ghi chú toàn bảng hoặc buổi tập); sao chép đơn vị được kế thừa đó vào từng dòng. Không tự đoán đơn vị khi ảnh không ghi: để null. Nếu ảnh ghi đơn vị khác, giữ nguyên trong weightUnit để coach kiểm tra; không đổi số weight.
 - restTime: thời gian nghỉ tính bằng giây; đọc cột Rest/Rest time/Nghỉ, đổi phút hoặc mm:ss rõ ràng sang giây (ví dụ 2 phút hoặc 2:00 thành 120). Giữ 0 nếu ghi rõ 0; không có hoặc không xác định được thì null. Không dùng tempo làm thời gian nghỉ.
-- reps: chép nguyên văn khoảng rep (ví dụ "8-12", "6-8/5-10"); trống thì null.
-- note: cột ghi chú hoặc kiểu set (ví dụ "Topset-Backoffset"); trống thì null.
+- reps: chép nguyên văn khoảng rep mục tiêu (ví dụ "8-12", "6-8/5-10"); trống thì null. Nếu bảng có cả cột "Reps" và cột "Rep Range"/"Target"/"Mục tiêu", lấy cột khoảng rep mục tiêu; cột "Reps" khi đó thường là số rep đã tập lần trước, không dùng làm reps. Chỉ có một cột rep thì dùng cột đó.
+- setScheme: chép nguyên văn cột kiểu set (Set Scheme, Set Type, Method, Kiểu set; ví dụ "Topset-Backoffset", "1 Topset-Backoffset", "Drop set"); không có thì null. Không đưa kiểu set vào note.
+- note: chỉ cột ghi chú; trống thì null.
 - Nếu ảnh có tiêu đề tuần (ví dụ "WEEK 2") chỉ chép một tuần đó, không nhân bản.
 - Nếu ảnh không phải chương trình tập, trả về workouts rỗng.
 
 ## Trả về
 Chỉ một JSON object, không markdown:
-{"programName": string|null, "workouts": [{"name": string|null, "exercises": [{"name": string, "sets": number|null, "reps": string|null, "rir": number|null, "restTime": number|null, "weight": number|null, "weightUnit": string|null, "note": string|null}]}]}`
+{"programName": string|null, "workouts": [{"name": string|null, "exercises": [{"name": string, "sets": number|null, "reps": string|null, "rir": number|null, "restTime": number|null, "weight": string|null, "weightUnit": string|null, "setScheme": string|null, "note": string|null}]}]}`
 
 async function transcribeProgramImages(provider: AIProvider, images: AIImageInput[]) {
   return generateValidatedJSON(
@@ -285,8 +295,10 @@ type ImportedExercise = {
   rir: number | null
   /** Seconds; null when the source did not specify a rest period. */
   restTime: number | null
-  /** Kilograms, only when the source's unit was unambiguous. */
+  /** Kilograms, only when the source's unit was unambiguous. With one weight per set, the first set's. */
   weight: number | null
+  /** Per-set methods read from the set scheme cell; empty when it named none the app knows. */
+  setIntensityTags: SetIntensityAssignment[]
   notes: string
 }
 
@@ -308,20 +320,88 @@ function splitReps(raw: string | null) {
   return { note, reps }
 }
 
-/** Never turn a unitless or unsupported source load into an implicit kg prescription. */
-function normalizedImageWeight(weight: number | null, rawUnit: string | null, locale: ImportLocale) {
-  if (weight == null || weight < 0) return { note: null, weight: null }
-  const unit = rawUnit?.trim().toLowerCase().replace(/\./g, "")
-  if (unit && ["kg", "kgs", "kilogram", "kilograms"].includes(unit)) return { note: null, weight }
-  if (unit && ["lb", "lbs", "pound", "pounds"].includes(unit)) {
-    return { note: null, weight: Math.round(weight * 0.45359237 * 100) / 100 }
+/**
+ * A set scheme cell as per-set methods. "Topset-Backoffset" (also "1 Topset-Backoffset",
+ * "top/backoff", "2 top sets + back-off") is the leading sets as top sets and the rest as
+ * back-off sets; anything else goes through the Method-cell grammar the sheet import uses.
+ * Null when the cell names nothing the app knows, so the text can stay in the notes.
+ */
+function setSchemeTags(raw: string | null, sets: number): SetIntensityAssignment[] | null {
+  if (!raw || sets < 1) return null
+  const text = raw.toLowerCase().replace(/[_+&/,|–—-]+/g, " ").replace(/\s+/g, " ").trim()
+  const topBackOff = /^(?:(\d+) ?x? ?)?top(?: ?sets?)? (?:(?:then|and|with) )?(?:\d+ ?x? ?)?back ?off(?: ?sets?)?$/.exec(text)
+  if (topBackOff) {
+    const topSets = sets === 1 ? 1 : Math.min(sets - 1, Math.max(1, Number(topBackOff[1] ?? 1)))
+    return Array.from({ length: sets }, (_, index) => ({
+      setNumber: index + 1,
+      tag: index < topSets ? ("top_set" as const) : ("back_off" as const),
+    }))
   }
-  const sourceWeight = `${weight}${rawUnit ? ` ${rawUnit}` : ""}`
+  const parsed = parseSetIntensityMethodCell(raw, sets)
+  return parsed.assignments?.length ? parsed.assignments : null
+}
+
+const KG_UNITS = ["kg", "kgs", "kilogram", "kilograms"]
+const LB_UNITS = ["lb", "lbs", "pound", "pounds"]
+
+/**
+ * The weight cell as one value per set it lists. A comma is a decimal point in
+ * "62,5", but between two whole numbers of an exercise with several sets
+ * ("65,50") it separates the top set from the back-off sets. Empty when the
+ * cell is blank or unreadable.
+ */
+function parseImageWeights(raw: string | null, sets: number): number[] {
+  const text = raw?.replace(/[–—]/g, "-").replace(/(kgs?|kilograms?|lbs?|pounds?)\b\.?/gi, " ").trim()
+  if (!text) return []
+  let parts = text.split(/[/;|]|,\s+|\s+/).filter(Boolean)
+  if (parts.length === 1) {
+    const commaList = /^\d+(?:,\d+)+$/.test(parts[0] as string) ? (parts[0] as string).split(",") : null
+    const decimal = commaList?.length === 2 && ((commaList[1] as string).length === 1 || sets < 2)
+    if (commaList && !decimal) parts = commaList
+  }
+  const values = parts.map((part) => (/^-?\d+(?:[.,]\d+)?$/.test(part) ? Number(part.replace(",", ".")) : Number.NaN))
+  return values.every(Number.isFinite) ? values : []
+}
+
+function formatKg(value: number) {
+  return String(Math.round(value * 100) / 100)
+}
+
+/**
+ * Never turn a unitless or unsupported source load into an implicit kg
+ * prescription. A cell with one weight per set prescribes the first set's and
+ * keeps the full list in the notes.
+ */
+function normalizedImageWeight(raw: string | null, rawUnit: string | null, sets: number, locale: ImportLocale) {
+  const values = parseImageWeights(raw, sets)
+  const unitInCell = raw?.match(/(kgs?|kilograms?|lbs?|pounds?)\b/i)?.[1] ?? null
+  const unit = (rawUnit ?? unitInCell)?.trim().toLowerCase().replace(/\./g, "")
+  const knownUnit = unit && (KG_UNITS.includes(unit) || LB_UNITS.includes(unit))
+
+  if (values.length === 0 || values.some((value) => value < 0)) {
+    const unreadable = raw && values.length === 0 && !/^[-–—\s]*$/.test(raw)
+    return {
+      note: unreadable ? (locale === "vi" ? `Tạ trong ảnh: ${raw}` : `Weight in image: ${raw}`) : null,
+      weight: null,
+    }
+  }
+  if (!knownUnit) {
+    const sourceWeight = `${raw}${rawUnit ? ` ${rawUnit}` : ""}`
+    return {
+      note: locale === "vi"
+        ? `Tạ trong ảnh: ${sourceWeight}. Cần xác nhận đơn vị trước khi nhập tạ (kg).`
+        : `Weight in image: ${sourceWeight}. Confirm the unit before entering weight (kg).`,
+      weight: null,
+    }
+  }
+
+  const kg = values.map((value) => (LB_UNITS.includes(unit) ? Math.round(value * 0.45359237 * 100) / 100 : value))
+  const perSet = kg.length > 1 && kg.some((value) => value !== kg[0])
   return {
-    note: locale === "vi"
-      ? `Tạ trong ảnh: ${sourceWeight}. Cần xác nhận đơn vị trước khi nhập tạ (kg).`
-      : `Weight in image: ${sourceWeight}. Confirm the unit before entering weight (kg).`,
-    weight: null,
+    note: perSet
+      ? `${locale === "vi" ? "Tạ từng set" : "Weight per set"}: ${kg.map(formatKg).join(" / ")} kg`
+      : null,
+    weight: kg[0] as number,
   }
 }
 
@@ -388,14 +468,20 @@ async function importProgramFromImages(
         const variationId = matched.get(`r${workoutIdx + 1}_${exerciseIdx + 1}`) ?? null
         if (!variationId) unmatchedCount += 1
         const { note: repsNote, reps } = splitReps(exercise.reps)
-        const normalizedWeight = normalizedImageWeight(exercise.weight, exercise.weightUnit, input.locale)
         const setsMissing = !(exercise.sets && exercise.sets > 0)
+        const sets = setsMissing ? fallbackSets : Math.min(20, Math.max(1, Math.round(exercise.sets as number)))
+        const normalizedWeight = normalizedImageWeight(exercise.weight, exercise.weightUnit, sets, input.locale)
+        // A model that still writes the scheme into the note column gets the same treatment.
+        const schemeTags = setSchemeTags(exercise.setScheme, sets)
+        const noteTags = schemeTags || exercise.setScheme ? null : setSchemeTags(exercise.note, sets)
+        const unknownScheme = schemeTags ? null : exercise.setScheme
         return {
-          notes: [exercise.note, repsNote, normalizedWeight.note].filter(Boolean).join(" · "),
+          notes: [unknownScheme, noteTags ? null : exercise.note, repsNote, normalizedWeight.note].filter(Boolean).join(" · "),
           reps,
           rir: exercise.rir != null && exercise.rir >= 0 && exercise.rir <= 10 ? exercise.rir : null,
           restTime: exercise.restTime != null && exercise.restTime >= 0 ? Math.round(exercise.restTime) : null,
-          sets: setsMissing ? fallbackSets : Math.min(20, Math.max(1, Math.round(exercise.sets as number))),
+          setIntensityTags: schemeTags ?? noteTags ?? [],
+          sets,
           sourceName: exercise.name,
           variationId,
           weight: normalizedWeight.weight,
@@ -419,7 +505,9 @@ export {
   buildLibraryIndex,
   importProgramFromImages,
   normalizeExerciseName,
+  parseImageWeights,
   PROGRAM_IMAGE_PROMPT_VERSION,
+  setSchemeTags,
   splitReps,
   weekLayout,
   type ImportedProgram,

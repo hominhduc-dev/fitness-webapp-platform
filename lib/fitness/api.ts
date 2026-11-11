@@ -3,7 +3,7 @@ import { buildExerciseDisplayName } from "@/lib/exercise-display"
 import { getApiBaseUrl } from "@/lib/supabase/config"
 import { getTimeZoneHeaders } from "@/lib/time-zone"
 import { muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
-import type { IntensityTag } from "@/lib/workout/intensity-tag"
+import type { IntensityTag, SetIntensityAssignment } from "@/lib/workout/intensity-tag"
 import type { ActiveWorkoutSession, StoredWorkoutSession } from "@/lib/workout/session-storage"
 import type {
   DailyNutrition,
@@ -293,6 +293,8 @@ export type ProgramImageDraft = {
       /** Seconds; optional for older stored import drafts. */
       restTime?: number | null
       weight: number | null
+      /** Methods read from the sheet's set scheme; absent on older stored drafts. */
+      setIntensityTags?: SetIntensityAssignment[]
       notes: string
     }>
   }>

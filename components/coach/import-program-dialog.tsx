@@ -159,6 +159,9 @@ function imageDraftToEditable(draft: ProgramImageDraft): EditableWorkout[] {
       reps: exercise.reps,
       restTime: exercise.restTime != null ? String(exercise.restTime) : "",
       rir: exercise.rir != null ? String(exercise.rir) : "",
+      setIntensityTags: exercise.setIntensityTags?.length
+        ? normalizeSetIntensityAssignments(exercise.setIntensityTags, exercise.sets)
+        : undefined,
       sets: String(exercise.sets),
       sourceName: exercise.sourceName,
       variationId: exercise.variationId ?? "",

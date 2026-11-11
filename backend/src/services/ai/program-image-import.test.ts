@@ -5,6 +5,8 @@ import {
   buildLibraryIndex,
   importProgramFromImages,
   normalizeExerciseName,
+  parseImageWeights,
+  setSchemeTags,
   splitReps,
   weekLayout,
   type LibraryVariation,
@@ -71,6 +73,57 @@ describe("splitReps", () => {
   })
 })
 
+describe("setSchemeTags", () => {
+  const topBackOff = (sets: number, top = 1) =>
+    Array.from({ length: sets }, (_, index) => ({ setNumber: index + 1, tag: index < top ? "top_set" : "back_off" }))
+
+  it.each(["Topset-Backoffset", "1 Topset-Backoffset", "top/backoff", "Top set + back-off sets", "TOP SET - BACKOFF"])(
+    "reads %s as a top set followed by back-off sets",
+    (scheme) => {
+      expect(setSchemeTags(scheme, 3)).toEqual(topBackOff(3))
+    },
+  )
+
+  it("takes the count of top sets from the scheme, leaving at least one back-off set", () => {
+    expect(setSchemeTags("2 Topset-Backoffset", 4)).toEqual(topBackOff(4, 2))
+    expect(setSchemeTags("3 top/backoff", 2)).toEqual(topBackOff(2, 1))
+    expect(setSchemeTags("Topset-Backoffset", 1)).toEqual([{ setNumber: 1, tag: "top_set" }])
+  })
+
+  it("reads the Method-cell spellings the sheet import accepts", () => {
+    expect(setSchemeTags("Drop set", 3)).toEqual([{ setNumber: 3, tag: "drop_set" }])
+    expect(setSchemeTags("all:rp", 2)).toEqual([{ setNumber: 1, tag: "rest_pause" }, { setNumber: 2, tag: "rest_pause" }])
+  })
+
+  it.each([null, "", "Straight sets", "Pyramid", "Superset with B2"])("names no method for %s", (scheme) => {
+    expect(setSchemeTags(scheme, 3)).toBeNull()
+  })
+})
+
+describe("parseImageWeights", () => {
+  it("reads a comma between whole numbers as one weight per set", () => {
+    expect(parseImageWeights("65,50", 2)).toEqual([65, 50])
+    expect(parseImageWeights("100,80,80", 3)).toEqual([100, 80, 80])
+    expect(parseImageWeights("65, 50", 2)).toEqual([65, 50])
+    expect(parseImageWeights("65/50", 2)).toEqual([65, 50])
+    expect(parseImageWeights("62,5/50", 2)).toEqual([62.5, 50])
+  })
+
+  it("keeps real decimals working", () => {
+    expect(parseImageWeights("62,5", 2)).toEqual([62.5])
+    expect(parseImageWeights("62.5", 3)).toEqual([62.5])
+    expect(parseImageWeights("22,50", 1)).toEqual([22.5])
+    expect(parseImageWeights("60 kg", 3)).toEqual([60])
+  })
+
+  it("returns nothing for blank or unreadable cells", () => {
+    expect(parseImageWeights(null, 3)).toEqual([])
+    expect(parseImageWeights("", 3)).toEqual([])
+    expect(parseImageWeights("BW", 3)).toEqual([])
+    expect(parseImageWeights("RPE 8", 3)).toEqual([])
+  })
+})
+
 describe("weekLayout", () => {
   it("leaves rest days between sessions where the week allows", () => {
     expect(weekLayout(3)).toEqual([1, 3, 5])
@@ -100,7 +153,15 @@ describe("importProgramFromImages", () => {
       {
         name: null,
         exercises: [
-          { name: "Incline Barbell Bench Press", note: "Topset-Backoffset", reps: "6-8/5-10", rir: 2, sets: 2 },
+          {
+            name: "Incline Barbell Bench Press",
+            reps: "6-8/5-10",
+            rir: 2,
+            setScheme: "Topset-Backoffset",
+            sets: 2,
+            weight: "65,50",
+            weightUnit: "kg",
+          },
           { name: "Leg Press", reps: "5-10", rir: 2, sets: 2 },
           { name: "Reverse Pecdeck Flyes", reps: "10-15", rir: 2, sets: null },
           { name: "Zercher Carry", reps: "8-12", sets: 3 },
@@ -141,8 +202,16 @@ describe("importProgramFromImages", () => {
     ])
 
     const [bench, legPress, reverseFly, carry] = result.workouts[0]!.exercises
-    expect(bench).toMatchObject({ notes: "Topset-Backoffset · Reps: 6-8/5-10", reps: "6-8", rir: 2, sets: 2, variationId: "v-incline-bb" })
-    expect(legPress).toMatchObject({ variationId: "v-leg-press" })
+    expect(bench).toMatchObject({
+      notes: "Reps: 6-8/5-10 · Tạ từng set: 65 / 50 kg",
+      reps: "6-8",
+      rir: 2,
+      setIntensityTags: [{ setNumber: 1, tag: "top_set" }, { setNumber: 2, tag: "back_off" }],
+      sets: 2,
+      variationId: "v-incline-bb",
+      weight: 65,
+    })
+    expect(legPress).toMatchObject({ setIntensityTags: [], variationId: "v-leg-press" })
     // Blank sets fall back to the session's usual count.
     expect(reverseFly).toMatchObject({ sets: 2, sourceName: "Reverse Pecdeck Flyes", variationId: null })
     expect(carry).toMatchObject({ sourceName: "Zercher Carry", variationId: null })
@@ -199,5 +268,44 @@ describe("importProgramFromImages", () => {
     expect(exercise.weight).toBeNull()
     expect(exercise.notes).toContain("Tạ trong ảnh: 100")
     expect(exercise.notes).toContain("Cần xác nhận đơn vị")
+  })
+
+  it("prescribes the first set's weight and notes the per-set list", async () => {
+    expect(await importExercise({ sets: 2, weight: "65,50", weightUnit: "kg" })).toMatchObject({
+      notes: "Weight per set: 65 / 50 kg", weight: 65,
+    })
+    expect(await importExercise({ sets: 2, weight: "135,95", weightUnit: "lb" })).toMatchObject({
+      notes: "Weight per set: 61.23 / 43.09 kg", weight: 61.23,
+    })
+    // The same weight on every set needs no note.
+    expect(await importExercise({ sets: 3, weight: "60,60,60", weightUnit: "kg" })).toMatchObject({ notes: "", weight: 60 })
+  })
+
+  it("reads a decimal comma as one weight", async () => {
+    expect(await importExercise({ sets: 3, weight: "62,5", weightUnit: "kg" })).toMatchObject({ notes: "", weight: 62.5 })
+  })
+
+  it("keeps an unknown set scheme in the notes and a known one as methods only", async () => {
+    expect(await importExercise({ setScheme: "Pyramid", sets: 3 })).toMatchObject({ notes: "Pyramid", setIntensityTags: [] })
+    expect(await importExercise({ note: "Pause at the bottom", setScheme: "1 Topset-Backoffset", sets: 3 })).toMatchObject({
+      notes: "Pause at the bottom",
+      setIntensityTags: [
+        { setNumber: 1, tag: "top_set" },
+        { setNumber: 2, tag: "back_off" },
+        { setNumber: 3, tag: "back_off" },
+      ],
+    })
+  })
+
+  it("still finds a set scheme the model wrote into the note column", async () => {
+    expect(await importExercise({ note: "Topset-Backoffset", sets: 2 })).toMatchObject({
+      notes: "",
+      setIntensityTags: [{ setNumber: 1, tag: "top_set" }, { setNumber: 2, tag: "back_off" }],
+    })
+    expect(await importExercise({ note: "Slow eccentric", sets: 2 })).toMatchObject({ notes: "Slow eccentric", setIntensityTags: [] })
+  })
+
+  it("notes a weight cell it cannot read instead of dropping it", async () => {
+    expect(await importExercise({ weight: "BW", weightUnit: null })).toMatchObject({ notes: "Weight in image: BW", weight: null })
   })
 })
