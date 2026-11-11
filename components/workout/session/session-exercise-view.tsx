@@ -290,6 +290,8 @@ export function SessionExerciseView({
               progressionTargetText(progression, weightUnit),
             )}
             {progression.reasons.includes("readiness_low") ? ` ${messages.workoutPage.progressionReadinessLow}` : null}
+            {progression.reasons.includes("cut_hold_load") ? ` ${messages.workoutPage.progressionCutHoldLoad}` : null}
+            {progression.reasons.includes("cut_rep_cap") ? ` ${messages.workoutPage.progressionCutRepCap}` : null}
             {progression.heldBy === "phase" ? ` ${messages.workoutPage.progressionHeldByPhase}` : null}
             {progression.heldBy === "day" ? ` ${messages.workoutPage.progressionHeldByDay}` : null}
             {(progression.muscleAction === "decrease" || progression.muscleAction === "deload") && progression.muscleSlug

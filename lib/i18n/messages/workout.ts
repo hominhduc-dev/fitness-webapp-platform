@@ -237,6 +237,8 @@ export const workoutMessages = {
               ? `Most sets fell short last time. Go lighter: ${target}.`
               : `Repeat last session before progressing: ${target}.`,
       progressionReadinessLow: "Kept smaller because today's readiness is low.",
+      progressionCutHoldLoad: "On a cut, keep the weight and accept a few fewer reps.",
+      progressionCutRepCap: "On a cut, reps stay inside the range rather than climbing past it.",
       progressionHeldByDay: "Holding last session's numbers: today's readiness calls for an easier day.",
       progressionHeldByPhase: "Holding last session's numbers: the program plans this week as a deload.",
       progressionHeldByMuscle: (muscle: string, action: "decrease" | "deload") =>
@@ -555,6 +557,8 @@ export const workoutMessages = {
               ? `Lần trước phần lớn set chưa đạt range. Giảm tạ: ${target}.`
               : `Lặp lại buổi trước rồi mới tăng: ${target}.`,
       progressionReadinessLow: "Mức tăng được giữ nhỏ vì readiness hôm nay thấp.",
+      progressionCutHoldLoad: "Đang cutting: giữ mức tạ, hụt vài rep cũng được.",
+      progressionCutRepCap: "Đang cutting: giữ reps trong khoảng, không tăng vượt đỉnh.",
       progressionHeldByDay: "Giữ như buổi trước: readiness hôm nay cần một buổi nhẹ hơn.",
       progressionHeldByPhase: "Giữ như buổi trước: chương trình xếp tuần này là tuần deload.",
       progressionHeldByMuscle: (muscle: string, action: "decrease" | "deload") =>

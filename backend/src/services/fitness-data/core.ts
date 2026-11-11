@@ -734,6 +734,7 @@ function buildExerciseProgression(
   readinessScore: number | null | undefined,
   loadIncrementKg: number | null,
   goalTargetRir?: number | null,
+  goal?: string | null,
 ) {
   if (!previousPerformanceBySetNumber || previousPerformanceBySetNumber.size === 0) return undefined
 
@@ -741,6 +742,8 @@ function buildExerciseProgression(
     defaultTargetRir: goalTargetRir,
     loadIncrementKg,
     lowerBody: isLowerBodyExercise(primaryMuscles),
+    // A cut keeps loads where they are rather than giving them up after one short session.
+    preserveLoad: goal === "fat_loss",
     readinessScore,
     sets: templateSets
       .slice()
@@ -802,6 +805,8 @@ function serializeWorkout(
       phase?: string | null
       /** The effort that goal asks for, for sets the coach left without an RIR. */
       targetRir?: number | null
+      /** The program's goal; a fat-loss block holds loads instead of cutting them. */
+      goal?: string | null
     }
   },
 ) {
@@ -822,6 +827,7 @@ function serializeWorkout(
           options?.readinessScore,
           loadIncrementKg,
           options?.trainingContext?.targetRir,
+          options?.trainingContext?.goal,
         ),
         variation,
         workingSets: workoutExercise.sets.filter((set) => set.intensityTag !== "warmup").length,
@@ -4720,6 +4726,7 @@ async function getWorkoutDetailForTrainee(
       ? {
           dayAction: recovery.guidance.action,
           muscles: recovery.muscles,
+          goal: recovery.programContext?.goal ?? null,
           phase: recovery.programContext?.phase ?? null,
           targetRir: recovery.programContext?.targetRir ?? null,
         }
