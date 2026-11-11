@@ -3,6 +3,7 @@ import { Router } from "express"
 import { parseMuscleListValue, parseMuscleProfileInput } from "../domain/muscle-profile"
 import { parseMovementPatternInput } from "../domain/movement-pattern"
 import { isSetIntensityTag, type SetIntensityAssignment } from "../domain/set-intensity-tag"
+import type { SetTargetAssignment } from "../domain/set-target"
 
 import { requireCurrentProfile } from "../services/auth.service"
 import {
@@ -50,12 +51,13 @@ import { generateProgramSpreadsheet } from "../services/google-program-generate.
 import { getAccessToken, sendError } from "./route.utils"
 import { googleRouter } from "./google.route"
 import { assertCoach, ensurePrisma } from "../services/fitness-data/shared/guards"
-import { BadRequestError } from "../services/errors"
+import { BadRequestError, ValidationError } from "../services/errors"
 import {
   acceptCoachTraineeAIProgram,
   generateCoachTraineeWorkoutProgram,
 } from "../services/ai.service"
 import { generateProgramSchema, generationIdSchema } from "./ai.schemas"
+import { setTargetAssignments } from "./workout.schemas"
 import {
   deleteTraineePlannedItemForCoach,
   getTraineeMealPlanForCoach,
@@ -139,6 +141,16 @@ function parseSetIntensityTags(value: unknown): SetIntensityAssignment[] | undef
   return assignments.length ? assignments : undefined
 }
 
+/** Per-set targets are validated, not coerced: a malformed one would ship a set the coach never wrote. */
+function parseSetTargets(value: unknown): SetTargetAssignment[] | undefined {
+  if (value == null) return undefined
+  const parsed = setTargetAssignments.safeParse(value)
+  if (!parsed.success) {
+    throw new ValidationError("Mục tiêu từng set không hợp lệ.", { details: parsed.error.issues })
+  }
+  return parsed.data.length ? parsed.data : undefined
+}
+
 function parseProgramInput(body: Record<string, unknown>) {
   return {
     assignToUserIds: Array.isArray(body.assignToUserIds)
@@ -177,6 +189,7 @@ function parseProgramInput(body: Record<string, unknown>) {
                     rir?: unknown
                     restTime?: unknown
                     setIntensityTags?: unknown
+                    setTargets?: unknown
                     variationId?: unknown
                     reps?: unknown
                     sets?: unknown
@@ -189,6 +202,7 @@ function parseProgramInput(body: Record<string, unknown>) {
                     rir: safeExercise.rir == null ? undefined : Number(safeExercise.rir),
                     restTime: safeExercise.restTime == null ? undefined : Number(safeExercise.restTime),
                     setIntensityTags: parseSetIntensityTags(safeExercise.setIntensityTags),
+                    setTargets: parseSetTargets(safeExercise.setTargets),
                     variationId: String(safeExercise.variationId ?? ""),
                     reps: Number(safeExercise.reps ?? 0),
                     sets: Number(safeExercise.sets ?? 0),

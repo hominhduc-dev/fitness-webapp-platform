@@ -87,6 +87,7 @@ import {
   type SetIntensityAssignment,
   type SetIntensityTag,
 } from "../../domain/set-intensity-tag"
+import { buildSetTargetMap, type SetTargetAssignment } from "../../domain/set-target"
 import { buildSetTempoMap, parseSetTempo, type SetTempoAssignment } from "../../domain/set-tempo"
 import {
   addLocalDays,
@@ -369,6 +370,8 @@ type PersonalWorkoutInput = {
     repsMin?: number
     rir?: number
     setIntensityTags?: SetIntensityAssignment[]
+    /** Reps, weight and RIR of the sets that differ from the exercise's own. */
+    setTargets?: SetTargetAssignment[]
     setTempos?: SetTempoAssignment[]
     tempo?: string | null
     variationId: string
@@ -401,6 +404,8 @@ type CoachProgramInput = {
       rir?: number
       restTime?: number
       setIntensityTags?: SetIntensityAssignment[]
+      /** Reps, weight and RIR of the sets that differ from the exercise's own. */
+      setTargets?: SetTargetAssignment[]
       setTempos?: SetTempoAssignment[]
       tempo?: string | null
       variationId: string
@@ -422,6 +427,8 @@ type NormalizedPersonalWorkoutInput = {
     repsMin?: number
     rir?: number
     setIntensityTags?: SetIntensityAssignment[]
+    /** Reps, weight and RIR of the sets that differ from the exercise's own. */
+    setTargets?: SetTargetAssignment[]
     setTempos?: SetTempoAssignment[]
     tempo?: string | null
     variationId: string
@@ -1459,6 +1466,19 @@ function buildExerciseCoachUpdateFromProgramInput(
     }
   }
 
+  // Set 1 is compared above; the sets after it (a top set's back-off sets) may carry their own targets.
+  if (previousSets.length === nextSetCount && nextSetCount > 1) {
+    const nextPlan = resolveExerciseSetPlan(nextExercise, nextSetCount)
+    if (!isSameSetPlan(previousSets.slice(1), nextPlan.slice(1))) {
+      changes.push("Back-off sets updated")
+      primaryUpdate ??= {
+        field: "reps",
+        text: "",
+        type: "edit",
+      }
+    }
+  }
+
   const previousTags = formatSetIntensityTagsForCoachUpdate(readSetIntensityAssignmentsFromSets(previousSets))
   const nextTags = formatSetIntensityTagsForCoachUpdate(
     normalizeSetIntensityAssignments(nextExercise.setIntensityTags, normalizeCoachProgramInputSetCount(nextExercise.sets)),
@@ -1504,12 +1524,9 @@ function hasWorkoutInputChanged(
     const nextSetCount = normalizeCoachProgramInputSetCount(nextExercise.sets)
     if (previousExercise.sets.length !== nextSetCount) return true
 
-    const previousFirstSet = previousExercise.sets.slice().sort((left, right) => left.setNumber - right.setNumber)[0]
-    if (!previousFirstSet) return true
+    const previousSets = previousExercise.sets.slice().sort((left, right) => left.setNumber - right.setNumber)
+    if (previousSets.length === 0) return true
 
-    const nextRepTarget = normalizeRepTarget(nextExercise.reps, nextExercise.repsMin)
-    const nextRir = normalizeCoachProgramInputOptionalInt(nextExercise.rir)
-    const nextWeight = normalizeCoachProgramInputWeight(nextExercise.weight)
     const previousTags = formatSetIntensityTagsForCoachUpdate(
       readSetIntensityAssignmentsFromSets(previousExercise.sets),
     )
@@ -1517,14 +1534,28 @@ function hasWorkoutInputChanged(
       normalizeSetIntensityAssignments(nextExercise.setIntensityTags, nextSetCount),
     )
 
-    return (
-      (previousFirstSet.targetRepsMin ?? undefined) !== nextRepTarget.repsMin ||
-      previousFirstSet.targetReps !== nextRepTarget.reps ||
-      (previousFirstSet.rir ?? undefined) !== nextRir ||
-      (previousFirstSet.weight ?? undefined) !== nextWeight ||
-      previousTags !== nextTags
-    )
+    return previousTags !== nextTags || !isSameSetPlan(previousSets, resolveExerciseSetPlan(nextExercise, nextSetCount))
   })
+}
+
+function isSameSetTarget(
+  previous: Pick<WorkoutExerciseRecord["sets"][number], "rir" | "targetReps" | "targetRepsMin" | "weight"> | undefined,
+  next: PlannedSetTarget | undefined,
+) {
+  if (!previous || !next) return previous === next
+  return (
+    (previous.targetRepsMin ?? undefined) === next.targetRepsMin &&
+    previous.targetReps === next.targetReps &&
+    (previous.rir ?? undefined) === next.rir &&
+    (previous.weight ?? undefined) === next.weight
+  )
+}
+
+function isSameSetPlan(
+  previousSets: Array<Pick<WorkoutExerciseRecord["sets"][number], "rir" | "targetReps" | "targetRepsMin" | "weight">>,
+  nextPlan: PlannedSetTarget[],
+) {
+  return previousSets.length === nextPlan.length && previousSets.every((set, index) => isSameSetTarget(set, nextPlan[index]))
 }
 
 function buildUpdatedWorkoutIdsForProgramInput(
@@ -2587,6 +2618,38 @@ function normalizeRepTarget(reps: number, repsMin?: number | null, contextLabel?
   }
 }
 
+type PlannedSetTarget = { rir?: number; targetReps: number; targetRepsMin?: number; weight?: number }
+
+/**
+ * What each set of an exercise is programmed for: the exercise's reps, weight
+ * and RIR, except where a set has its own (`setTargets`), e.g. the back-off
+ * sets after a top set.
+ */
+function resolveExerciseSetPlan(
+  exercise: { reps: number; repsMin?: number; rir?: number; setTargets?: SetTargetAssignment[]; weight?: number },
+  setCount: number,
+  contextLabel?: string,
+): PlannedSetTarget[] {
+  const count = Math.max(1, Math.round(setCount))
+  const base = normalizeRepTarget(exercise.reps, exercise.repsMin, contextLabel)
+  const overrides = buildSetTargetMap(exercise.setTargets, count)
+
+  return Array.from({ length: count }, (_value, setIndex) => {
+    const override = overrides.get(setIndex + 1)
+    const repTarget = override
+      ? normalizeRepTarget(override.reps, override.repsMin, contextLabel ? `${contextLabel} / set ${setIndex + 1}` : undefined)
+      : base
+
+    // An override that leaves weight or RIR out keeps the exercise's.
+    return {
+      rir: normalizeCoachProgramInputOptionalInt(override?.rir ?? exercise.rir),
+      targetReps: repTarget.reps,
+      targetRepsMin: repTarget.repsMin,
+      weight: normalizeCoachProgramInputWeight(override?.weight ?? exercise.weight),
+    }
+  })
+}
+
 function buildProgramTreeCreateManyData(
   programId: string,
   workouts: CoachProgramInput["workouts"],
@@ -2637,22 +2700,22 @@ function buildProgramTreeCreateManyData(
       const setCount = Math.max(1, Math.round(exercise.sets))
       const intensityTagBySetNumber = buildSetIntensityTagMap(exercise.setIntensityTags, setCount)
       const tempoBySetNumber = buildSetTempoMap(exercise.setTempos, setCount)
+      const setPlan = resolveExerciseSetPlan(
+        { ...exercise, ...repTarget },
+        setCount,
+        `${workoutName || `Buổi ${workoutIndex + 1}`} / bài tập ${exerciseIndex + 1}`,
+      )
 
       setRows.push(
-        ...Array.from({ length: setCount }, (_value, setIndex) => ({
+        ...setPlan.map((target, setIndex) => ({
           id: randomUUID(),
           intensityTag: intensityTagBySetNumber.get(setIndex + 1),
           tempo: tempoBySetNumber.get(setIndex + 1) ?? parseSetTempo(exercise.tempo),
-          rir: typeof exercise.rir === "number" && Number.isFinite(exercise.rir)
-            ? Math.max(0, Math.round(exercise.rir))
-            : undefined,
+          rir: target.rir,
           setNumber: setIndex + 1,
-          targetReps: repTarget.reps,
-          targetRepsMin: repTarget.repsMin,
-          weight:
-            exercise.weight != null && Number.isFinite(exercise.weight)
-              ? Math.max(0, exercise.weight)
-              : undefined,
+          targetReps: target.targetReps,
+          targetRepsMin: target.targetRepsMin,
+          weight: target.weight,
           workoutExerciseId,
         })),
       )
@@ -5004,6 +5067,7 @@ async function normalizePersonalWorkoutInput(input: PersonalWorkoutInput): Promi
           ? Math.max(0, Math.round(exercise.rir))
           : undefined,
         setIntensityTags: normalizeSetIntensityAssignments(exercise.setIntensityTags, sets),
+        setTargets: exercise.setTargets,
         variationId: exercise.variationId,
         restTime: exercise.restTime ? Math.max(0, Math.round(exercise.restTime)) : undefined,
         sets,
@@ -5025,20 +5089,21 @@ function buildPersonalWorkoutExerciseCreateData(exercises: NormalizedPersonalWor
   return exercises.map((exercise, exerciseIndex) => {
     const intensityTagBySetNumber = buildSetIntensityTagMap(exercise.setIntensityTags, exercise.sets)
     const tempoBySetNumber = buildSetTempoMap(exercise.setTempos, exercise.sets)
+    const setPlan = resolveExerciseSetPlan(exercise, exercise.sets, `Bài tập ${exerciseIndex + 1}`)
 
     return {
       notes: exercise.notes,
       order: exerciseIndex + 1,
       restTime: exercise.restTime,
       sets: {
-        create: Array.from({ length: exercise.sets }, (_value, setIndex) => ({
+        create: setPlan.map((target, setIndex) => ({
           intensityTag: intensityTagBySetNumber.get(setIndex + 1),
           tempo: tempoBySetNumber.get(setIndex + 1) ?? parseSetTempo(exercise.tempo),
           setNumber: setIndex + 1,
-          targetRepsMin: exercise.repsMin,
-          targetReps: exercise.reps,
-          rir: exercise.rir,
-          weight: exercise.weight,
+          targetRepsMin: target.targetRepsMin,
+          targetReps: target.targetReps,
+          rir: target.rir,
+          weight: target.weight,
         })),
       },
       variationId: exercise.variationId,
