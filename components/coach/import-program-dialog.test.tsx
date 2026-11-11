@@ -272,7 +272,11 @@ describe("creating a program from an image", () => {
       name: "Session 1",
       scheduledDay: 1,
       exercises: [
-        { sourceName: "Barbell Bench Press", variationId: "bench", sets: 2, reps: "6-8", rir: 2, restTime: 120, weight: 61.23, notes: "Topset-Backoffset" },
+        {
+          sourceName: "Barbell Bench Press", variationId: "bench", sets: 2, reps: "6-8", rir: 2, restTime: 120, weight: 65,
+          notes: "Weight per set: 65 / 50 kg",
+          setIntensityTags: [{ setNumber: 1, tag: "top_set" }, { setNumber: 2, tag: "back_off" }],
+        },
         { sourceName: "Hack Squat", variationId: null, sets: 2, reps: "5-10", rir: 2, restTime: 0, weight: null, notes: "" },
       ],
     }],
@@ -317,11 +321,23 @@ describe("creating a program from an image", () => {
         scheduledDay: 1,
         weekIndex: undefined,
         exercises: [
-          { variationId: "bench", sets: 2, repsMin: 6, reps: 8, rir: 2, restTime: 120, weight: 61.23, notes: "Topset-Backoffset" },
+          {
+            variationId: "bench", sets: 2, repsMin: 6, reps: 8, rir: 2, restTime: 120, weight: 65,
+            notes: "Weight per set: 65 / 50 kg",
+            setIntensityTags: [{ setNumber: 1, tag: "top_set" }, { setNumber: 2, tag: "back_off" }],
+          },
           { variationId: "squat", sets: 2, repsMin: 5, reps: 10, rir: 2, restTime: 0 },
         ],
       }],
     })
+  })
+
+  it("preselects the methods read from the set scheme on the review card", async () => {
+    await readImage()
+    fireEvent.click(screen.getByRole("button", { name: "Expand exercise: Bench" }))
+    expect(await screen.findByRole("button", { name: "Set 1: Top set" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^Set 2: Back-off set/ })).toBeInTheDocument()
+    expect(screen.getByLabelText("kg")).toHaveDisplayValue("65")
   })
 
   it("explains when the file is not an image", async () => {
