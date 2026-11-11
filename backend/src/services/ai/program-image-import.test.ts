@@ -203,7 +203,9 @@ describe("importProgramFromImages", () => {
 
     const [bench, legPress, reverseFly, carry] = result.workouts[0]!.exercises
     expect(bench).toMatchObject({
-      notes: "Reps: 6-8/5-10 · Tạ từng set: 65 / 50 kg",
+      // The top set and its back-off set become two rows, so neither needs a note.
+      backOff: { reps: "5-10", weight: 50 },
+      notes: "",
       reps: "6-8",
       rir: 2,
       setIntensityTags: [{ setNumber: 1, tag: "top_set" }, { setNumber: 2, tag: "back_off" }],
@@ -211,7 +213,7 @@ describe("importProgramFromImages", () => {
       variationId: "v-incline-bb",
       weight: 65,
     })
-    expect(legPress).toMatchObject({ setIntensityTags: [], variationId: "v-leg-press" })
+    expect(legPress).toMatchObject({ backOff: null, setIntensityTags: [], variationId: "v-leg-press" })
     // Blank sets fall back to the session's usual count.
     expect(reverseFly).toMatchObject({ sets: 2, sourceName: "Reverse Pecdeck Flyes", variationId: null })
     expect(carry).toMatchObject({ sourceName: "Zercher Carry", variationId: null })
@@ -303,6 +305,37 @@ describe("importProgramFromImages", () => {
       setIntensityTags: [{ setNumber: 1, tag: "top_set" }, { setNumber: 2, tag: "back_off" }],
     })
     expect(await importExercise({ note: "Slow eccentric", sets: 2 })).toMatchObject({ notes: "Slow eccentric", setIntensityTags: [] })
+  })
+
+  it("maps a top set and back-off sets written in one cell onto the back-off row", async () => {
+    const scheme = { setScheme: "Topset-Backoffset", sets: 3, weightUnit: "kg" }
+    // Reps only: the back-off sets keep the top set's weight.
+    expect(await importExercise({ ...scheme, reps: "6-8/8-12", weight: "80" })).toMatchObject({
+      backOff: { reps: "8-12", weight: 80 },
+      notes: "",
+      reps: "6-8",
+      weight: 80,
+    })
+    // Weight only: the back-off sets keep the top set's reps.
+    expect(await importExercise({ ...scheme, reps: "5", weight: "100,85" })).toMatchObject({
+      backOff: { reps: "5", weight: 85 },
+      notes: "",
+    })
+  })
+
+  it("leaves cells that do not split into a top set and back-off sets in the notes", async () => {
+    // No top set + back-off method: one row, and the per-set values stay noted.
+    expect(await importExercise({ reps: "6-8/5-10", sets: 2, weight: "65,50", weightUnit: "kg" })).toMatchObject({
+      backOff: null,
+      notes: "Reps: 6-8/5-10 · Weight per set: 65 / 50 kg",
+    })
+    // Three loads for two roles cannot be placed: the coach sorts them out.
+    expect(
+      await importExercise({ reps: "6-8/5-10", setScheme: "Topset-Backoffset", sets: 3, weight: "65,55,50", weightUnit: "kg" }),
+    ).toMatchObject({
+      backOff: { reps: "5-10", weight: 65 },
+      notes: "Weight per set: 65 / 55 / 50 kg",
+    })
   })
 
   it("notes a weight cell it cannot read instead of dropping it", async () => {
