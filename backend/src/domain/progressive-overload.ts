@@ -30,6 +30,10 @@ type OverloadReason =
   | "no_load_increment"
   | "prescription_changed"
   | "tempo_changed"
+  /** On a cut, a short session keeps the load and gives up reps. */
+  | "cut_hold_load"
+  /** On a cut, a set without external load stops at the top of its range. */
+  | "cut_rep_cap"
 
 type OverloadSetInput = {
   setNumber: number
@@ -78,6 +82,12 @@ const LOW_READINESS = 50
 const REDUCE_SHARE = 0.5
 const REDUCE_FACTOR = 0.9
 /**
+ * On a cut, reps under the range's bottom that still count as holding the
+ * load: a few short reps are the deficit, not a load the trainee can no
+ * longer move.
+ */
+const CUT_SHORTFALL_TOLERANCE = 3
+/**
  * Last resort when neither the coach nor the program's goal says how hard a set
  * should be: a hypertrophy-typical working effort. A goal that does say — fat
  * loss wants more left in the tank than hypertrophy — comes in as
@@ -107,6 +117,14 @@ function buildOverloadRecommendation(input: {
   /** The equipment's smallest load jump; null when the load does not progress. */
   loadIncrementKg?: number | null
   lowerBody?: boolean
+  /**
+   * A fat-loss block: keeping the load matters more than adding to it. A short
+   * session holds the weight and accepts fewer reps, unless the sets fell far
+   * below the range, and sets without external load stay inside their range
+   * instead of turning into high-rep conditioning. Adding load when it is
+   * earned stays allowed: progress on a cut is welcome, just not expected.
+   */
+  preserveLoad?: boolean
   readinessScore?: number | null
   sets: readonly OverloadSetInput[]
 }): OverloadRecommendation {
@@ -172,6 +190,12 @@ function buildOverloadRecommendation(input: {
       ? "reduce_load"
       : "maintain"
     reasons.push(action === "reduce_load" ? "mostly_below_range" : "below_range")
+    // On a cut only a large shortfall on most sets takes weight off.
+    const farBelow = evaluated.filter((entry) => entry.reps <= entry.range.min - CUT_SHORTFALL_TOLERANCE).length
+    if (input.preserveLoad && action === "reduce_load" && farBelow / evaluated.length < REDUCE_SHARE) {
+      action = "maintain"
+      reasons.push("cut_hold_load")
+    }
   } else if (belowCount > 0) {
     action = "maintain"
     reasons.push("below_range")
@@ -199,8 +223,15 @@ function buildOverloadRecommendation(input: {
     reasons.push("readiness_low")
   }
 
+  // Without load, "add a rep" past the top would drift a cut into 20-30 rep
+  // conditioning; it stops at the top of the range instead.
+  if (input.preserveLoad && loadless && action === "add_reps" && evaluated.every((entry) => entry.reps >= entry.range.max)) {
+    action = "maintain"
+    reasons.push("cut_rep_cap")
+  }
+
   const pct = lowerBody ? LOWER_BODY_PCT : UPPER_BODY_PCT
-  const pastTopAllowed = reasons.includes("no_load_increment")
+  const pastTopAllowed = reasons.includes("no_load_increment") && !input.preserveLoad
   const sets = evaluated.map(({ range, reps, set, weight }): OverloadSetSuggestion => {
     const previous = { previousReps: reps, previousWeight: weight, setNumber: set.setNumber }
     switch (action) {

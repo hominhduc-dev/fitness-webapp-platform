@@ -150,6 +150,43 @@ describe("progressive overload", () => {
   })
 })
 
+describe("a cut (preserveLoad)", () => {
+  it("holds the load after a short session that the same session elsewhere would take weight off", () => {
+    // 6, 6, 9 against 8-10 at a grind: most sets short, so a bulk goes lighter.
+    const short = sets([{ reps: 6, rir: 0 }, { reps: 6, rir: 0 }, { reps: 9 }])
+
+    expect(buildOverloadRecommendation({ sets: short }).action).toBe("reduce_load")
+    const cut = buildOverloadRecommendation({ preserveLoad: true, sets: short })
+    expect(cut).toMatchObject({ action: "maintain", reasons: ["mostly_below_range", "cut_hold_load"] })
+    // Same weight, aiming back at the bottom of the range.
+    expect(cut.sets.map((set) => [set.weight, set.reps])).toEqual([[80, 8], [80, 8], [80, 9]])
+  })
+
+  it("still takes weight off when most sets fell far below the range", () => {
+    // 4 and 5 reps against a bottom of 8: three or more short, on most sets.
+    const farShort = sets([{ reps: 4, rir: 0 }, { reps: 5, rir: 0 }, { reps: 8 }])
+
+    expect(buildOverloadRecommendation({ preserveLoad: true, sets: farShort }))
+      .toMatchObject({ action: "reduce_load", reasons: ["mostly_below_range"] })
+  })
+
+  it("still adds load when the top of the range was earned", () => {
+    expect(buildOverloadRecommendation({ loadIncrementKg: 2.5, preserveLoad: true, sets: sets([{ reps: 10, rir: 2 }]) }))
+      .toMatchObject({ action: "add_load", reasons: ["top_of_range_reached"] })
+  })
+
+  it("keeps a loadless exercise inside its range instead of adding reps past the top", () => {
+    const atTop = sets([{ reps: 10, rir: 2, weight: 0 }])
+    const cut = buildOverloadRecommendation({ loadIncrementKg: null, preserveLoad: true, sets: atTop })
+
+    expect(cut).toMatchObject({ action: "maintain", reasons: ["top_of_range_reached", "no_load_increment", "cut_rep_cap"] })
+    expect(cut.sets[0].reps).toBe(10)
+    // Inside the range a rep is still added, up to the top.
+    expect(buildOverloadRecommendation({ loadIncrementKg: null, preserveLoad: true, sets: sets([{ reps: 9, weight: 0 }]) }).sets[0].reps)
+      .toBe(10)
+  })
+})
+
 describe("a changed prescription", () => {
   const history = (reps: number, prescription?: { repMax: number; repMin: number; targetRir: number | null; tempo?: string | null }) =>
     [1, 2, 3].map((setNumber) => ({
