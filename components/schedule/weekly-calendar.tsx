@@ -24,6 +24,8 @@ import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
 import type { CoachProgram, TraineeProgram, WorkoutCollection } from "@/lib/fitness/types"
 import type { Workout, WorkoutLog, WorkoutScheduleEntry } from "@/lib/types"
+import { readSetIntensityAssignments, type SetIntensityAssignment } from "@/lib/workout/intensity-tag"
+import { readSetTargets, type SetTargetAssignment } from "@/lib/workout/per-set-target"
 import type { AppMessages } from "@/lib/i18n/messages"
 import { TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
 
@@ -46,6 +48,9 @@ type RoutineExercise = {
   reps: string
   rir?: string
   restTime?: string
+  setIntensityTags?: SetIntensityAssignment[]
+  /** Sets that differ from set 1, e.g. back-off sets, copied as saved. */
+  setTargets?: SetTargetAssignment[]
   sets: number
   variationId: string
   weight: string
@@ -232,6 +237,8 @@ function mapWorkoutExerciseToRoutineExercise(workoutExercise: Workout["exercises
     }),
     rir: workoutExercise.sets[0]?.rir != null ? String(workoutExercise.sets[0].rir) : "",
     restTime: workoutExercise.restTime != null ? String(workoutExercise.restTime) : "",
+    setIntensityTags: readSetIntensityAssignments(workoutExercise.sets),
+    setTargets: readSetTargets(workoutExercise.sets),
     sets: workoutExercise.sets.length || 1,
     variationId: workoutExercise.variation.id,
     weight: workoutExercise.sets[0]?.weight != null ? String(workoutExercise.sets[0].weight) : "",
@@ -1076,6 +1083,8 @@ export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
             repsMin: repTarget.repsMin,
             rir: exercise.rir?.trim() && Number.isFinite(parsedRir) ? Math.max(0, Math.round(parsedRir)) : undefined,
             restTime: exercise.restTime?.trim() && Number.isFinite(parsedRest) ? Math.max(0, Math.round(parsedRest)) : undefined,
+            setIntensityTags: exercise.setIntensityTags?.length ? exercise.setIntensityTags : undefined,
+            setTargets: exercise.setTargets,
             sets: Math.max(1, exercise.sets),
             variationId: exercise.variationId,
             weight:

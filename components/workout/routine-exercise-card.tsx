@@ -8,6 +8,7 @@ import { IntensityTagBadge, SetIntensityTagPicker } from "@/components/workout/s
 import type { AppMessages } from "@/lib/i18n/messages"
 import { cn } from "@/lib/utils"
 import { hasTopBackoffScheme, normalizeSetIntensityAssignments, setIntensityMethodAssignments, type SetIntensityAssignment } from "@/lib/workout/intensity-tag"
+import type { BackOffTargetDraft } from "@/lib/workout/per-set-target"
 
 export type RoutineExerciseField = "sets" | "reps" | "weight" | "rir" | "restTime" | "notes"
 
@@ -41,6 +42,13 @@ export type RoutineExerciseCardProps = {
   /** The per-set method row only renders when the caller can store it. */
   setIntensityTags?: SetIntensityAssignment[]
   onSetIntensityTagsChange?: (assignments: SetIntensityAssignment[]) => void
+  /**
+   * The back-off sets' own reps, weight and RIR under a top set. Undefined
+   * while they follow the top set. The row renders only when the caller can
+   * store it and the exercise runs the top set + back-off scheme.
+   */
+  backOff?: BackOffTargetDraft
+  onBackOffChange?: (backOff: BackOffTargetDraft) => void
   /** A grip for drag-to-reorder, shown at the start of the header row. */
   dragHandle?: ReactNode
 }
@@ -57,6 +65,7 @@ const iconButtonClass =
 function PrescriptionField({
   allowDecimals,
   allowRange,
+  ariaLabel,
   disabled,
   label,
   onChange,
@@ -65,8 +74,11 @@ function PrescriptionField({
 }: {
   allowDecimals?: boolean
   allowRange?: boolean
+  /** Names the field when its column label is not repeated above it. */
+  ariaLabel?: string
   disabled?: boolean
-  label: string
+  /** Column label shown above the field; left out on a row under the same columns. */
+  label?: string
   onChange: (value: string) => void
   placeholder?: string
   value: string
@@ -77,10 +89,13 @@ function PrescriptionField({
 
   return (
     <label className="flex min-w-0 flex-col gap-1">
-      <span className="truncate text-center font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-        {label}
-      </span>
+      {label ? (
+        <span className="truncate text-center font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
+          {label}
+        </span>
+      ) : null}
       <input
+        aria-label={ariaLabel}
         type={allowDecimals ? "number" : "text"}
         inputMode={inputMode}
         min="0"
@@ -95,11 +110,19 @@ function PrescriptionField({
   )
 }
 
-/** "3 × 8-12 · 20 kg · RIR 2 · 90s": what the collapsed row shows in place of the fields. */
-export function formatPrescriptionSummary(values: Record<RoutineExerciseField, string>) {
+/**
+ * "3 × 8-12 · 20 kg · RIR 2 · 90s": what the collapsed row shows in place of
+ * the fields. Back-off sets with their own target add "/ 5-10 · 50 kg".
+ */
+export function formatPrescriptionSummary(values: Record<RoutineExerciseField, string>, backOff?: BackOffTargetDraft) {
   const parts = [`${values.sets || "0"} × ${values.reps || "—"}`]
   if (values.weight) parts.push(`${values.weight} kg`)
   if (values.rir) parts.push(`RIR ${values.rir}`)
+  if (backOff) {
+    const backOffParts = [backOff.reps || values.reps || "—"]
+    if (backOff.weight) backOffParts.push(`${backOff.weight} kg`)
+    parts.push(`/ ${backOffParts.join(" · ")}`)
+  }
   if (values.restTime) parts.push(`${values.restTime}s`)
   return parts.join(" · ")
 }
@@ -114,6 +137,7 @@ export function formatPrescriptionSummary(values: Record<RoutineExerciseField, s
  * row, per-set methods, the note, and a toolbar for swap, reorder and remove.
  */
 export function RoutineExerciseCard({
+  backOff,
   defaultExpanded = false,
   disabled,
   dragHandle,
@@ -124,6 +148,7 @@ export function RoutineExerciseCard({
   meta,
   onFieldChange,
   onExpandedChange,
+  onBackOffChange,
   onMove,
   onRemove,
   onSetIntensityTagsChange,
@@ -144,6 +169,12 @@ export function RoutineExerciseCard({
   const methodBadges = onSetIntensityTagsChange
     ? [...new Set(normalizeSetIntensityAssignments(setIntensityTags, setCount).map(({ tag }) => tag))]
     : []
+  // The back-off row edits every set after the top set at once; until it is
+  // changed it shows, and saves as, the top set's fields.
+  const showBackOffRow = Boolean(onBackOffChange) && setCount > 1 && hasTopBackoffScheme(setIntensityTags, setCount)
+  const backOffValues: BackOffTargetDraft = backOff ?? { reps: values.reps, rir: values.rir, weight: values.weight }
+  const changeBackOff = (field: keyof BackOffTargetDraft, value: string) =>
+    onBackOffChange?.({ ...backOffValues, [field]: value })
 
   const setExpanded = (next: boolean | ((current: boolean) => boolean)) => {
     const nextValue = typeof next === "function" ? next(expanded) : next
@@ -183,7 +214,7 @@ export function RoutineExerciseCard({
           <span className="block truncate text-sm font-semibold text-foreground">{title}</span>
           <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
             <span className="truncate font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground tnum">
-              {expanded ? meta : formatPrescriptionSummary(values)}
+              {expanded ? meta : formatPrescriptionSummary(values, showBackOffRow ? backOff : undefined)}
             </span>
             {!expanded && methodBadges.map((tag) => <IntensityTagBadge key={tag} tag={tag} className="shrink-0" />)}
             {!expanded && values.notes.trim() ? (
@@ -247,6 +278,37 @@ export function RoutineExerciseCard({
               disabled={disabled}
               onChange={(value) => onFieldChange("restTime", value)}
             />
+            {showBackOffRow ? (
+              <>
+                {/* Under SET: which sets the row covers. REST stays the exercise's. */}
+                <span className="flex h-9 pointer-coarse:h-10 min-w-0 items-center justify-center rounded-md border border-dashed border-primary/40 font-mono text-micro font-semibold uppercase tracking-[0.04em] text-primary tnum">
+                  {t.backOffRow(setCount - 1)}
+                </span>
+                <PrescriptionField
+                  ariaLabel={t.backOffField(t.reps)}
+                  value={backOffValues.reps}
+                  placeholder="5-10"
+                  allowRange
+                  disabled={disabled}
+                  onChange={(value) => changeBackOff("reps", value)}
+                />
+                <PrescriptionField
+                  ariaLabel={t.backOffField("kg")}
+                  value={backOffValues.weight}
+                  allowDecimals
+                  disabled={disabled}
+                  onChange={(value) => changeBackOff("weight", value)}
+                />
+                <PrescriptionField
+                  ariaLabel={t.backOffField("RIR")}
+                  value={backOffValues.rir}
+                  placeholder="0-4"
+                  allowRange
+                  disabled={disabled}
+                  onChange={(value) => changeBackOff("rir", value)}
+                />
+              </>
+            ) : null}
           </div>
 
           {/* Methods and the note share a row. Round set chips keep five sets

@@ -37,6 +37,8 @@ import type {
   ExerciseVariationOption,
 } from "@/lib/fitness/types"
 import { ChevronDown, ChevronRight, Loader2, Plus } from "lucide-react"
+import { readSetIntensityAssignments } from "@/lib/workout/intensity-tag"
+import { readSetTargets } from "@/lib/workout/per-set-target"
 
 function isoDate(value?: Date) {
   if (!value) return undefined
@@ -66,6 +68,9 @@ function toCreateInput(program: CoachProgram, name: string): CreateCoachProgramI
         reps: exercise.sets[0]?.targetReps ?? 8,
         repsMin: exercise.sets[0]?.targetRepsMin,
         weight: exercise.sets[0]?.weight,
+        // A copy keeps each set as it was: methods and the sets that differ from set 1.
+        setIntensityTags: readSetIntensityAssignments(exercise.sets),
+        setTargets: readSetTargets(exercise.sets),
       })),
     })),
   }

@@ -1,5 +1,6 @@
 import type { CoachProgram } from "@/lib/fitness/types"
 import type { SetIntensityAssignment } from "@/lib/workout/intensity-tag"
+import type { BackOffTargetDraft } from "@/lib/workout/per-set-target"
 import type { RoutineDraftData, RoutineExerciseDraft } from "@/components/workout/routine-builder-dialog"
 
 export type RoutineTag = "push" | "pull" | "legs" | "upper" | "lower" | "full"
@@ -15,6 +16,8 @@ export type RoutineExercise = {
   reps: string
   restTime?: string
   setIntensityTags?: SetIntensityAssignment[]
+  /** The back-off sets' own target under a top set; undefined while they follow the top set. */
+  backOff?: BackOffTargetDraft
   sets: number
   variationId: string
   weight: string

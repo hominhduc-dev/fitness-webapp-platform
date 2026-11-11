@@ -11,6 +11,10 @@ const messages = {
   },
   workoutPage: {
     addNote: "Add note",
+    backOffField: (field: string) => `Back-off sets ${field}`,
+    backOffRow: (count: number) => `Back ×${count}`,
+    intensityTagBackoff: "Back-off set",
+    intensityTagTopSet: "Top set",
     collapseExercise: "Collapse exercise",
     expandExercise: "Expand exercise",
     intensityMethodLabel: "Method",
@@ -130,6 +134,55 @@ describe("RoutineExerciseCard", () => {
     renderCard({ defaultExpanded: false, onSetIntensityTagsChange: vi.fn(), setIntensityTags: [{ setNumber: 3, tag: "mrm" }] })
 
     expect(screen.getByText("MRM")).toBeInTheDocument()
+  })
+
+  describe("back-off row", () => {
+    const topBackOff = [{ setNumber: 1, tag: "top_set" as const }, { setNumber: 2, tag: "back_off" as const }, { setNumber: 3, tag: "back_off" as const }]
+    const values = { notes: "", reps: "6-8", restTime: "120", rir: "1", sets: "3", weight: "65" }
+
+    it("shows only under a top set + back-off scheme, for the caller that can store it", () => {
+      renderCard({ onBackOffChange: vi.fn(), onSetIntensityTagsChange: vi.fn(), setIntensityTags: [{ setNumber: 3, tag: "mrm" }], values })
+      expect(screen.queryByLabelText("Back-off sets Reps")).not.toBeInTheDocument()
+
+      cleanup()
+      renderCard({ onSetIntensityTagsChange: vi.fn(), setIntensityTags: topBackOff, values })
+      expect(screen.queryByLabelText("Back-off sets Reps")).not.toBeInTheDocument()
+
+      cleanup()
+      renderCard({ onBackOffChange: vi.fn(), onSetIntensityTagsChange: vi.fn(), setIntensityTags: topBackOff, values })
+      expect(screen.getByText("Back ×2")).toBeInTheDocument()
+    })
+
+    it("follows the top set until changed, then sends the whole row", () => {
+      const onBackOffChange = vi.fn()
+      renderCard({ onBackOffChange, onSetIntensityTagsChange: vi.fn(), setIntensityTags: topBackOff, values })
+
+      expect(screen.getByLabelText("Back-off sets Reps")).toHaveValue("6-8")
+      expect(screen.getByLabelText("Back-off sets kg")).toHaveValue(65)
+
+      fireEvent.change(screen.getByLabelText("Back-off sets Reps"), { target: { value: "5-10" } })
+      expect(onBackOffChange).toHaveBeenCalledWith({ reps: "5-10", rir: "1", weight: "65" })
+    })
+
+    it("shows its own values once set", () => {
+      renderCard({
+        backOff: { reps: "5-10", rir: "2", weight: "50" },
+        onBackOffChange: vi.fn(),
+        onSetIntensityTagsChange: vi.fn(),
+        setIntensityTags: topBackOff,
+        values,
+      })
+
+      expect(screen.getByLabelText("Back-off sets Reps")).toHaveValue("5-10")
+      expect(screen.getByLabelText("Back-off sets kg")).toHaveValue(50)
+      expect(screen.getByLabelText("Back-off sets RIR")).toHaveValue("2")
+    })
+
+    it("adds the back-off target to the collapsed summary", () => {
+      expect(formatPrescriptionSummary(values, { reps: "5-10", rir: "2", weight: "50" })).toBe(
+        "3 × 6-8 · 65 kg · RIR 1 · / 5-10 · 50 kg · 120s",
+      )
+    })
   })
 
   it("locks editing while saving but still lets the card collapse", () => {
