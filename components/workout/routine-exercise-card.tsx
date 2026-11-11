@@ -231,7 +231,8 @@ export function RoutineExerciseCard({
 
       {expanded ? (
         <div id={bodyId} className="border-t border-border px-2.5 pb-2 pt-2.5">
-          <div className="grid grid-cols-5 gap-1.5">
+          {/* The rep range column is widest: its label and "10-15" are the longest values in the row. */}
+          <div className="grid grid-cols-[0.8fr_1.5fr_1.1fr_0.8fr_0.9fr] gap-1.5">
             <PrescriptionField
               label={t.set}
               value={values.sets}
@@ -249,7 +250,7 @@ export function RoutineExerciseCard({
               }}
             />
             <PrescriptionField
-              label={t.reps}
+              label={t.repRange}
               value={values.reps}
               placeholder="8-12"
               allowRange
@@ -285,7 +286,7 @@ export function RoutineExerciseCard({
                   {t.backOffRow(setCount - 1)}
                 </span>
                 <PrescriptionField
-                  ariaLabel={t.backOffField(t.reps)}
+                  ariaLabel={t.backOffField(t.repRange)}
                   value={backOffValues.reps}
                   placeholder="5-10"
                   allowRange

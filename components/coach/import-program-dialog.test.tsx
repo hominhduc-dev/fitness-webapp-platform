@@ -103,7 +103,7 @@ describe("import review exercise cards", () => {
     await expandImportedCard()
     expect(screen.getByLabelText("REST")).toHaveValue("90")
     expect(screen.getByLabelText("Add note")).toHaveValue("Imported note")
-    expect(screen.getByLabelText("Reps")).toHaveValue("8-12")
+    expect(screen.getByLabelText("Rep range")).toHaveValue("8-12")
     fireEvent.change(screen.getByLabelText("REST"), { target: { value: "120" } })
     fireEvent.change(screen.getByLabelText("Add note"), { target: { value: "Edited note" } })
     fireEvent.change(screen.getByLabelText("kg"), { target: { value: "22.5" } })
@@ -340,7 +340,7 @@ describe("creating a program from an image", () => {
     expect(await screen.findByRole("button", { name: "Set 1: Top set" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /^Set 2: Back-off set/ })).toBeInTheDocument()
     expect(screen.getByLabelText("kg")).toHaveDisplayValue("65")
-    expect(screen.getByLabelText("Back-off sets Reps")).toHaveDisplayValue("5-10")
+    expect(screen.getByLabelText("Back-off sets Rep range")).toHaveDisplayValue("5-10")
     expect(screen.getByLabelText("Back-off sets kg")).toHaveDisplayValue("50")
   })
 

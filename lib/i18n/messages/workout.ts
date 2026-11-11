@@ -197,6 +197,8 @@ export const workoutMessages = {
       noSessionsThisMonth: "No sessions this month.",
       previewTotalKg: (value: string) => `${value} kg total`,
       reps: "Reps",
+      /** The coach's target range for a set, not the reps a trainee logs. */
+      repRange: "Rep range",
       removeExercise: "Remove exercise",
       removeSet: "Remove set",
       rest: "Rest",
@@ -518,6 +520,7 @@ export const workoutMessages = {
       noSessionsThisMonth: "Tháng này chưa có buổi tập.",
       previewTotalKg: (value: string) => `${value} kg tổng`,
       reps: "Reps",
+      repRange: "Rep range",
       removeExercise: "Xóa bài tập",
       removeSet: "Xóa set",
       rest: "Nghỉ",
