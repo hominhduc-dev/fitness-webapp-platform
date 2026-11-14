@@ -1514,3 +1514,15 @@ model AIGeneration {
 
   @@index([userId, type, createdAt])
 }
+
+/// Admin-managed overrides for external API integrations (e.g. "ai").
+/// Non-secret fields live in `config`; the API key is AES-256-GCM ciphertext and never leaves the backend.
+model IntegrationSetting {
+  key              String   @id
+  config           Json
+  secretCiphertext String?
+  secretHint       String?
+  updatedById      String?  @db.Uuid
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+}

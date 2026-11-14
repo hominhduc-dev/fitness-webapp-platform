@@ -163,6 +163,7 @@ export const queryKeys = {
     all: ["admin"] as const,
     dashboard: () => ["admin", "dashboard"] as const,
     broadcasts: () => ["admin", "broadcasts"] as const,
+    integrations: () => ["admin", "integrations"] as const,
     exerciseShares: () => ["admin", "exercise-shares"] as const,
     broadcastAudience: () => ["admin", "broadcast-audience"] as const,
     users: (options?: { query?: string; role?: string }) =>

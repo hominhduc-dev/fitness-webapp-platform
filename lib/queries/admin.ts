@@ -254,6 +254,23 @@ export function useAdminBroadcasts(enabled = true) {
   })
 }
 
+export function useAdminIntegrations(enabled = true) {
+  return useUserQuery<Result<typeof api.fetchAdminIntegrations>>({
+    enabled,
+    queryFn: async () => api.fetchAdminIntegrations(await requireAccessToken()),
+    queryKey: queryKeys.admin.integrations(),
+  })
+}
+export function useSaveAdminAIIntegration() {
+  return useAdminMutation(api.saveAdminAIIntegration, [queryKeys.admin.integrations()])
+}
+export function useResetAdminAIIntegration() {
+  return useAdminMutation(api.resetAdminAIIntegration, [queryKeys.admin.integrations()])
+}
+export function useTestAdminAIIntegration() {
+  return useAdminMutation(api.testAdminAIIntegration, [])
+}
+
 export function useSendAdminBroadcast() {
   return useAdminMutation(api.sendAdminBroadcastRequest, [queryKeys.admin.broadcasts(), queryKeys.notifications.all])
 }

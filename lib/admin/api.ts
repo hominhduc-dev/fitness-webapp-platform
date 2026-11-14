@@ -347,6 +347,35 @@ async function reviewAdminExerciseShareRequest(accessToken: string, exerciseId: 
   return response.data
 }
 
+export type AdminAIIntegration = {
+  source: "database" | "env"
+  provider: "anthropic" | "openai"
+  model: string
+  baseUrl: string | null
+  jsonMode: boolean
+  hasApiKey: boolean
+  apiKeyHint: string | null
+  updatedAt: string | null
+  env: { provider: "anthropic" | "openai"; model: string; baseUrl: string | null; hasApiKey: boolean }
+}
+export type AdminIntegrations = { encryptionReady: boolean; ai: AdminAIIntegration }
+export type AdminAIIntegrationInput = { provider: "anthropic" | "openai"; model: string; baseUrl?: string; jsonMode: boolean; apiKey?: string }
+export type AdminIntegrationTestResult = { ok: boolean; latencyMs: number; code?: string; status?: number; message?: string }
+
+async function fetchAdminIntegrations(accessToken: string) {
+  return (await request<Envelope<AdminIntegrations>>("/api/admin/integrations", accessToken, { cache: "no-store" })).data
+}
+/** The API key is write-only: it is sent here but never returned by any endpoint. */
+async function saveAdminAIIntegration(accessToken: string, input: AdminAIIntegrationInput) {
+  return (await request<Envelope<AdminIntegrations>>("/api/admin/integrations/ai", accessToken, { body: JSON.stringify(input), method: "PUT" })).data
+}
+async function testAdminAIIntegration(accessToken: string, input: AdminAIIntegrationInput) {
+  return (await request<Envelope<AdminIntegrationTestResult>>("/api/admin/integrations/ai/test", accessToken, { body: JSON.stringify(input), method: "POST" })).data
+}
+async function resetAdminAIIntegration(accessToken: string) {
+  return (await request<Envelope<AdminIntegrations>>("/api/admin/integrations/ai", accessToken, { method: "DELETE" })).data
+}
+
 async function fetchAdminBroadcastAudience(accessToken: string): Promise<AdminBroadcastAudience> {
   return (await request<Envelope<AdminBroadcastAudience>>("/api/admin/broadcasts/audience", accessToken)).data
 }
@@ -764,6 +793,10 @@ async function updateAdminCustomFoodRequest(
 }
 
 export {
+  fetchAdminIntegrations,
+  saveAdminAIIntegration,
+  testAdminAIIntegration,
+  resetAdminAIIntegration,
   fetchAdminExerciseShareRequests,
   reviewAdminExerciseShareRequest,
   applyExerciseSyncRequest,

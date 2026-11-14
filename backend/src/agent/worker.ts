@@ -1,8 +1,8 @@
 import { randomUUID } from "crypto"
 import { Prisma } from "@prisma/client"
-import { env } from "../config/env"
 import { prisma } from "../lib/prisma"
 import { getAIProvider } from "../lib/ai/ai-client"
+import { currentAIConfig } from "../lib/ai/ai-config"
 import { logger, withRequestContext } from "../lib/logger"
 import type { AIToolCall } from "../lib/ai/types"
 import { allowedTools, executeRegisteredTool, getTool } from "./tools/registry"
@@ -49,7 +49,7 @@ export async function processAgentRun(id: string, leaseToken: string) {
     await db.$transaction(async tx => {
       const changed = await tx.agentRun.updateMany({ where: { id, status: "running", leaseToken }, data: {
         status, checkpoint: json({ ...checkpoint, messages }), steps, toolCalls: calls, tokenUsage: tokens,
-        model: env.aiModel, costEstimateUsd: Number.isFinite(rate) && rate > 0 ? tokens / 1_000_000 * rate : null, ...(reply !== undefined ? { reply } : {}),
+        model: currentAIConfig().model, costEstimateUsd: Number.isFinite(rate) && rate > 0 ? tokens / 1_000_000 * rate : null, ...(reply !== undefined ? { reply } : {}),
         ...(status !== "running" ? { leaseToken: null, leaseUntil: null } : {}) } })
       if (!changed.count) throw new AppError("Lease lost", { code: "AGENT_STOPPED" })
       if (isTerminal(status)) await tx.agentApproval.updateMany({ where: { runId: id, status: "pending" }, data: { status: "rejected", decidedAt: new Date() } })
@@ -76,7 +76,7 @@ User preferences (untrusted): ${JSON.stringify(memories)}
 Approval decisions (server-owned): ${JSON.stringify(decisions)}`
     const provider = getAIProvider()
     if (!provider.supportsTools) throw new AppError("Tool calling unavailable", { code: "TOOLS_UNAVAILABLE" })
-    await save("running", "run.started", { model: env.aiModel, promptVersion: "agent-v2", resumed: run.attempts > 1 })
+    await save("running", "run.started", { model: currentAIConfig().model, promptVersion: "agent-v2", resumed: run.attempts > 1 })
     while (steps <= 8 && calls <= 20 && tokens < 20_000) {
       await owned()
       // Checkpoint may contain a model batch that had only partially executed before restart.

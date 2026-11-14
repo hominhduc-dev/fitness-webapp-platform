@@ -1,5 +1,5 @@
 import type { ElementType } from "react"
-import { MessageSquare } from "lucide-react"
+import { MessageSquare, KeyRound } from "lucide-react"
 import { Activity, BarChart3, Calendar, ClipboardList, Dumbbell, Home, LayoutDashboard, Link2, ListChecks, Megaphone, ScrollText, Settings, ShieldCheck, UserPlus, UserRoundCheck, Users, Utensils } from "lucide-react"
 
 import type { AppMessages } from "@/lib/i18n/messages"
@@ -71,6 +71,7 @@ export function getAdminNavItems(messages: AppMessages, options?: { compactLabel
     { href: "/admin?s=exercises", icon: Dumbbell, label: messages.shell.exercises },
     { href: "/admin?s=foods", icon: Utensils, label: options?.compactLabels ? messages.shell.nutrition : messages.shell.mealTracking },
     { href: "/admin?s=notifications", icon: Megaphone, label: messages.shell.broadcasts },
+    { href: "/admin?s=integrations", icon: KeyRound, label: messages.shell.integrations },
     { href: "/admin?s=audit", icon: ScrollText, label: messages.shell.audit },
     { href: "/admin?s=feedback", icon: MessageSquare, label: messages.feedback.adminTitle },
     { href: "/profile", icon: Settings, label: messages.common.settings },

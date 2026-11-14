@@ -32,6 +32,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { AdminExercisesPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
 import { ExerciseShareReviewPanel } from "@/components/admin/exercise-share-review-panel"
 import { AdminBroadcastPanel } from "@/components/admin/admin-broadcast-panel"
+import { AdminIntegrationsPanel } from "@/components/admin/admin-integrations-panel"
 import { FeedbackPanel } from "@/components/admin/feedback-panel"
 import { AdminFoodsPanel } from "@/components/admin/admin-foods-panel"
 import { CoachSignupsPanel } from "@/components/admin/coach-signups-panel"
@@ -599,6 +600,8 @@ const SECTION_DATA = {
   foods: [],
   // The notices panel loads its own audience and history.
   notifications: [],
+  // The integrations panel loads its own settings.
+  integrations: [],
   feedback: [],
   programs: ["programs"],
   requests: ["coachRequests"],
@@ -677,6 +680,7 @@ const VALID_SECTIONS = [
   "exercises",
   "foods",
   "notifications",
+  "integrations",
   "audit",
   "feedback",
 ] as const satisfies readonly AdminSectionId[]
@@ -691,6 +695,7 @@ type AdminSectionId =
   | "exercises"
   | "foods"
   | "notifications"
+  | "integrations"
   | "audit"
   | "feedback"
 
@@ -2478,6 +2483,10 @@ export function AdminConsole() {
 
           <TabsContent value="notifications">
             <AdminBroadcastPanel locale={locale} />
+          </TabsContent>
+
+          <TabsContent value="integrations">
+            <AdminIntegrationsPanel locale={locale} />
           </TabsContent>
 
           <TabsContent value="feedback"><FeedbackPanel admin /></TabsContent>
