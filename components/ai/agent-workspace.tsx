@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Loader2, Send, Square } from "lucide-react"
+import { format } from "date-fns"
+import { Loader2, Send, Sparkles, Square } from "lucide-react"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { AIMessage } from "@/components/ai/ai-message"
+import { quickActions } from "@/components/ai/agent-quick-actions"
 import { useUserQuery } from "@/lib/queries/scoped"
 import { requireAccessToken } from "@/lib/queries/token"
 import { agentMessages } from "@/lib/i18n/messages/agent"
@@ -23,6 +25,10 @@ export function AgentWorkspace() {
   const [progress, setProgress] = useState("")
   const [memoryKey, setMemoryKey] = useState<api.AgentMemory["key"]>("report_format")
   const [memoryText, setMemoryText] = useState("")
+  const isCoach = profile?.role === "coach"
+  const [pickedSubject, setPickedSubject] = useState("")
+  const [programId, setProgramId] = useState("")
+  const subjectId = isCoach ? pickedSubject : profile?.id ?? ""
   const cursor = useRef({ runId: "", after: 0 })
   const conversations = useUserQuery({ queryKey: ["agent", "conversations"], queryFn: async () => api.fetchAgentConversations(await requireAccessToken()) })
   const conversationId = selection ?? conversations.data?.[0]?.id ?? ""
@@ -32,9 +38,12 @@ export function AgentWorkspace() {
   const run = useUserQuery({ queryKey: ["agent", "run", runId], enabled: !!runId,
     queryFn: async () => api.fetchAgentRun(await requireAccessToken(), runId),
     refetchInterval: query => activeStates.has(query.state.data?.status ?? "") ? 5000 : false })
+  const options = useUserQuery({ queryKey: ["agent", "context-options", subjectId], enabled: !!profile,
+    queryFn: async () => api.fetchAgentContextOptions(await requireAccessToken(), isCoach ? subjectId || undefined : undefined) })
   const memories = useUserQuery({ queryKey: ["agent", "memories"], queryFn: async () => api.fetchAgentMemories(await requireAccessToken()) })
   const invalidate = () => client.invalidateQueries({ queryKey: ["agent"] })
-  const create = useMutation({ mutationFn: async (message: string) => api.createAgentRun(await requireAccessToken(), { message, conversationId: conversationId || undefined, requestKey: crypto.randomUUID() }),
+  const create = useMutation({ mutationFn: async (message: string) => api.createAgentRun(await requireAccessToken(), { message, conversationId: conversationId || undefined, requestKey: crypto.randomUUID(),
+      context: subjectId || programId ? { subjectId: subjectId || undefined, programId: programId || undefined } : undefined }),
     onSuccess: async result => { setSelection(result.conversationId); setOverrideRun(result.id); setInput(""); setProgress(""); await invalidate() }, onError: () => setError(copy.error) })
   const decide = useMutation({ mutationFn: async ({ approval, approve }: { approval: api.AgentApproval; approve: boolean }) => api.decideAgentApproval(await requireAccessToken(), approval.id, approval.payloadHash, approve),
     onSuccess: async () => { setError(""); await Promise.all([invalidate(), ...["workouts", "coach", "progress"].map(key => client.invalidateQueries({ queryKey: [key] }))]) }, onError: () => setError(copy.stale) })
@@ -69,18 +78,20 @@ export function AgentWorkspace() {
   }, [runId, status, locale, client])
 
   const isBusy = create.isPending || activeStates.has(status)
+  const actions = quickActions({ role: profile?.role as "trainee" | "coach" | "admin" | undefined, hasSubject: isCoach ? !!pickedSubject : true, hasProgram: !!programId })
+  const send = (message: string) => { if (message.trim() && !isBusy) { setError(""); create.mutate(message.trim()) } }
   const messages = conversation.isError ? [] : conversation.data?.messages ?? []
   return <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
     <div className="flex gap-2">
       <select aria-label={copy.history} value={conversationId} className="min-w-0 flex-1 rounded-lg border border-border bg-background p-2 text-sm"
         onChange={event => { setSelection(event.target.value); setOverrideRun(undefined); setError(""); setProgress("") }}>
         <option value="">{copy.newChat}</option>
-        {conversations.data?.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}
+        {conversations.data?.map(item => <option key={item.id} value={item.id}>{item.updatedAt ? `${format(new Date(item.updatedAt), "dd/MM")} · ` : ""}{item.title}</option>)}
       </select>
       <Button variant="outline" size="sm" onClick={() => { setSelection(""); setOverrideRun(undefined); setError(""); setProgress("") }}>{copy.newChat}</Button>
     </div>
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto" aria-live="polite">
-      {!messages.length && <div className="space-y-3 text-sm text-muted-foreground"><p>{copy.empty}</p><Button variant="secondary" className="h-auto whitespace-normal text-left" disabled={isBusy} onClick={() => create.mutate(profile?.role === "coach" ? copy.coachPrompt : copy.traineePrompt)}>{profile?.role === "coach" ? copy.coachPrompt : copy.traineePrompt}</Button></div>}
+      {!messages.length && <div className="space-y-3 text-sm text-muted-foreground"><p>{copy.empty}</p><Button variant="secondary" className="h-auto whitespace-normal text-left" disabled={isBusy} onClick={() => send(isCoach ? copy.coachPrompt : copy.traineePrompt)}>{profile?.role === "coach" ? copy.coachPrompt : copy.traineePrompt}</Button></div>}
       {messages.map(message => <div key={message.id} className={message.role === "user" ? "ml-6 rounded-xl bg-primary p-3 text-sm text-primary-foreground" : "mr-2 rounded-xl bg-muted p-3 text-sm"}>
         {message.role === "user" ? <p className="whitespace-pre-wrap">{message.content}</p> : <AIMessage content={message.content} />}
       </div>)}
@@ -106,7 +117,26 @@ export function AgentWorkspace() {
       <span className="flex items-center gap-2">{["queued", "running"].includes(status) && <Loader2 className="size-3 animate-spin motion-reduce:animate-none" />}{copy.states[status as keyof typeof copy.states]}{status === "running" && progress ? ` · ${progress}` : ""}</span>
       {activeStates.has(status) && <Button variant="ghost" size="sm" disabled={cancel.isPending} onClick={() => cancel.mutate()}><Square className="size-3" />{copy.cancel}</Button>}
     </div>}
-    <form className="flex gap-2" onSubmit={event => { event.preventDefault(); if (input.trim() && !isBusy) { setError(""); create.mutate(input.trim()) } }}>
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {isCoach && <select aria-label={copy.subject} value={pickedSubject} disabled={isBusy} className="min-w-0 flex-1 rounded-lg border border-border bg-background p-2 text-sm"
+          onChange={event => { setPickedSubject(event.target.value); setProgramId("") }}>
+          <option value="">{copy.anySubject}</option>
+          {options.data?.subjects.map(item => <option key={item.id} value={item.id}>{item.name || "—"}</option>)}
+        </select>}
+        {(!isCoach || pickedSubject) && <select aria-label={copy.program} value={programId} disabled={isBusy || !options.data?.programs.length} className="min-w-0 flex-1 rounded-lg border border-border bg-background p-2 text-sm"
+          onChange={event => setProgramId(event.target.value)}>
+          <option value="">{copy.anyProgram}</option>
+          {options.data?.programs.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>}
+      </div>
+      {actions.length > 0 && <div className="flex flex-wrap gap-2">
+        {actions.map(key => <Button key={key} type="button" variant="secondary" size="sm" className="h-auto rounded-full px-3 py-1 text-xs" disabled={isBusy} onClick={() => send(copy.actionPrompts[key])}>
+          <Sparkles className="size-3" />{copy.actions[key]}
+        </Button>)}
+      </div>}
+    </div>
+    <form className="flex gap-2" onSubmit={event => { event.preventDefault(); send(input) }}>
       <input aria-label={copy.placeholder} placeholder={copy.placeholder} value={input} maxLength={4000} disabled={isBusy} onChange={event => setInput(event.target.value)} className="min-w-0 flex-1 rounded-xl border border-border bg-background p-2 text-sm" />
       <Button type="submit" size="icon" aria-label={copy.send} disabled={isBusy || !input.trim()}><Send className="size-4" /></Button>
     </form>

@@ -5,7 +5,7 @@ import { aiLimiter } from "../middleware/rate-limit"
 import { requireCurrentProfile } from "../services/auth.service"
 import { AppError } from "../services/errors"
 import { ensureContextPrisma } from "../services/ai/context/helpers"
-import { createRun, createRunSchema, cancelRun, getOwnedRun, listConversations, readConversation, listMemories, saveMemory, memorySchema } from "../agent/service"
+import { createRun, createRunSchema, cancelRun, getOwnedRun, listConversations, readConversation, listMemories, saveMemory, memorySchema, listContextOptions } from "../agent/service"
 import { decideApproval } from "../agent/approval"
 import { abortAgentRun, isTerminal } from "../agent/worker"
 import { getAccessToken, sendData } from "./route.utils"
@@ -19,6 +19,9 @@ agentRouter.use(asyncHandler(async (req, _res, next) => {
 }))
 agentRouter.get("/conversations", asyncHandler(async (_req, res) => { sendData(res, await listConversations(res.locals.agentActorId)) }))
 agentRouter.get("/conversations/:id", validated({ params: idParams }, async (req, res) => { sendData(res, await readConversation(res.locals.agentActorId, req.params.id)) }))
+agentRouter.get("/context-options", validated({ query: z.object({ subjectId: z.uuid().optional() }) }, async (req, res) => {
+  sendData(res, await listContextOptions(res.locals.agentActorId, req.query.subjectId as string | undefined))
+}))
 agentRouter.get("/memories", asyncHandler(async (_req, res) => { sendData(res, await listMemories(res.locals.agentActorId)) }))
 agentRouter.put("/memories", validated({ body: memorySchema }, async (req, res) => { sendData(res, await saveMemory(res.locals.agentActorId, req.body)) }))
 agentRouter.delete("/memories/:id", validated({ params: idParams }, async (req, res) => {
