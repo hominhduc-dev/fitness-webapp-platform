@@ -52,6 +52,7 @@ import {
   listAdminExerciseShareRequests,
   reviewAdminExerciseShare,
 } from "../services/admin.service"
+import { aiIntegrationSchema, getAdminIntegrations, resetAdminAIIntegration, saveAdminAIIntegration, testAdminAIIntegration } from "../services/admin/integrations"
 import { invalidateExerciseLibrary } from "../lib/library-cache"
 import { validated } from "../middleware/validate"
 import {
@@ -416,6 +417,39 @@ adminRouter.post("/exercises", async (req, res) => {
     sendError(res, error)
   }
 })
+
+// External API integrations (AI provider/model/key). Keys are write-only from the browser.
+adminRouter.get(
+  "/integrations",
+  validated({}, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await getAdminIntegrations(profile))
+  }),
+)
+
+adminRouter.put(
+  "/integrations/ai",
+  validated({ body: aiIntegrationSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await saveAdminAIIntegration(profile, req.body))
+  }),
+)
+
+adminRouter.post(
+  "/integrations/ai/test",
+  validated({ body: aiIntegrationSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await testAdminAIIntegration(profile, req.body))
+  }),
+)
+
+adminRouter.delete(
+  "/integrations/ai",
+  validated({}, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await resetAdminAIIntegration(profile))
+  }),
+)
 
 // Notices to every active trainee and coach: who they would reach, sending one,
 // and the history with read and push counts.

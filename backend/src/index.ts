@@ -3,12 +3,14 @@ import { startAgentWorker, stopAgentWorker } from "./agent/worker"
 import { env } from "./config/env"
 import { logger } from "./lib/logger"
 import { prisma } from "./lib/prisma"
+import { startIntegrationSettingsRefresh, stopIntegrationSettingsRefresh } from "./services/admin/integrations"
 import { startHuaweiSyncScheduler, stopHuaweiSyncScheduler } from "./services/huawei-health.service"
 import { startNotificationScheduler, stopNotificationScheduler } from "./services/notifications/notification-scheduler"
 import { startVolumeLearningScheduler, stopVolumeLearningScheduler } from "./services/volume-recovery/volume-learning.job"
 
 const server = app.listen(env.port, () => {
   logger.info("backend started", { environment: env.nodeEnv, port: env.port, url: `http://localhost:${env.port}` })
+  startIntegrationSettingsRefresh()
   startNotificationScheduler()
   startAgentWorker()
   startHuaweiSyncScheduler()
@@ -43,6 +45,7 @@ async function shutdown(signal: NodeJS.Signals) {
 
   shuttingDown = true
   logger.info("shutting down", { signal })
+  stopIntegrationSettingsRefresh()
   stopNotificationScheduler()
   stopAgentWorker()
   stopHuaweiSyncScheduler()

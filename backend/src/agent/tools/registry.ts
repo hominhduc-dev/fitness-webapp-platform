@@ -34,11 +34,14 @@ historyTool.execute = async (ctx, args) => {
   const before = args.before ? new Date(String(args.before)) : now
   const where = { userId: subject.id, completedAt: { not: null, lte: now }, startedAt: { gte: since, lt: before < now ? before : now } }
   const [logs, total] = await Promise.all([db.workoutLog.findMany({ where, orderBy: [{ startedAt: "desc" }, { id: "desc" }], take: Number(args.limit), select: { id: true, startedAt: true, programId: true, exerciseSnapshot: true } }), db.workoutLog.count({ where })])
-  return { totalRemaining: total, limited: total > logs.length, nextBefore: total > logs.length ? logs[logs.length - 1]?.startedAt.toISOString() : null,
-    logs: logs.map(log => { const exercises = parseWorkoutLogSnapshotExercises(log.exerciseSnapshot); return { id: log.id, startedAt: log.startedAt, programId: log.programId, exercisesLimited: exercises.length > 6,
-      exercises: exercises.slice(0, 6).map(exercise => ({ exercise: exercise.exercise?.name, variation: exercise.variation, setsLimited: (exercise.sets?.length ?? 0) > 6,
-        sets: exercise.sets?.slice(0, 6).map(set => ({ completed: set.completed, reps: set.actualReps, weight: set.weight, rir: set.rir,
-          e1rm: set.completed && typeof set.weight === "number" && typeof set.actualReps === "number" ? calculateE1RM(set.weight, set.actualReps, set.rir) : null })) })) } }) }
+  const pages = logs.map(log => { const exercises = parseWorkoutLogSnapshotExercises(log.exerciseSnapshot); return { id: log.id, startedAt: log.startedAt, programId: log.programId, exercisesLimited: exercises.length > 6,
+    exercises: exercises.slice(0, 6).map(exercise => ({ exercise: exercise.exercise?.name, variation: exercise.variation ? { id: exercise.variation.id, name: exercise.variation.name } : null, setsLimited: (exercise.sets?.length ?? 0) > 6,
+      sets: exercise.sets?.slice(0, 6).map(set => ({ completed: set.completed, reps: set.actualReps, weight: set.weight, rir: set.rir,
+        e1rm: set.completed && typeof set.weight === "number" && typeof set.actualReps === "number" ? calculateE1RM(set.weight, set.actualReps, set.rir) : null })) })) } })
+  // Shrink the page instead of failing: the worker rejects tool output over 12k chars, and weaker models do not retry narrower.
+  while (pages.length > 1 && JSON.stringify(pages).length > 10_000) pages.pop()
+  const limited = total > pages.length
+  return { totalRemaining: total, limited, nextBefore: limited ? pages[pages.length - 1]?.startedAt.toISOString() ?? null : null, logs: pages }
 }
 
 const add = (name: string, description: string, schema: z.ZodType, mode: Tool["mode"], execute: Tool["execute"]) => {

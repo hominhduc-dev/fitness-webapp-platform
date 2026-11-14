@@ -1,5 +1,6 @@
 import type { AIConversationMessage } from "../../lib/ai/types"
-export type Checkpoint = { messages: AIConversationMessage[]; startedAt: number; timeZone?: string }
+export type AgentRunContext = { subjectId: string; subjectName: string; programId?: string; programName?: string }
+export type Checkpoint = { messages: AIConversationMessage[]; startedAt: number; timeZone?: string; context?: AgentRunContext }
 /** Remove only completed old tool exchanges, keeping the current request and unresolved calls intact. */
 export function compactContext(messages: AIConversationMessage[], maxChars = 24_000): AIConversationMessage[] {
   const result = [...messages]

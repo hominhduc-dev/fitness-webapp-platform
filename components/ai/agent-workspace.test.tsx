@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { render, screen, waitFor, fireEvent, cleanup } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-const mocks = vi.hoisted(() => ({ list: vi.fn(), conversation: vi.fn(), run: vi.fn(), create: vi.fn(), decide: vi.fn(), cancel: vi.fn(), memories: vi.fn(), save: vi.fn(), remove: vi.fn(), stream: vi.fn() }))
+const mocks = vi.hoisted(() => ({ list: vi.fn(), conversation: vi.fn(), run: vi.fn(), create: vi.fn(), decide: vi.fn(), cancel: vi.fn(), memories: vi.fn(), save: vi.fn(), remove: vi.fn(), stream: vi.fn(), options: vi.fn() }))
 vi.mock("@/components/providers/auth-provider", () => ({ useAuth: () => ({ profile: { id: "actor", role: "trainee" } }) }))
 vi.mock("@/components/providers/locale-provider", () => ({ useLocale: () => ({ locale: "vi" }) }))
 vi.mock("@/lib/queries/token", () => ({ requireAccessToken: async () => "test" }))
 vi.mock("@/components/ai/ai-message", () => ({ AIMessage: ({ content }: { content: string }) => <p>{content}</p> }))
 vi.mock("@/lib/fitness/api", () => ({ fetchAgentConversations: mocks.list, fetchAgentConversation: mocks.conversation, fetchAgentRun: mocks.run, createAgentRun: mocks.create,
-  decideAgentApproval: mocks.decide, cancelAgentRun: mocks.cancel, fetchAgentMemories: mocks.memories, saveAgentMemory: mocks.save, deleteAgentMemory: mocks.remove, streamAgentEvents: mocks.stream }))
+  decideAgentApproval: mocks.decide, cancelAgentRun: mocks.cancel, fetchAgentMemories: mocks.memories, saveAgentMemory: mocks.save, deleteAgentMemory: mocks.remove, streamAgentEvents: mocks.stream, fetchAgentContextOptions: mocks.options }))
 import { AgentWorkspace } from "./agent-workspace"
 const approval = { id: "approval", kind: "program_changes", status: "pending", payloadHash: "reviewed-hash", payload: { programName: "Strength", reason: "Recovery", changes: [{ setId: "set", label: "Chest", before: { targetReps: 8, weight: 20, rir: 1 }, after: { targetReps: 8, weight: 22, rir: 1 } }] } }
 beforeEach(() => {
@@ -16,6 +16,7 @@ beforeEach(() => {
   mocks.conversation.mockResolvedValue({ id: "conversation", messages: [{ id: "message", role: "user", content: "Review my training" }], runs: [{ id: "run", status: "waiting_approval" }] })
   mocks.run.mockResolvedValue({ id: "run", status: "waiting_approval", approvals: [approval], reply: null })
   mocks.memories.mockResolvedValue([])
+  mocks.options.mockResolvedValue({ subjects: [{ id: "actor", name: "Me" }], programs: [] })
 })
 function mount() { const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }); return render(<QueryClientProvider client={client}><AgentWorkspace /></QueryClientProvider>) }
 describe("agent approval UI", () => {
