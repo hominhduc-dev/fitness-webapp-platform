@@ -1,0 +1,17 @@
+<section id="agent-react" data-transition="fade">
+<div class="head"><p class="eyebrow">Giải pháp · Cơ sở lý thuyết</p><h2 class="title">AI Agent làm việc theo vòng lặp ReAct</h2><p class="lead">Agent tự tìm đủ dữ liệu rồi mới trả lời.</p></div>
+<div class="three">
+<div class="points3">
+<div class="point anim" style="--i:0"><p class="tag">1 · Reasoning</p><p class="point-text">AI suy nghĩ xem còn thiếu thông tin gì.</p></div>
+<x-shape kind="arrow-right" class="point-arrow"></x-shape>
+<div class="point anim" style="--i:1"><p class="tag">2 · Acting</p><p class="point-text">AI dùng tool để lấy dữ liệu cần thiết.</p></div>
+<x-shape kind="arrow-right" class="point-arrow"></x-shape>
+<div class="point anim" style="--i:2"><p class="tag">3 · Observation</p><p class="point-text">AI đọc kết quả rồi quyết định bước tiếp theo.</p></div>
+</div>
+</div>
+<div class="footer"><p class="ft">YeahBuddy Fitness · Đồ án Trí tuệ nhân tạo</p><p class="ft ft-num"></p></div>
+<aside>(Khoảng 25 giây)
+[Lời thoại] AI Agent khác chatbot ở chỗ nó tự đi tìm dữ liệu rồi mới trả lời. Nó làm theo vòng lặp ReAct: suy nghĩ xem còn thiếu gì, dùng tool để lấy dữ liệu, rồi đọc kết quả để quyết định bước tiếp theo. Vòng lặp này có giới hạn số bước và thời gian, nên Agent không thể chạy mãi.
+[Nếu hỏi: Giới hạn cụ thể là bao nhiêu?] Tối đa 8 bước, 20 lần dùng tool, 20.000 token và 45 giây cho một lượt.
+[Nếu hỏi: Vượt giới hạn thì sao?] Lượt chạy dừng ở trạng thái budget_exceeded và Agent báo rõ là chưa phân tích xong. Nếu AI đòi gọi nhiều tool hơn số còn lại thì cả lượt bị từ chối, không chạy một phần.</aside>
+</section>

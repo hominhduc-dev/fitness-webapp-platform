@@ -1,0 +1,13 @@
+<section id="kien-truc" data-transition="fade">
+<div class="head"><p class="eyebrow">Giải pháp · Thiết kế</p><h2 class="title">Sơ đồ kiến trúc tổng thể của hệ thống</h2><p class="lead">Hệ thống gồm ba phần: giao diện web, máy chủ và cơ sở dữ liệu.</p></div>
+<div class="frame anim" style="--i:0"><img src="/_blob/e2e4ba8ae54a7ffa99e5ab0b7c450201" alt="Sơ đồ kiến trúc: trình duyệt, máy chủ Next.js, API Express với tầng dịch vụ AI, hàng đợi Agent và worker, PostgreSQL, nhà cung cấp mô hình Anthropic hoặc OpenAI" style="width:1326px; height:442px; object-fit:contain"></div>
+<div class="row3">
+<div class="step anim" style="--i:1"><p class="step-num">1</p><p class="step-text">Người dùng thao tác trên giao diện web Next.js.</p></div>
+<div class="step anim" style="--i:2"><p class="step-num">2</p><p class="step-text">Server xử lý và gọi AI API</p></div>
+<div class="step anim" style="--i:3"><p class="step-num">3</p><p class="step-text">Dữ liệu lưu trong PostgreSQL; Agent chạy ở chế độ nền.</p></div>
+</div>
+<div class="footer"><p class="ft">YeahBuddy Fitness · Đồ án Trí tuệ nhân tạo</p><p class="ft ft-num"></p></div>
+<aside>(Khoảng 25 giây)
+[Lời thoại] Đây là kiến trúc tổng thể của hệ thống. Người dùng thao tác trên web, máy chủ nhận yêu cầu rồi gọi AI là Claude hoặc OpenAI. Dữ liệu được lưu trong PostgreSQL, còn AI Agent chạy ở chế độ nền nên người dùng không phải ngồi chờ.
+[Nếu hỏi: Chi tiết kỹ thuật?] Next.js chuyển các đường dẫn /backend sang API Express. Lượt chạy Agent được đưa vào hàng đợi trong cơ sở dữ liệu, tiến trình worker xử lý, trình duyệt theo dõi qua SSE. Truy cập dữ liệu bằng Prisma, kiểm thử bằng Vitest.</aside>
+</section>

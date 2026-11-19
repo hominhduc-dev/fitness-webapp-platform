@@ -1,0 +1,15 @@
+<section id="agent-sequence" data-transition="fade">
+<div class="head"><p class="eyebrow">Giải pháp · AI-UC06</p><h2 class="title">Sơ đồ tuần tự AI Agent điều chỉnh giáo án</h2><p class="lead">Agent chỉ đề xuất, không bao giờ tự sửa giáo án.</p></div>
+<div class="row">
+<div class="frame anim" style="--i:0"><img src="/_blob/b0438fc6a4345623080abf59fd73fdf8" alt="Sơ đồ tuần tự AI-UC06: người dùng, giao diện, API Agent, worker, mô hình và cơ sở dữ liệu; tạo lượt chạy, vòng tool call, chờ phê duyệt, áp dụng thay đổi" style="width:799px; height:555px; object-fit:contain"></div>
+<div class="side grow">
+<div class="step anim" style="--i:1"><p class="step-num">1</p><p class="step-text">Người dùng nhờ Agent xem lại giáo án.</p></div>
+<div class="step anim" style="--i:2"><p class="step-num">2</p><p class="step-text">Agent đọc dữ liệu và tạo đề xuất, chưa sửa gì.</p></div>
+<div class="step anim" style="--i:3"><p class="step-num">3</p><p class="step-text">Người dùng duyệt thì hệ thống mới áp dụng thay đổi.</p></div>
+</div>
+</div>
+<div class="footer"><p class="ft">YeahBuddy Fitness · Đồ án Trí tuệ nhân tạo</p><p class="ft ft-num"></p></div>
+<aside>(Khoảng 25 giây)
+[Lời thoại] Sơ đồ này cho thấy các bước khi Agent điều chỉnh giáo án, thầy cô đọc từ trên xuống. Người dùng nhờ Agent xem lại giáo án, Agent đọc dữ liệu rồi tạo một đề xuất, nhưng chưa sửa gì cả. Chỉ khi người dùng bấm duyệt thì thay đổi mới được áp dụng.
+[Nếu hỏi: Về kỹ thuật thì diễn ra thế nào?] API trả về mã 202 kèm mã lượt chạy; worker gọi tool propose_program_changes để lưu đề xuất kèm fingerprint giáo án và hash, hạn 24 giờ; khi duyệt, người dùng gửi kèm payloadHash; worker tiếp tục từ checkpoint và gửi kết quả qua SSE.</aside>
+</section>

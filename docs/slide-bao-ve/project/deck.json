@@ -1,0 +1,28 @@
+{
+  "v": 5,
+  "createdOnFiles": { "v": 1, "at": "2026-11-17T09:00:00Z" },
+  "lists": "css",
+  "format": { "v": 1, "shared": ["project/deck.css"] },
+  "title": "YeahBuddy AI – Bảo vệ đồ án",
+  "cover": "cover",
+  "order": [
+    "cover",
+    "boi-canh", "gioi-han-llm",
+    "nguyen-tac", "muc-tieu", "agent-react",
+    "use-case", "kien-truc", "erd",
+    "uc02", "uc04", "agent-cong-cu", "agent-sequence", "phe-duyet", "bat-dong-bo", "uc07",
+    "phan-quyen",
+    "ket-luan"
+  ],
+  "sections": {
+    "mo-dau": { "description": "Giới thiệu đề tài.", "start": "cover" },
+    "van-de": { "description": "Bối cảnh và vì sao không thể để AI tự quyết định.", "start": "boi-canh" },
+    "giai-phap": { "description": "Nguyên tắc, thiết kế, bốn chức năng AI và bảo mật.", "start": "nguyen-tac" },
+    "ket-luan": { "description": "Kết luận và hướng phát triển.", "start": "ket-luan" }
+  },
+  "faces": {
+    "be-vietnam-pro": { "family": "Be Vietnam Pro", "href": "https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" },
+    "jetbrains-mono": { "family": "JetBrains Mono", "href": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" }
+  },
+  "designSystems": []
+}

@@ -1,0 +1,15 @@
+<section id="agent-cong-cu" data-transition="fade">
+<div class="head"><p class="eyebrow">Giải pháp · AI-UC06</p><h2 class="title">Sơ đồ lớp của AI Agent và các nhóm tool</h2><p class="lead">Agent chỉ làm được những việc mà tool cho phép.</p></div>
+<div class="row">
+<div class="frame anim" style="--i:0"><img src="/_blob/1690b4283b06e727cf40e2f719335cc2" alt="Sơ đồ lớp AI Agent: AgentService, AgentWorker, ToolRegistry sở hữu nhiều Tool, ApprovalService, AgentSecurity, Checkpoint, AIClient và AIProvider" style="width:1080px; height:532px; object-fit:contain"></div>
+<div class="side grow">
+<div class="step anim" style="--i:1"><p class="step-num">1</p><p class="step-text">Tool đọc dữ liệu: xem lịch sử tập, giáo án, phục hồi.</p></div>
+<div class="step anim" style="--i:2"><p class="step-num">2</p><p class="step-text">Tool đề xuất: chỉ tạo bản xem trước, không sửa trực tiếp.</p></div>
+<div class="step anim" style="--i:3"><p class="step-num">3</p><p class="step-text">Tool riêng giúp huấn luyện viên rà soát học viên.</p></div>
+</div>
+</div>
+<div class="footer"><p class="ft">YeahBuddy Fitness · Đồ án Trí tuệ nhân tạo</p><p class="ft ft-num"></p></div>
+<aside>(Khoảng 25 giây)
+[Lời thoại] Đây là sơ đồ lớp của AI Agent, Agent làm việc bằng cách dùng các tool. Có tool để đọc dữ liệu, tool để đề xuất thay đổi nhưng chỉ tạo bản xem trước, và tool riêng cho huấn luyện viên. Mỗi tool tự kiểm tra quyền, nên AI không thể làm gì vượt quyền.
+[Nếu hỏi: Các lớp trong sơ đồ làm gì?] AgentService nhận yêu cầu và kiểm tra quyền qua AgentSecurity; AgentWorker chạy nền, gọi AI qua AIClient và gọi tool qua ToolRegistry; ApprovalService tạo đề xuất chờ duyệt. Danh tính lấy từ phiên đăng nhập; vai không phù hợp nhận lỗi FORBIDDEN.</aside>
+</section>

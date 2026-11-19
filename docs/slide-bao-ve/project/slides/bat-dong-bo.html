@@ -1,0 +1,13 @@
+<section id="bat-dong-bo" data-transition="fade">
+<div class="head"><p class="eyebrow">Giải pháp · AI-UC06</p><h2 class="title">Sơ đồ trạng thái của một lượt chạy Agent</h2><p class="lead">Luôn biết lượt chạy đang ở đâu, kể cả khi có sự cố.</p></div>
+<div class="frame anim" style="--i:0"><img src="/_blob/d0a62e8ae1027cba8f643d8b2aec65ca" alt="Sơ đồ trạng thái AgentRun: queued, running, waiting_approval, completed, failed, cancelled, budget_exceeded" style="width:1134px; height:444px; object-fit:contain"></div>
+<div class="row3">
+<div class="step anim" style="--i:1"><p class="step-num">1</p><p class="step-text">Mỗi lượt chạy có trạng thái rõ: đang chạy, chờ duyệt, kết thúc.</p></div>
+<div class="step anim" style="--i:2"><p class="step-num">2</p><p class="step-text">Người dùng có thể huỷ lượt chạy bất cứ lúc nào.</p></div>
+<div class="step anim" style="--i:3"><p class="step-num">3</p><p class="step-text">Máy chủ khởi động lại, lượt chạy tự tiếp tục.</p></div>
+</div>
+<div class="footer"><p class="ft">YeahBuddy Fitness · Đồ án Trí tuệ nhân tạo</p><p class="ft ft-num"></p></div>
+<aside>(Khoảng 25 giây)
+[Lời thoại] Vì Agent chạy nền, em dùng sơ đồ trạng thái này để biết mỗi lượt chạy đang ở đâu: đang chạy, chờ duyệt hay đã xong. Người dùng có thể huỷ bất cứ lúc nào. Nếu máy chủ bị khởi động lại, lượt chạy sẽ tự chạy tiếp từ chỗ đã dừng.
+[Nếu hỏi: Làm sao tránh hai tiến trình cùng xử lý một lượt?] Worker giành quyền bằng một lease 90 giây, gia hạn định kỳ. Trước mỗi lượt tool call, worker lưu checkpoint. Một lượt chạy bị nhận quá năm lần thì đánh dấu thất bại.</aside>
+</section>

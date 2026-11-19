@@ -1,0 +1,16 @@
+<section id="erd" data-transition="fade">
+<div class="head"><p class="eyebrow">Giải pháp · Thiết kế</p><h2 class="title">Sơ đồ thực thể liên kết (ERD) của dữ liệu AI</h2><p class="lead">Mọi kết quả AI tạo ra đều được lưu lại để kiểm tra.</p></div>
+<div class="row">
+<div class="side" style="width:520px">
+<div class="step anim" style="--i:1"><p class="step-num">1</p><p class="step-text">User là trung tâm, nối với giáo án, nhật ký, bữa ăn.</p></div>
+<div class="step anim" style="--i:2"><p class="step-num">2</p><p class="step-text">AIGeneration lưu mọi bản nháp do AI tạo ra.</p></div>
+<div class="step anim" style="--i:3"><p class="step-num">3</p><p class="step-text">Các bảng Agent lưu hội thoại và đề xuất chờ duyệt.</p></div>
+</div>
+<div class="frame anim" style="--i:0"><img src="/_blob/e4ef2858919ff4c4acb81aa2ae61ce57" alt="ERD gồm 21 bảng: User ở giữa, nhóm giáo án và tập luyện, nhóm dinh dưỡng, nhóm kết quả AI và Agent, nhóm phục hồi" style="width:1019px; height:548px; object-fit:contain"></div>
+</div>
+<div class="footer"><p class="ft">YeahBuddy Fitness · Đồ án Trí tuệ nhân tạo</p><p class="ft ft-num"></p></div>
+<aside>(Khoảng 25 giây)
+[Lời thoại] Đây là sơ đồ dữ liệu, bảng User nằm ở giữa và nối với giáo án, nhật ký tập, bữa ăn. Bảng AIGeneration giữ lại mọi bản nháp mà AI tạo ra. Còn các bảng của Agent lưu cuộc trò chuyện và những đề xuất đang chờ duyệt.
+[Nếu hỏi: Bản nháp có những trạng thái nào?] pending, rồi completed hoặc failed, rồi accepted khi người dùng xác nhận. Bước chuyển sang accepted chỉ xảy ra khi đang là completed, nên không thể xác nhận hai lần.
+[Nếu hỏi: Có trường nào không dùng khoá ngoại không?] AIGeneration.programId và AgentApproval.subjectId là tham chiếu logic, được kiểm tra ở tầng dịch vụ.</aside>
+</section>

@@ -1,0 +1,15 @@
+<section id="gioi-han-llm" class="alt" data-transition="fade">
+<div class="head"><p class="eyebrow">Vấn đề</p><h2 class="title">Vì sao không thể để AI tự quyết định</h2><p class="lead">AI hiểu yêu cầu giỏi, nhưng không tự chịu trách nhiệm về kết quả.</p></div>
+<div class="three">
+<div class="points3">
+<div class="point anim" style="--i:0"><p class="tag">Hallucination</p><p class="point-text">AI bịa ra bài tập, món ăn hoặc con số không có thật.</p></div>
+<div class="point anim" style="--i:1"><p class="tag">Thiếu ổn định</p><p class="point-text">Cùng một câu hỏi, AI trả lời khác nhau, có lúc sai định dạng.</p></div>
+<div class="point anim" style="--i:2"><p class="tag">Prompt injection</p><p class="point-text">Người dùng có thể cài câu lệnh khiến AI làm sai.</p></div>
+</div>
+</div>
+<div class="footer"><p class="ft">YeahBuddy Fitness · Đồ án Trí tuệ nhân tạo</p><p class="ft ft-num"></p></div>
+<aside>(Khoảng 25 giây)
+[Lời thoại] AI có ba điểm yếu khiến em không dám để nó tự quyết. Thứ nhất là hallucination, tức là AI bịa ra thứ không có thật; thứ hai là cùng một câu hỏi mà mỗi lần AI trả lời một kiểu. Thứ ba là prompt injection, tức là người dùng có thể cài câu lệnh để lừa AI làm sai.
+[Nếu hỏi: Hệ thống xử lý từng điểm yếu thế nào?] Hallucination: AI chỉ được chọn trong danh sách có sẵn, mỗi bài gán mã ngắn v1, v2; mã lạ thì kết quả bị loại. Thiếu ổn định: bắt AI trả về structured output theo schema, kiểm tra bằng zod, sai thì cho sửa một lần. Prompt injection: nội dung người dùng chỉ được coi là dữ liệu, quyền do code của từng tool kiểm tra. Ngoài ra còn điểm yếu về chi phí: chỉ gửi dữ liệu cần thiết và giới hạn số lượt dùng.
+[Nếu hỏi: Sao chỉ cho sửa một lần?] Sửa nhiều lần tốn token và thời gian. Một lần vẫn sai thì thường là yêu cầu có vấn đề, nên hệ thống báo thất bại để người dùng thử lại.</aside>
+</section>
