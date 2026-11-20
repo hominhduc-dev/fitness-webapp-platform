@@ -1,18 +1,25 @@
 # Project Config
 
+This file is the single source of instructions for every coding agent in this
+repo (Claude Code, Codex, Antigravity, and any tool running other models).
+`CLAUDE.md` only imports it. Edit here, never in a copy.
+
+File references below are plain relative links, not `@imports`, so every tool
+can follow them. `lib/agent-docs.test.ts` fails if one of them stops existing.
+
 ## Tech Stack
 
 ### Frontend
 - **Framework:** Next.js 16 (App Router) + React 19 + TypeScript 5
 - **Styling:** Tailwind CSS v4 + shadcn/ui (new-york) + Radix UI primitives
-- **Forms:** Controlled React state; React Hook Form/Zod chưa được cài
+- **Forms:** Controlled React components (no React Hook Form/Zod on the client)
 - **Charts:** Recharts
 - **Utilities:** date-fns, clsx, tailwind-merge, lucide-react
 
 ### Backend
 - **Server:** Node.js + Express 4 + TypeScript
 - **ORM:** Prisma 6
-- **Database:** PostgreSQL (hosted on Supabase)
+- **Database:** PostgreSQL (self-hosted Supabase)
 - **Auth:** Supabase Auth + @supabase/ssr (SSR cookie-based sessions)
 
 ### Infrastructure
@@ -20,29 +27,73 @@
 - No Redis, no Docker Compose in active use
 
 ## Rendering Strategy
+Routes live under `app/`; `(shell)` is the signed-in layout group.
+
 | Route | Strategy |
 |---|---|
 | `app/page.tsx`, `(shell)/layout.tsx` | SSR — auth redirect |
-| `(shell)/dashboard`, `workout/`, `schedule/` | SSR + Suspense streaming |
+| `(shell)/dashboard`, `coach/` | SSR + Suspense streaming, `revalidate = 30` |
+| `(shell)/workout` | SSR fetch (`revalidate = 30`) → CSR client board |
 | `(shell)/coach/exercises`, `coach/find`, `coach/trainees/[id]` | Hybrid — SSR fetch → CSR client component |
-| `(shell)/profile`, `meals/`, `progress/` | Hybrid — SSR auth/fetch → CSR client component |
+| `(shell)/profile`, `progress/` | Hybrid — SSR auth/fetch → CSR client component |
+| `(shell)/meals`, `schedule/` | CSR — server page only renders the client component |
 | `(shell)/trackweight` | SSR route wrapper → lazy CSR client component |
 | `reset-password/`, `workout/[id]/start/` | CSR |
 
 ## User Roles
 Three roles: **trainee**, **coach**, **admin** — enforced server-side via `requireAppSession()`.
 
-## Skills
-@.Codex/skills/backend/README.md
-@skills/frontend-system/SKILL.md
-@.Codex/skills/database/README.md
-@.Codex/skills/git/README.md
-@.Codex/skills/seo-content/README.md
+## Skills — read before working in that area
+- Frontend (UI, components, theme, i18n, data fetching): [skills/frontend-system/SKILL.md](skills/frontend-system/SKILL.md)
+- Supabase (auth, RLS, storage, CLI, migrations): [.agents/skills/supabase/SKILL.md](.agents/skills/supabase/SKILL.md)
+- Postgres queries, indexes, schema design: [.agents/skills/supabase-postgres-best-practices/SKILL.md](.agents/skills/supabase-postgres-best-practices/SKILL.md)
 
-## Sub-agent workflow (Codex)
+Shared skills live in `.agents/skills/` (installed with `npx skills add`, pinned in
+`skills-lock.json`). `.claude/skills/` holds symlinks into it; do not copy skills
+into a tool-specific folder.
+
+## Ground Rules
+1. All API responses use `{ data, error, meta }` format.
+2. Every API route uses the `AppError` class ([backend/src/services/errors.ts](backend/src/services/errors.ts)) — never throw raw `Error`. Enforced by ESLint. The central `errorHandler` formats them; 5xx messages are never sent to the client.
+   - New routes use `validated()` / `asyncHandler()` from [backend/src/middleware/validate.ts](backend/src/middleware/validate.ts) and throw; they do not catch and format their own errors.
+   - Request input is validated with zod at the route boundary; business rules with localized messages stay in the services.
+3. Use Prisma for all database queries — no raw SQL except in migration files.
+4. Frontend components use named exports, not default exports.
+5. Every database change requires a migration file.
+6. Commits follow Conventional Commits: `type(scope): description`.
+   - No AI attribution: no `Co-Authored-By:` or `Claude-Session:` trailers in commit messages, and no "Generated with …" footers, session links or tool credits in PR descriptions, comments or reviews.
+7. Never commit `.env`, credentials, or secrets.
+8. Server components fetch data via server-side API calls; do not expose service-role keys to the client.
+9. Reuse before you build: before creating a component, search `components/` for one that already renders the same data — grep the visible labels, i18n keys and the prop type (e.g. `{ workout: Workout }`). File names can mislead (`WorkoutPlanPreview` lives in `workout-log-review.tsx`). Create a new component only when nothing fits.
+
+## Commands
+```bash
+# Frontend
+npm run dev          # Next.js dev server on :3000
+npm run build        # Production build
+npm run lint         # ESLint (covers app/, components/, lib/ AND backend/src/)
+npm run typecheck    # next typegen + tsc --noEmit
+npm test             # Vitest (components/, lib/)
+
+# Backend
+npm run dev:backend  # Express dev server on :4000 (opens the SSH tunnel to the DB)
+npm run build:backend
+npm --prefix backend run typecheck
+npm --prefix backend run test        # Vitest
+npm --prefix backend run test:watch
+
+# Database
+npm run prisma:generate
+npm run prisma:push
+npm run prisma:migrate
+npm run prisma:studio
+```
+
+## Sub-agent workflow (Codex only)
 
 Custom roles are defined in `.codex/agents/*.toml`: `frontend`, `backend`,
 `database`, `fitness-ai`, and `reviewer`. Each inherits the parent model and reasoning.
+Other tools ignore this section.
 
 - For tasks with independent substantial parts, delegate to the relevant sub-agents.
   Handle small local fixes directly. Use at most 3 concurrent sub-agents.
@@ -57,41 +108,6 @@ Custom roles are defined in `.codex/agents/*.toml`: `frontend`, `backend`,
 
 Example: "Use backend for the API, frontend for the UI in separate assigned files,
 then reviewer for the final diff. Wait for all results and run integration checks."
-
-## Ground Rules
-1. All API responses use `{ data, error, meta }` format.
-2. Every API route uses `AppError` class — never throw raw `Error`.
-3. Use Prisma for all database queries — no raw SQL except in migration files.
-4. Frontend components use named exports, not default exports.
-5. Every database change requires a migration file.
-6. Commits follow Conventional Commits: `type(scope): description`.
-7. Never commit `.env`, credentials, or secrets.
-8. Server components fetch data via server-side API calls; do not expose service-role keys to the client.
-
-## Commands
-```bash
-# Frontend
-npm run dev          # Next.js dev server on :3000
-npm run build        # Production build
-npm run lint         # ESLint
-
-# Backend
-npm run dev:backend  # Express dev server on :4000
-npm run build:backend
-
-# Database
-npm run prisma:generate
-npm run prisma:push
-npm run prisma:migrate
-npm run prisma:studio
-```
-
-## Slash Commands
-- `/review <file>` — review code, find bugs and convention violations
-- `/migration <description>` — generate UP + DOWN migration SQL
-- `/deploy <env>` — deployment checklist
-- `/git <description>` — generate commit message + PR description
-- `/seo <url-or-content>` — generate meta tags + OG + schema.org JSON-LD
 
 <!-- BEGIN:nextjs-agent-rules -->
 
