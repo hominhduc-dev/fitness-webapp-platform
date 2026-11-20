@@ -40,6 +40,34 @@ Routes live under `app/`; `(shell)` is the signed-in layout group.
 | `(shell)/trackweight` | SSR route wrapper → lazy CSR client component |
 | `reset-password/`, `workout/[id]/start/` | CSR |
 
+## Data Flow — find before you add
+Every feature's data passes through the same four layers. Before adding one,
+search them **top-down** and stop at the first layer that already has it.
+
+```
+backend/src/routes/*.route.ts      endpoint (+ *.schemas.ts zod input) → backend/src/services/
+          ↓  HTTP via the /backend/* proxy
+lib/{fitness,admin,auth,feedback}/api.ts   typed client functions: fetchX(accessToken, …)
+          ↓                                ↘ server pages (app/**/page.tsx) call these directly for SSR
+lib/queries/*.ts                    React Query hooks; cache keys in lib/queries/keys.ts
+          ↓
+components/                         call hooks, not api.ts
+```
+
+1. **Hook exists** in `lib/queries/` → use it. Two screens on the same hook share
+   one cache entry, so a mutation's invalidation updates both.
+2. **Client function exists** in `lib/*/api.ts` but no hook → add the hook next
+   to its siblings, with a key in `queryKeys`.
+3. **Endpoint exists** in `backend/src/routes/` but no client function → add the
+   function to the matching `api.ts`.
+4. **Nothing fits** → if an endpoint returns almost the right data, extend it (a
+   query param or field) rather than adding a parallel one. Otherwise add route →
+   service → client function → hook, in that order.
+
+About 16 older components call `api.ts` directly (Google import, feedback,
+one-off actions). Do not copy that pattern for data that is displayed or cached;
+go through a hook.
+
 ## User Roles
 Three roles: **trainee**, **coach**, **admin** — enforced server-side via `requireAppSession()`.
 
@@ -65,6 +93,7 @@ into a tool-specific folder.
 7. Never commit `.env`, credentials, or secrets.
 8. Server components fetch data via server-side API calls; do not expose service-role keys to the client.
 9. Reuse before you build: before creating a component, search `components/` for one that already renders the same data — grep the visible labels, i18n keys and the prop type (e.g. `{ workout: Workout }`). File names can mislead (`WorkoutPlanPreview` lives in `workout-log-review.tsx`). Create a new component only when nothing fits.
+10. Reuse APIs the same way: follow **Data Flow** above — look for a hook, then a client function, then an endpoint, before writing a new one.
 
 ## Commands
 ```bash
