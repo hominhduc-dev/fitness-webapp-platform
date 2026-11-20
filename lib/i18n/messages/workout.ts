@@ -221,6 +221,9 @@ export const workoutMessages = {
       start: "Start",
       started: "Started",
       planned: "planned",
+      preview: "Preview",
+      previewWorkoutDescription: (exercises: number, sets: number) =>
+        `${exercises} ${exercises === 1 ? "exercise" : "exercises"} · ${sets} ${sets === 1 ? "set" : "sets"}`,
       playExerciseAnimation: "Play animation",
       previous: "Prev",
       progressionSetHint: (target: string) => `Suggested today: ${target}`,
@@ -545,6 +548,8 @@ export const workoutMessages = {
       start: "Bắt đầu",
       started: "Bắt đầu",
       planned: "đã lên kế hoạch",
+      preview: "Xem trước",
+      previewWorkoutDescription: (exercises: number, sets: number) => `${exercises} bài tập · ${sets} set`,
       playExerciseAnimation: "Phát animation",
       previous: "Trước",
       progressionSetHint: (target: string) => `Gợi ý hôm nay: ${target}`,

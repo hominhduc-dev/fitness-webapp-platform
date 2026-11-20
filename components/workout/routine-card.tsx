@@ -7,6 +7,7 @@ import { useMemo, useState } from "react"
 import { RoutineBuilderDialog } from "@/components/workout/routine-builder-dialog"
 import { DeleteWorkoutButton } from "@/components/workout/delete-workout-button"
 import { RoutineDot } from "@/components/workout/routine-dot"
+import { WorkoutPreviewDialog } from "@/components/workout/workout-preview-dialog"
 import { WorkoutSessionLink } from "@/components/workout/workout-session-link"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -206,25 +207,28 @@ export function RoutineCard({
       </div>
 
       <div className="mt-auto flex min-w-0 flex-col gap-2 sm:flex-row">
-        {startAsTodayTrial ? (
-          <Button
-            type="button"
-            disabled={isStartingTrial}
-            className="h-10 min-w-0 flex-1 justify-center gap-2 rounded-lg bg-foreground text-sm font-semibold text-background hover:bg-foreground/90"
-            size="sm"
-            onClick={() => void handleStartTrial()}
-          >
-            <Play className="h-4 w-4" />
-            {isStartingTrial ? messages.workoutPage.saving : messages.workoutPage.start}
-          </Button>
-        ) : (
-          <WorkoutSessionLink href={`/workout/${workout.id}/start`} className="min-w-0 flex-1">
-            <Button className="h-10 w-full justify-center gap-2 rounded-lg bg-foreground text-sm font-semibold text-background hover:bg-foreground/90" size="sm">
+        <div className="flex min-w-0 flex-1 gap-2">
+          {startAsTodayTrial ? (
+            <Button
+              type="button"
+              disabled={isStartingTrial}
+              className="h-10 min-w-0 flex-1 justify-center gap-2 rounded-lg bg-foreground text-sm font-semibold text-background hover:bg-foreground/90"
+              size="sm"
+              onClick={() => void handleStartTrial()}
+            >
               <Play className="h-4 w-4" />
-              {messages.workoutPage.start}
+              {isStartingTrial ? messages.workoutPage.saving : messages.workoutPage.start}
             </Button>
-          </WorkoutSessionLink>
-        )}
+          ) : (
+            <WorkoutSessionLink href={`/workout/${workout.id}/start`} className="min-w-0 flex-1">
+              <Button className="h-10 w-full justify-center gap-2 rounded-lg bg-foreground text-sm font-semibold text-background hover:bg-foreground/90" size="sm">
+                <Play className="h-4 w-4" />
+                {messages.workoutPage.start}
+              </Button>
+            </WorkoutSessionLink>
+          )}
+          <WorkoutPreviewDialog workout={workout} />
+        </div>
         {workout.isPersonal ? (
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:shrink-0">
             <Button
